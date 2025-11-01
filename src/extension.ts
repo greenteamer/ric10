@@ -1,0 +1,63 @@
+import * as vscode from 'vscode';
+import * as Compiler from './compiler/Compiler.gen';
+/**
+ * Activate the extension. This function is called when the extension is activated.
+ */
+export function activate(context: vscode.ExtensionContext) {
+    console.log('ReScript to IC10 Compiler extension is now active!');
+
+    // Register the compile command
+    const compileCommand = vscode.commands.registerCommand(
+        'rescript-ic10.compile',
+        async () => {
+            await compileReScriptToIC10();
+        }
+    );
+
+    context.subscriptions.push(compileCommand);
+}
+
+/**
+ * Compile ReScript code to IC10 assembly
+ */
+async function compileReScriptToIC10() {
+    const editor = vscode.window.activeTextEditor;
+
+    if (!editor) {
+        vscode.window.showErrorMessage('No active editor found. Please open a ReScript file.');
+        return;
+    }
+
+    const document = editor.document;
+    const sourceCode = document.getText();
+
+    // TODO: Import and use the ReScript compiler once it's implemented
+    // import * as Compiler from './compiler/Compiler.bs.js';
+    // const result = Compiler.compile(sourceCode);
+
+    // For now, show a placeholder message
+    vscode.window.showInformationMessage('Compiler not yet implemented. This is a placeholder.');
+
+    // Placeholder: This will eventually compile the source code
+    const compileResult = Compiler.compile(sourceCode);
+    switch (compileResult.TAG) {
+        case 'Ok':
+            const doc = await vscode.workspace.openTextDocument({
+                content: compileResult._0,
+                language: 'ic10' // You may need to configure IC10 language support later
+            });
+            await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+        case 'Error':
+            vscode.window.showErrorMessage(compileResult._0);
+            return;
+    }
+
+}
+
+/**
+ * Deactivate the extension. This function is called when the extension is deactivated.
+ */
+export function deactivate() {
+    // Clean up resources if needed
+}
+
