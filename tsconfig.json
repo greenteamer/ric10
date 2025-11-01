@@ -19,6 +19,9 @@
     "node_modules",
     ".vscode-test",
     "lib",
-    "libbs"
+    "libbs",
+    "dist",
+    "**/*.res.js",
+    "**/*.gen.ts"
   ]
 }
