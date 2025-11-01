@@ -12,6 +12,7 @@ type token =
   | Divide // /
   | GreaterThan // >
   | LessThan // <
+  | Assign // =
   | EqualEqual // ==
   | LeftParen // (
   | RightParen // )
@@ -144,7 +145,7 @@ let nextToken = (lexer: lexer): (lexer, token) => {
       let lexer = advance(lexer)
       switch peekChar(lexer) {
       | Some("=") => (advance(lexer), EqualEqual)
-      | _ => (lexer, Invalid("Expected '==' but found '='"))
+      | _ => (lexer, Assign)
       }
     | Some(c) if c >= "0" && c <= "9" =>
       let (lexer, value) = readInteger(lexer)
@@ -204,6 +205,7 @@ let tokenToString = (token: token): string => {
   | Divide => "Divide"
   | GreaterThan => "GreaterThan"
   | LessThan => "LessThan"
+  | Assign => "Assign"
   | EqualEqual => "EqualEqual"
   | LeftParen => "LeftParen"
   | RightParen => "RightParen"

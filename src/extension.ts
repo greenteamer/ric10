@@ -31,14 +31,7 @@ async function compileReScriptToIC10() {
     const document = editor.document;
     const sourceCode = document.getText();
 
-    // TODO: Import and use the ReScript compiler once it's implemented
-    // import * as Compiler from './compiler/Compiler.bs.js';
-    // const result = Compiler.compile(sourceCode);
-
-    // For now, show a placeholder message
-    vscode.window.showInformationMessage('Compiler not yet implemented. This is a placeholder.');
-
-    // Placeholder: This will eventually compile the source code
+    // Use the ReScript compiler (now using Lexer)
     const compileResult = Compiler.compile(sourceCode);
     switch (compileResult.TAG) {
         case 'Ok':
