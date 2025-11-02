@@ -22,7 +22,7 @@ let addInstruction = (state: codegenState, instruction: string): codegenState =>
   let len = Array.length(state.instructions)
   let newInstructions = Array.make(~length=len + 1, "")
   for i in 0 to len - 1 {
-    switch Array.get(state.instructions, i) {
+    switch state.instructions[i] {
     | Some(v) => newInstructions[i] = v
     | None => ()
     }
@@ -38,39 +38,43 @@ let generateLabel = (state: codegenState): (codegenState, string) => {
   (newState, label)
 }
 
-// Generate IC10 code for an expression
-let rec generateExpression = (state: codegenState, expr: AST.expr): result<(codegenState, int), string> => {
+// Основная функция - генерирует выражение и возвращает регистр с результатом
+let rec generateExpression = (state: codegenState, expr: AST.expr): result<
+  (codegenState, int),
+  string,
+> => {
   switch expr {
   | AST.Literal(value) =>
-    // For literal, allocate a temporary register
-    switch RegisterAlloc.allocate(state.allocator, "") {
+    // Аллоцируем временный регистр для литерала
+    switch RegisterAlloc.allocateTempRegister(state.allocator) {
     | Error(msg) => Error(msg)
     | Ok((allocator, reg)) =>
       let newState = {...state, allocator}
-      let instr = "move " ++ RegisterAlloc.registerName(reg) ++ " " ++ Int.toString(value)
+      let instr = "move " ++ RegisterAlloc.registerToString(reg) ++ " " ++ Int.toString(value)
       Ok((addInstruction(newState, instr), reg))
     }
+
   | AST.Identifier(name) =>
-    // For identifier, get or allocate register
-    switch RegisterAlloc.getOrAllocate(state.allocator, name) {
-    | Error(msg) => Error(msg)
-    | Ok((allocator, reg)) =>
-      Ok(({...state, allocator}, reg))
+    // Просто возвращаем регистр переменной БЕЗ генерации move
+    switch RegisterAlloc.getRegister(state.allocator, name) {
+    | None => Error("Variable not found: " ++ name)
+    | Some(reg) => Ok((state, reg))
     }
+
   | AST.BinaryExpression(op, left, right) =>
-    // Generate code for left and right, then apply operation
+    // Генерируем левый операнд
     switch generateExpression(state, left) {
     | Error(msg) => Error(msg)
     | Ok((state1, leftReg)) =>
+      // Генерируем правый операнд
       switch generateExpression(state1, right) {
       | Error(msg) => Error(msg)
       | Ok((state2, rightReg)) =>
-        // Allocate result register
-        switch RegisterAlloc.allocate(state2.allocator, "") {
+        // Аллоцируем регистр для результата
+        switch RegisterAlloc.allocateTempRegister(state2.allocator) {
         | Error(msg) => Error(msg)
         | Ok((allocator, resultReg)) =>
           let newState = {...state2, allocator}
-          // Generate appropriate IC10 instruction based on operator
           let opStr = switch op {
           | AST.Add => "add"
           | AST.Sub => "sub"
@@ -80,43 +84,108 @@ let rec generateExpression = (state: codegenState, expr: AST.expr): result<(code
           | AST.Lt => "slt"
           | AST.Eq => "seq"
           }
-          let instr = opStr ++ " " ++ RegisterAlloc.registerName(resultReg) ++ " " ++ RegisterAlloc.registerName(leftReg) ++ " " ++ RegisterAlloc.registerName(rightReg)
+          // Используем leftReg и rightReg напрямую (БЕЗ лишних move)
+          let instr =
+            opStr ++
+            " " ++
+            RegisterAlloc.registerToString(resultReg) ++
+            " " ++
+            RegisterAlloc.registerToString(leftReg) ++
+            " " ++
+            RegisterAlloc.registerToString(rightReg)
           Ok((addInstruction(newState, instr), resultReg))
         }
       }
     }
-  | AST.VariableDeclaration(name, value) =>
-    // This shouldn't happen in expression context
-    Error("VariableDeclaration found in expression context")
-  | AST.IfStatement(condition, thenBlock, elseBlock) =>
-    // This shouldn't happen in expression context
-    Error("IfStatement found in expression context")
-  | AST.BlockStatement(statements) =>
-    // This shouldn't happen in expression context
-    Error("BlockStatement found in expression context")
+
+  | AST.VariableDeclaration(_, _) => Error("VariableDeclaration found in expression context")
+  | AST.IfStatement(_, _, _) => Error("IfStatement found in expression context")
+  | AST.BlockStatement(_) => Error("BlockStatement found in expression context")
+  }
+}
+
+// Вспомогательная функция - генерирует выражение СРАЗУ в указанный регистр
+// Используется только когда мы заранее знаем куда писать (например, в переменную)
+let rec generateExpressionInto = (state: codegenState, expr: AST.expr, targetReg: int): result<
+  codegenState,
+  string,
+> => {
+  switch expr {
+  | AST.Literal(value) =>
+    // Пишем литерал сразу в целевой регистр
+    let instr = "move " ++ RegisterAlloc.registerToString(targetReg) ++ " " ++ Int.toString(value)
+    Ok(addInstruction(state, instr))
+
+  | AST.Identifier(name) =>
+    // Копируем из регистра переменной в целевой (если нужно)
+    switch RegisterAlloc.getRegister(state.allocator, name) {
+    | None => Error("Variable not found: " ++ name)
+    | Some(sourceReg) =>
+      if sourceReg == targetReg {
+        Ok(state) // Уже в нужном месте
+      } else {
+        let instr =
+          "move " ++
+          RegisterAlloc.registerToString(targetReg) ++
+          " " ++
+          RegisterAlloc.registerToString(sourceReg)
+        Ok(addInstruction(state, instr))
+      }
+    }
+
+  | AST.BinaryExpression(op, left, right) =>
+    // Для бинарных операций используем обычную generateExpression
+    // и получаем регистры операндов напрямую
+    switch generateExpression(state, left) {
+    | Error(msg) => Error(msg)
+    | Ok((state1, leftReg)) =>
+      switch generateExpression(state1, right) {
+      | Error(msg) => Error(msg)
+      | Ok((state2, rightReg)) =>
+        let opStr = switch op {
+        | AST.Add => "add"
+        | AST.Sub => "sub"
+        | AST.Mul => "mul"
+        | AST.Div => "div"
+        | AST.Gt => "sgt"
+        | AST.Lt => "slt"
+        | AST.Eq => "seq"
+        }
+        // Пишем результат сразу в targetReg
+        let instr =
+          opStr ++
+          " " ++
+          RegisterAlloc.registerToString(targetReg) ++
+          " " ++
+          RegisterAlloc.registerToString(leftReg) ++
+          " " ++
+          RegisterAlloc.registerToString(rightReg)
+        Ok(addInstruction(state2, instr))
+      }
+    }
+
+  | AST.VariableDeclaration(_, _) => Error("VariableDeclaration found in expression context")
+  | AST.IfStatement(_, _, _) => Error("IfStatement found in expression context")
+  | AST.BlockStatement(_) => Error("BlockStatement found in expression context")
   }
 }
 
 // Generate IC10 code for a statement
-let rec generateStatement = (state: codegenState, stmt: AST.astNode): result<codegenState, string> => {
+let rec generateStatement = (state: codegenState, stmt: AST.astNode): result<
+  codegenState,
+  string,
+> => {
   switch stmt {
   | AST.VariableDeclaration(name, expr) =>
-    // Generate code for expression
-    switch generateExpression(state, expr) {
+    // 1. Сначала аллоцируем регистр для переменной
+    switch RegisterAlloc.allocate(state.allocator, name) {
     | Error(msg) => Error(msg)
-    | Ok((state1, exprReg)) =>
-      // Allocate register for variable
-      switch RegisterAlloc.allocate(state1.allocator, name) {
+    | Ok((allocator, varReg)) =>
+      let state1 = {...state, allocator}
+      // 2. Генерируем выражение СРАЗУ в целевой регистр
+      switch generateExpressionInto(state1, expr, varReg) {
       | Error(msg) => Error(msg)
-      | Ok((allocator, varReg)) =>
-        let newState = {...state1, allocator}
-        // If expression register is different, move it
-        if exprReg != varReg {
-          let instr = "move " ++ RegisterAlloc.registerName(varReg) ++ " " ++ RegisterAlloc.registerName(exprReg)
-          Ok(addInstruction(newState, instr))
-        } else {
-          Ok(newState)
-        }
+      | Ok(newState) => Ok(newState)
       }
     }
   | AST.BinaryExpression(op, left, right) =>
@@ -140,7 +209,7 @@ let rec generateStatement = (state: codegenState, stmt: AST.astNode): result<cod
           | Some(_) => elseLabel
           | None => endLabel
           }
-          let branchInstr = "beqz " ++ RegisterAlloc.registerName(condReg) ++ " " ++ jumpLabel
+          let branchInstr = "beqz " ++ RegisterAlloc.registerToString(condReg) ++ " " ++ jumpLabel
           let state4 = addInstruction(state3, branchInstr)
           // Generate then block
           switch generateBlock(state4, thenBlock) {
@@ -168,8 +237,7 @@ let rec generateStatement = (state: codegenState, stmt: AST.astNode): result<cod
         }
       }
     }
-  | AST.BlockStatement(statements) =>
-    generateBlock(state, statements)
+  | AST.BlockStatement(statements) => generateBlock(state, statements)
   | AST.Literal(_) =>
     // Standalone literal - generate it
     switch generateExpression(state, stmt) {
@@ -186,12 +254,15 @@ let rec generateStatement = (state: codegenState, stmt: AST.astNode): result<cod
 }
 
 // Generate IC10 code for a block of statements
-and generateBlock = (state: codegenState, statements: AST.blockStatement): result<codegenState, string> => {
+and generateBlock = (state: codegenState, statements: AST.blockStatement): result<
+  codegenState,
+  string,
+> => {
   let rec loop = (state: codegenState, i: int): result<codegenState, string> => {
     if i >= Array.length(statements) {
       Ok(state)
     } else {
-      switch Array.get(statements, i) {
+      switch statements[i] {
       | Some(stmt) =>
         switch generateStatement(state, stmt) {
         | Error(msg) => Error(msg)
@@ -211,7 +282,7 @@ let generate = (program: AST.program): result<string, string> => {
     if i >= Array.length(program) {
       Ok(state)
     } else {
-      switch Array.get(program, i) {
+      switch program[i] {
       | Some(stmt) =>
         switch generateStatement(state, stmt) {
         | Error(msg) => Error(msg)

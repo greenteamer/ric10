@@ -10,7 +10,7 @@ let compile = (source: string): result<string, string> => {
     | Ok(_ast) =>
       // Step 3: Code generation (TODO: implement Codegen)
       // For now, return success message
-      Ok("Successfully parsed! (Code generation coming next)")
+      Codegen.generate(_ast)
     }
   }
 }

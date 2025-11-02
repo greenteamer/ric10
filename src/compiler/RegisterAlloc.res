@@ -41,24 +41,16 @@ let lookup = (varMap: varMap, variableName: string): option<int> => {
 
 // Allocate a register for a variable
 // Returns (newAllocator, registerNumber)
-let allocate = (allocator: allocator, variableName: string): (allocator, int) => {
+let allocate = (allocator: allocator, variableName: string): result<(allocator, int), string> => {
   // Check if already allocated
   switch lookup(allocator.variableMap, variableName) {
-  | Some(regNum) => (allocator, regNum)
+  | Some(regNum) => Ok(allocator, regNum)
   | None =>
     if allocator.nextRegister >= 16 {
-      // Out of registers - for POC, cycle back (not ideal but works for POC)
-      let regNum = mod(allocator.nextRegister, 16)
-      (
-        {
-          nextRegister: allocator.nextRegister + 1,
-          variableMap: list{(variableName, regNum), ...allocator.variableMap},
-        },
-        regNum,
-      )
+      Error("Register allocation failed: out of registers")
     } else {
       let regNum = allocator.nextRegister
-      (
+      Ok(
         {
           nextRegister: allocator.nextRegister + 1,
           variableMap: list{(variableName, regNum), ...allocator.variableMap},
@@ -84,9 +76,12 @@ let isAllocated = (allocator: allocator, variableName: string): bool => {
 }
 
 // Get or allocate a register (allocates if not found)
-let getOrAllocate = (allocator: allocator, variableName: string): (allocator, int) => {
+let getOrAllocate = (allocator: allocator, variableName: string): result<
+  (allocator, int),
+  string,
+> => {
   switch getRegister(allocator, variableName) {
-  | Some(regNum) => (allocator, regNum)
+  | Some(regNum) => Ok(allocator, regNum)
   | None => allocate(allocator, variableName)
   }
 }
@@ -97,7 +92,46 @@ let registerToString = (regNum: int): string => {
 }
 
 // Get the next temporary register (for intermediate calculations)
-let getTempRegister = (allocator: allocator): (allocator, int) => {
+let allocateTempRegister = (allocator: allocator): result<(allocator, int), string> => {
   let tempName = "_temp_" ++ Int.toString(allocator.nextRegister)
   allocate(allocator, tempName)
+}
+
+// Free a temporary register (removes it from the map and potentially reuses the slot)
+let freeTempRegister = (allocator: allocator, regNum: int): allocator => {
+  // Remove all temporary variables that use this register
+  let rec removeTempFromMap = (varMap: varMap): varMap => {
+    switch varMap {
+    | list{} => list{}
+    | list{(name, reg), ...rest} =>
+      // Check if this is a temp variable with the target register
+      if String.startsWith(name, "_temp_") && reg == regNum {
+        removeTempFromMap(rest) // Skip this entry
+      } else {
+        list{(name, reg), ...removeTempFromMap(rest)} // Keep this entry
+      }
+    }
+  }
+
+  let newVariableMap = removeTempFromMap(allocator.variableMap)
+
+  // If this was the last allocated register, we can reuse it
+  if regNum == allocator.nextRegister - 1 {
+    {
+      nextRegister: allocator.nextRegister - 1,
+      variableMap: newVariableMap,
+    }
+  } else {
+    // Register is in the middle - just remove from map
+    // (More advanced: maintain a free list for reuse)
+    {
+      nextRegister: allocator.nextRegister,
+      variableMap: newVariableMap,
+    }
+  }
+}
+
+// Free multiple temporary registers at once
+let freeTempRegisterMultiple = (allocator: allocator, regNums: array<int>): allocator => {
+  Array.reduce(regNums, allocator, (acc, regNum) => freeTempRegister(acc, regNum))
 }
