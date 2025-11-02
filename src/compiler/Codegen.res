@@ -140,33 +140,53 @@ let rec generateExpressionInto = (
     }
 
   | AST.BinaryExpression(op, left, right) =>
-    // Для бинарных операций используем обычную generateExpression
-    // и получаем регистры операндов напрямую
-    switch generateExpression(state, left) {
-    | Error(msg) => Error(msg)
-    | Ok((state1, leftReg)) =>
-      switch generateExpression(state1, right) {
+    switch (left, right) {
+    | (AST.Literal(leftVal), AST.Literal(rightVal)) =>
+      // Constant folding: both operands are literals
+      let resultVal = switch op {
+      | AST.Add => leftVal + rightVal
+      | AST.Sub => leftVal - rightVal
+      | AST.Mul => leftVal * rightVal
+      | AST.Div => leftVal / rightVal // Note: integer division
+      | AST.Gt => leftVal > rightVal ? 1 : 0
+      | AST.Lt => leftVal < rightVal ? 1 : 0
+      | AST.Eq => leftVal == rightVal ? 1 : 0
+      }
+      let instr = "move " ++ Register.toString(targetReg) ++ " " ++ Int.toString(resultVal)
+      Ok(addInstruction(state, instr))
+    | _ =>
+      // Default behavior: one or both operands are not literals
+      switch generateExpression(state, left) {
       | Error(msg) => Error(msg)
-      | Ok((state2, rightReg)) =>
-        let opStr = switch op {
-        | AST.Add => "add"
-        | AST.Sub => "sub"
-        | AST.Mul => "mul"
-        | AST.Div => "div"
-        | AST.Gt => "sgt"
-        | AST.Lt => "slt"
-        | AST.Eq => "seq"
+      | Ok((state1, leftReg)) =>
+        switch generateExpression(state1, right) {
+        | Error(msg) => Error(msg)
+        | Ok((state2, rightReg)) =>
+          let opStr = switch op {
+          | AST.Add => "add"
+          | AST.Sub => "sub"
+          | AST.Mul => "mul"
+          | AST.Div => "div"
+          | AST.Gt => "sgt"
+          | AST.Lt => "slt"
+          | AST.Eq => "seq"
+          }
+          let instr =
+            opStr ++
+            " " ++
+            Register.toString(targetReg) ++
+            " " ++
+            Register.toString(leftReg) ++
+            " " ++
+            Register.toString(rightReg)
+          
+          let allocator = RegisterAlloc.freeTempIfTemp(
+            RegisterAlloc.freeTempIfTemp(state2.allocator, leftReg),
+            rightReg,
+          )
+
+          Ok(addInstruction({...state2, allocator: allocator}, instr))
         }
-        // Пишем результат сразу в targetReg
-        let instr =
-          opStr ++
-          " " ++
-          Register.toString(targetReg) ++
-          " " ++
-          Register.toString(leftReg) ++
-          " " ++
-          Register.toString(rightReg)
-        Ok(addInstruction(state2, instr))
       }
     }
 

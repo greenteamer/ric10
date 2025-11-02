@@ -1,1 +1,2 @@
-let c = 10 + 20
+let a = 10
+let c = a + 20
