@@ -40,7 +40,7 @@ let generateLabel = (state: codegenState): (codegenState, string) => {
 
 // Основная функция - генерирует выражение и возвращает регистр с результатом
 let rec generateExpression = (state: codegenState, expr: AST.expr): result<
-  (codegenState, int),
+  (codegenState, Register.t),
   string,
 > => {
   switch expr {
@@ -50,7 +50,7 @@ let rec generateExpression = (state: codegenState, expr: AST.expr): result<
     | Error(msg) => Error(msg)
     | Ok((allocator, reg)) =>
       let newState = {...state, allocator}
-      let instr = "move " ++ RegisterAlloc.registerToString(reg) ++ " " ++ Int.toString(value)
+      let instr = "move " ++ Register.toString(reg) ++ " " ++ Int.toString(value)
       Ok((addInstruction(newState, instr), reg))
     }
 
@@ -74,7 +74,7 @@ let rec generateExpression = (state: codegenState, expr: AST.expr): result<
         switch RegisterAlloc.allocateTempRegister(state2.allocator) {
         | Error(msg) => Error(msg)
         | Ok((allocator, resultReg)) =>
-          let newState = {...state2, allocator}
+          let state3 = {...state2, allocator}
           let opStr = switch op {
           | AST.Add => "add"
           | AST.Sub => "sub"
@@ -88,12 +88,21 @@ let rec generateExpression = (state: codegenState, expr: AST.expr): result<
           let instr =
             opStr ++
             " " ++
-            RegisterAlloc.registerToString(resultReg) ++
+            Register.toString(resultReg) ++
             " " ++
-            RegisterAlloc.registerToString(leftReg) ++
+            Register.toString(leftReg) ++
             " " ++
-            RegisterAlloc.registerToString(rightReg)
-          Ok((addInstruction(newState, instr), resultReg))
+            Register.toString(rightReg)
+
+          let state4 = addInstruction(state3, instr)
+
+          // Освобождаем leftReg и rightReg (если они временные!)
+          let allocator2 = RegisterAlloc.freeTempIfTemp(
+            RegisterAlloc.freeTempIfTemp(state4.allocator, leftReg),
+            rightReg,
+          )
+
+          Ok({...state4, allocator: allocator2}, resultReg)
         }
       }
     }
@@ -106,14 +115,15 @@ let rec generateExpression = (state: codegenState, expr: AST.expr): result<
 
 // Вспомогательная функция - генерирует выражение СРАЗУ в указанный регистр
 // Используется только когда мы заранее знаем куда писать (например, в переменную)
-let rec generateExpressionInto = (state: codegenState, expr: AST.expr, targetReg: int): result<
-  codegenState,
-  string,
-> => {
+let rec generateExpressionInto = (
+  state: codegenState,
+  expr: AST.expr,
+  targetReg: Register.t,
+): result<codegenState, string> => {
   switch expr {
   | AST.Literal(value) =>
     // Пишем литерал сразу в целевой регистр
-    let instr = "move " ++ RegisterAlloc.registerToString(targetReg) ++ " " ++ Int.toString(value)
+    let instr = "move " ++ Register.toString(targetReg) ++ " " ++ Int.toString(value)
     Ok(addInstruction(state, instr))
 
   | AST.Identifier(name) =>
@@ -124,11 +134,7 @@ let rec generateExpressionInto = (state: codegenState, expr: AST.expr, targetReg
       if sourceReg == targetReg {
         Ok(state) // Уже в нужном месте
       } else {
-        let instr =
-          "move " ++
-          RegisterAlloc.registerToString(targetReg) ++
-          " " ++
-          RegisterAlloc.registerToString(sourceReg)
+        let instr = "move " ++ Register.toString(targetReg) ++ " " ++ Register.toString(sourceReg)
         Ok(addInstruction(state, instr))
       }
     }
@@ -155,11 +161,11 @@ let rec generateExpressionInto = (state: codegenState, expr: AST.expr, targetReg
         let instr =
           opStr ++
           " " ++
-          RegisterAlloc.registerToString(targetReg) ++
+          Register.toString(targetReg) ++
           " " ++
-          RegisterAlloc.registerToString(leftReg) ++
+          Register.toString(leftReg) ++
           " " ++
-          RegisterAlloc.registerToString(rightReg)
+          Register.toString(rightReg)
         Ok(addInstruction(state2, instr))
       }
     }
@@ -209,7 +215,7 @@ let rec generateStatement = (state: codegenState, stmt: AST.astNode): result<
           | Some(_) => elseLabel
           | None => endLabel
           }
-          let branchInstr = "beqz " ++ RegisterAlloc.registerToString(condReg) ++ " " ++ jumpLabel
+          let branchInstr = "beqz " ++ Register.toString(condReg) ++ " " ++ jumpLabel
           let state4 = addInstruction(state3, branchInstr)
           // Generate then block
           switch generateBlock(state4, thenBlock) {
