@@ -38,6 +38,17 @@ let generateLabel = (state: codegenState): (codegenState, string) => {
   (newState, label)
 }
 
+// Generate direct branch instruction for binary comparison
+// Returns (instruction, shouldNegate) where shouldNegate indicates if we need to jump when condition is false
+let generateDirectBranch = (op: AST.binaryOp, leftReg: Register.t, rightValue: string, label: string): (string, bool) => {
+  switch op {
+  | AST.Lt => ("blt " ++ Register.toString(leftReg) ++ " " ++ rightValue ++ " " ++ label, false)
+  | AST.Gt => ("bgt " ++ Register.toString(leftReg) ++ " " ++ rightValue ++ " " ++ label, false)
+  | AST.Eq => ("beq " ++ Register.toString(leftReg) ++ " " ++ rightValue ++ " " ++ label, false)
+  | _ => ("", true) // Not a comparison, fallback to old method
+  }
+}
+
 // Основная функция - генерирует выражение и возвращает регистр с результатом
 let rec generateExpression = (state: codegenState, expr: AST.expr): result<
   (codegenState, Register.t),
@@ -142,7 +153,7 @@ let rec generateExpressionInto = (
   | AST.BinaryExpression(op, left, right) =>
     switch (left, right) {
     | (AST.Literal(leftVal), AST.Literal(rightVal)) =>
-      // Constant folding: both operands are literals
+      // Constant folding for any binary operation with two literals
       let resultVal = switch op {
       | AST.Add => leftVal + rightVal
       | AST.Sub => leftVal - rightVal
@@ -154,8 +165,61 @@ let rec generateExpressionInto = (
       }
       let instr = "move " ++ Register.toString(targetReg) ++ " " ++ Int.toString(resultVal)
       Ok(addInstruction(state, instr))
+
+    // Commutative ops (add, mul) with a literal on either side
+    | (nonLiteral, AST.Literal(literalVal)) when op == AST.Add || op == AST.Mul =>
+      let opStr = op == AST.Add ? "add" : "mul"
+      switch generateExpression(state, nonLiteral) {
+      | Error(msg) => Error(msg)
+      | Ok((state1, nonLiteralReg)) =>
+        let instr =
+          opStr ++
+          " " ++
+          Register.toString(targetReg) ++
+          " " ++
+          Register.toString(nonLiteralReg) ++
+          " " ++
+          Int.toString(literalVal)
+        let allocator = RegisterAlloc.freeTempIfTemp(state1.allocator, nonLiteralReg)
+        Ok(addInstruction({...state1, allocator}, instr))
+      }
+    | (AST.Literal(literalVal), nonLiteral) when op == AST.Add || op == AST.Mul =>
+      let opStr = op == AST.Add ? "add" : "mul"
+      switch generateExpression(state, nonLiteral) {
+      | Error(msg) => Error(msg)
+      | Ok((state1, nonLiteralReg)) =>
+        let instr =
+          opStr ++
+          " " ++
+          Register.toString(targetReg) ++
+          " " ++
+          Register.toString(nonLiteralReg) ++
+          " " ++
+          Int.toString(literalVal)
+        let allocator = RegisterAlloc.freeTempIfTemp(state1.allocator, nonLiteralReg)
+        Ok(addInstruction({...state1, allocator}, instr))
+      }
+
+    // Non-commutative ops (sub, div) with a literal on the right
+    | (nonLiteral, AST.Literal(literalVal)) when op == AST.Sub || op == AST.Div =>
+      let opStr = op == AST.Sub ? "sub" : "div"
+      switch generateExpression(state, nonLiteral) {
+      | Error(msg) => Error(msg)
+      | Ok((state1, nonLiteralReg)) =>
+        let instr =
+          opStr ++
+          " " ++
+          Register.toString(targetReg) ++
+          " " ++
+          Register.toString(nonLiteralReg) ++
+          " " ++
+          Int.toString(literalVal)
+        let allocator = RegisterAlloc.freeTempIfTemp(state1.allocator, nonLiteralReg)
+        Ok(addInstruction({...state1, allocator}, instr))
+      }
+
     | _ =>
-      // Default behavior: one or both operands are not literals
+      // Default behavior for other binary expressions
       switch generateExpression(state, left) {
       | Error(msg) => Error(msg)
       | Ok((state1, leftReg)) =>
@@ -179,17 +243,16 @@ let rec generateExpressionInto = (
             Register.toString(leftReg) ++
             " " ++
             Register.toString(rightReg)
-          
+
           let allocator = RegisterAlloc.freeTempIfTemp(
             RegisterAlloc.freeTempIfTemp(state2.allocator, leftReg),
             rightReg,
           )
 
-          Ok(addInstruction({...state2, allocator: allocator}, instr))
+          Ok(addInstruction({...state2, allocator}, instr))
         }
       }
     }
-
   | AST.VariableDeclaration(_, _) => Error("VariableDeclaration found in expression context")
   | AST.IfStatement(_, _, _) => Error("IfStatement found in expression context")
   | AST.BlockStatement(_) => Error("BlockStatement found in expression context")
@@ -221,43 +284,121 @@ let rec generateStatement = (state: codegenState, stmt: AST.astNode): result<
     | Ok((newState, _reg)) => Ok(newState)
     }
   | AST.IfStatement(condition, thenBlock, elseBlock) =>
-    // Generate condition
-    switch generateExpression(state, condition) {
-    | Error(msg) => Error(msg)
-    | Ok((state1, condReg)) =>
-      // Generate labels
-      switch generateLabel(state1) {
-      | (state2, elseLabel) =>
-        switch generateLabel(state2) {
-        | (state3, endLabel) =>
-          // Branch if condition is false (jump to else or end)
-          let jumpLabel = switch elseBlock {
-          | Some(_) => elseLabel
-          | None => endLabel
-          }
-          let branchInstr = "beqz " ++ Register.toString(condReg) ++ " " ++ jumpLabel
-          let state4 = addInstruction(state3, branchInstr)
-          // Generate then block
-          switch generateBlock(state4, thenBlock) {
-          | Error(msg) => Error(msg)
-          | Ok(state5) =>
-            // Generate else block if present
-            switch elseBlock {
-            | Some(elseStatements) =>
-              // Jump to end after then block
-              let jumpEndInstr = "j " ++ endLabel
-              let state6 = addInstruction(state5, jumpEndInstr)
-              // Add else label
-              let state7 = addInstruction(state6, elseLabel ++ ":")
-              switch generateBlock(state7, elseStatements) {
-              | Error(msg) => Error(msg)
-              | Ok(state8) =>
-                // Add end label
-                Ok(addInstruction(state8, endLabel ++ ":"))
+    // Check if condition is a simple comparison that can use direct branching
+    switch condition {
+    | AST.BinaryExpression(op, left, right) =>
+      // Try to generate direct branch instruction
+      switch (op, left, right) {
+      | (AST.Lt | AST.Gt | AST.Eq, leftExpr, AST.Literal(rightVal)) =>
+        // Generate left operand
+        switch generateExpression(state, leftExpr) {
+        | Error(msg) => Error(msg)
+        | Ok((state1, leftReg)) =>
+          // Generate labels
+          switch generateLabel(state1) {
+          | (state2, thenLabel) =>
+            switch generateLabel(state2) {
+            | (state3, endLabel) =>
+              // For if-else: branch to then block if condition is true
+              let (branchInstr, _) = generateDirectBranch(op, leftReg, Int.toString(rightVal), thenLabel)
+              let state4 = addInstruction(state3, branchInstr)
+
+              // Generate else block first (falls through when condition is false)
+              let state5 = switch elseBlock {
+              | Some(elseStatements) =>
+                switch generateBlock(state4, elseStatements) {
+                | Error(msg) => Error(msg)
+                | Ok(state) =>
+                  // Jump to end after else block
+                  switch addInstruction(state, "j " ++ endLabel) {
+                  | state => Ok(state)
+                  }
+                }
+              | None => Ok(state4)
               }
-            | None =>
-              // Add end label after then block
-              Ok(addInstruction(state5, endLabel ++ ":"))
+
+              switch state5 {
+              | Error(msg) => Error(msg)
+              | Ok(state6) =>
+                // Add then label and generate then block
+                let state7 = addInstruction(state6, thenLabel ++ ":")
+                switch generateBlock(state7, thenBlock) {
+                | Error(msg) => Error(msg)
+                | Ok(state8) =>
+                  // Add end label
+                  Ok(addInstruction(state8, endLabel ++ ":"))
+                }
+              }
+            }
+          }
+        }
+      | _ =>
+        // Fallback to old method for complex conditions
+        switch generateExpression(state, condition) {
+        | Error(msg) => Error(msg)
+        | Ok((state1, condReg)) =>
+          switch generateLabel(state1) {
+          | (state2, elseLabel) =>
+            switch generateLabel(state2) {
+            | (state3, endLabel) =>
+              let jumpLabel = switch elseBlock {
+              | Some(_) => elseLabel
+              | None => endLabel
+              }
+              let branchInstr = "beqz " ++ Register.toString(condReg) ++ " " ++ jumpLabel
+              let state4 = addInstruction(state3, branchInstr)
+              switch generateBlock(state4, thenBlock) {
+              | Error(msg) => Error(msg)
+              | Ok(state5) =>
+                switch elseBlock {
+                | Some(elseStatements) =>
+                  let jumpEndInstr = "j " ++ endLabel
+                  let state6 = addInstruction(state5, jumpEndInstr)
+                  let state7 = addInstruction(state6, elseLabel ++ ":")
+                  switch generateBlock(state7, elseStatements) {
+                  | Error(msg) => Error(msg)
+                  | Ok(state8) =>
+                    Ok(addInstruction(state8, endLabel ++ ":"))
+                  }
+                | None =>
+                  Ok(addInstruction(state5, endLabel ++ ":"))
+                }
+              }
+            }
+          }
+        }
+      }
+    | _ =>
+      // Non-comparison condition, use old method
+      switch generateExpression(state, condition) {
+      | Error(msg) => Error(msg)
+      | Ok((state1, condReg)) =>
+        switch generateLabel(state1) {
+        | (state2, elseLabel) =>
+          switch generateLabel(state2) {
+          | (state3, endLabel) =>
+            let jumpLabel = switch elseBlock {
+            | Some(_) => elseLabel
+            | None => endLabel
+            }
+            let branchInstr = "beqz " ++ Register.toString(condReg) ++ " " ++ jumpLabel
+            let state4 = addInstruction(state3, branchInstr)
+            switch generateBlock(state4, thenBlock) {
+            | Error(msg) => Error(msg)
+            | Ok(state5) =>
+              switch elseBlock {
+              | Some(elseStatements) =>
+                let jumpEndInstr = "j " ++ endLabel
+                let state6 = addInstruction(state5, jumpEndInstr)
+                let state7 = addInstruction(state6, elseLabel ++ ":")
+                switch generateBlock(state7, elseStatements) {
+                | Error(msg) => Error(msg)
+                | Ok(state8) =>
+                  Ok(addInstruction(state8, endLabel ++ ":"))
+                }
+              | None =>
+                Ok(addInstruction(state5, endLabel ++ ":"))
+              }
             }
           }
         }

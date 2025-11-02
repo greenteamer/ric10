@@ -40,6 +40,8 @@ let advance = (parser: parser): parser => {
 let tokensMatch = (token1: Lexer.token, token2: Lexer.token): bool => {
   switch (token1, token2) {
   | (Lexer.Let, Lexer.Let) => true
+  | (Lexer.If, Lexer.If) => true
+  | (Lexer.Else, Lexer.Else) => true
   | (Lexer.Assign, Lexer.Assign) => true
   | (Lexer.Plus, Lexer.Plus) => true
   | (Lexer.Minus, Lexer.Minus) => true
@@ -222,10 +224,38 @@ let parseVariableDeclaration = (parser: parser): result<(parser, AST.astNode), s
   }
 }
 
+// Parse an if statement: if expression { statements } else { statements }?
+let rec parseIfStatement = (parser: parser): result<(parser, AST.astNode), string> => {
+  // Parse: if expr { statements }
+  switch parseExpression(parser) {
+  | Error(msg) => Error(msg)
+  | Ok((parser, condition)) =>
+    switch parseBlockStatement(parser) {
+    | Error(msg) => Error(msg)
+    | Ok((parser, thenBlock)) =>
+      // Check for else block
+      switch peek(parser) {
+      | Some(Lexer.Else) =>
+        let parser = advance(parser) // consume 'else' token
+        switch parseBlockStatement(parser) {
+        | Error(msg) => Error(msg)
+        | Ok((parser, elseBlock)) =>
+          Ok((parser, AST.createIfStatement(condition, thenBlock, Some(elseBlock))))
+        }
+      | _ =>
+        Ok((parser, AST.createIfStatement(condition, thenBlock, None)))
+      }
+    }
+  }
+}
+
 // Parse a statement
-let rec parseStatement = (parser: parser): result<(parser, AST.astNode), string> => {
+and parseStatement = (parser: parser): result<(parser, AST.astNode), string> => {
   switch peek(parser) {
   | Some(Lexer.Let) => parseVariableDeclaration(parser)
+  | Some(Lexer.If) =>
+    let parser = advance(parser) // consume 'if' token
+    parseIfStatement(parser)
   | Some(Lexer.LeftBrace) =>
     switch parseBlockStatement(parser) {
     | Error(msg) => Error(msg)
@@ -278,36 +308,6 @@ and parseBlockStatement = (parser: parser): result<(parser, AST.blockStatement),
   }
 }
 
-// Parse an if statement: if (expression) { statements } else { statements }?
-let parseIfStatement = (parser: parser): result<(parser, AST.astNode), string> => {
-  // For now, we'll parse: if (expr) { statements }
-  // TODO: Add "if" keyword support later
-  switch peek(parser) {
-  | Some(Lexer.LeftParen) =>
-    let parser = advance(parser)
-    switch parseExpression(parser) {
-    | Error(msg) => Error(msg)
-    | Ok((parser, condition)) =>
-      switch expect(parser, Lexer.RightParen) {
-      | Error(msg) => Error(msg)
-      | Ok(parser) =>
-        switch parseBlockStatement(parser) {
-        | Error(msg) => Error(msg)
-        | Ok((parser, thenBlock)) =>
-          // Check for else block
-          switch peek(parser) {
-          | Some(Lexer.RightBrace) =>
-            Ok((parser, AST.createIfStatement(condition, thenBlock, None)))
-          | _ =>
-            Ok((parser, AST.createIfStatement(condition, thenBlock, None)))
-          }
-        }
-      }
-    }
-  | Some(token) => Error("Expected '(' after 'if', found " ++ Lexer.tokenToString(token))
-  | None => Error("Expected '(' after 'if', but reached end of file")
-  }
-}
 
 // Parse a program (sequence of statements)
 let parse = (tokens: array<Lexer.token>): result<AST.program, string> => {

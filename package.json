@@ -22,11 +22,13 @@
     ]
   },
   "scripts": {
+    "res:clean": "rescript clean",
     "res:build": "rescript",
     "res:dev": "rescript -w",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "dev": "npm run watch"
+    "dev": "npm run watch",
+    "test": "jest"
   },
   "dependencies": {
     "@rescript/core": "^1.6.1",
@@ -36,6 +38,7 @@
     "@types/node": "^18.0.0",
     "@types/vscode": "^1.74.0",
     "gentype": "^4.5.0",
+    "jest": "^30.2.0",
     "typescript": "^5.0.0"
   }
 }

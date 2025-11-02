@@ -4,6 +4,8 @@
 // Token type definitions
 type token =
   | Let // keyword: let
+  | If // keyword: if
+  | Else // keyword: else
   | Identifier(string) // variable names, function names
   | IntLiteral(int) // integer literals
   | Plus // +
@@ -154,6 +156,8 @@ let nextToken = (lexer: lexer): (lexer, token) => {
       let (lexer, ident) = readIdentifier(lexer)
       switch ident {
       | "let" => (lexer, Let)
+      | "if" => (lexer, If)
+      | "else" => (lexer, Else)
       | _ => (lexer, Identifier(ident))
       }
     | Some(c) =>
@@ -197,6 +201,8 @@ let tokenize = (source: string): result<array<token>, string> => {
 let tokenToString = (token: token): string => {
   switch token {
   | Let => "Let"
+  | If => "If"
+  | Else => "Else"
   | Identifier(name) => "Identifier(" ++ name ++ ")"
   | IntLiteral(n) => "IntLiteral(" ++ Int.toString(n) ++ ")"
   | Plus => "Plus"

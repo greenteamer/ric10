@@ -19,8 +19,8 @@
     "lib",
     "libbs",
     "out",
+    "tests",
     "**/*.res.js",
     "**/*.gen.ts"
   ]
 }
-

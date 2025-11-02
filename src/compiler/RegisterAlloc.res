@@ -47,7 +47,9 @@ let allocate = (allocator: allocator, variableName: string): result<
   string,
 > => {
   switch lookup(allocator.variableMap, variableName) {
-  | Some(_) => Error("Variable '" ++ variableName ++ "' is already allocated")
+  | Some(existingRegister) =>
+    // Variable shadowing: reuse the same register
+    Ok((allocator, existingRegister))
   | None =>
     if allocator.nextRegister > allocator.nextTempRegister {
       Error("Out of registers")
