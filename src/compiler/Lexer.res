@@ -6,6 +6,8 @@ type token =
   | Let // keyword: let
   | If // keyword: if
   | Else // keyword: else
+  | Type // keyword: type
+  | Match // keyword: match
   | Identifier(string) // variable names, function names
   | IntLiteral(int) // integer literals
   | Plus // +
@@ -16,6 +18,8 @@ type token =
   | LessThan // <
   | Assign // =
   | EqualEqual // ==
+  | Arrow // =>
+  | Pipe // |
   | LeftParen // (
   | RightParen // )
   | LeftBrace // {
@@ -139,6 +143,7 @@ let nextToken = (lexer: lexer): (lexer, token) => {
     | Some("/") => (advance(lexer), Divide)
     | Some(">") => (advance(lexer), GreaterThan)
     | Some("<") => (advance(lexer), LessThan)
+    | Some("|") => (advance(lexer), Pipe)
     | Some("(") => (advance(lexer), LeftParen)
     | Some(")") => (advance(lexer), RightParen)
     | Some("{") => (advance(lexer), LeftBrace)
@@ -147,6 +152,7 @@ let nextToken = (lexer: lexer): (lexer, token) => {
       let lexer = advance(lexer)
       switch peekChar(lexer) {
       | Some("=") => (advance(lexer), EqualEqual)
+      | Some(">") => (advance(lexer), Arrow)
       | _ => (lexer, Assign)
       }
     | Some(c) if c >= "0" && c <= "9" =>
@@ -158,6 +164,8 @@ let nextToken = (lexer: lexer): (lexer, token) => {
       | "let" => (lexer, Let)
       | "if" => (lexer, If)
       | "else" => (lexer, Else)
+      | "type" => (lexer, Type)
+      | "match" => (lexer, Match)
       | _ => (lexer, Identifier(ident))
       }
     | Some(c) =>
@@ -168,31 +176,18 @@ let nextToken = (lexer: lexer): (lexer, token) => {
 }
 
 // Tokenize entire source code into array of tokens
+// Uses List for O(1) cons operations, then converts to array
 let tokenize = (source: string): result<array<token>, string> => {
-  let tokens: ref<array<token>> = ref(Array.make(~length=0, Let))
-  let rec loop = (lexer: lexer): result<unit, string> => {
+  let rec loop = (lexer: lexer, acc: list<token>): result<list<token>, string> => {
     let (lexer, token) = nextToken(lexer)
     switch token {
-    | EOF => Ok()
+    | EOF => Ok(acc)
     | Invalid(msg) => Error("Lexer error: " ++ msg)
-    | _ => {
-        let current = tokens.contents
-        let len = Array.length(current)
-        let newArr = Array.make(~length=len + 1, Let)
-        for i in 0 to len - 1 {
-          switch current[i] {
-          | Some(v) => newArr[i] = v
-          | None => ()
-          }
-        }
-        newArr[len] = token
-        tokens := newArr
-        loop(lexer)
-      }
+    | _ => loop(lexer, list{token, ...acc}) // O(1) cons operation
     }
   }
-  switch loop(create(source)) {
-  | Ok(_) => Ok(tokens.contents)
+  switch loop(create(source), list{}) {
+  | Ok(tokens) => Ok(List.toArray(List.reverse(tokens))) // Convert list to array
   | Error(msg) => Error(msg)
   }
 }
@@ -203,6 +198,8 @@ let tokenToString = (token: token): string => {
   | Let => "Let"
   | If => "If"
   | Else => "Else"
+  | Type => "Type"
+  | Match => "Match"
   | Identifier(name) => "Identifier(" ++ name ++ ")"
   | IntLiteral(n) => "IntLiteral(" ++ Int.toString(n) ++ ")"
   | Plus => "Plus"
@@ -213,6 +210,8 @@ let tokenToString = (token: token): string => {
   | LessThan => "LessThan"
   | Assign => "Assign"
   | EqualEqual => "EqualEqual"
+  | Arrow => "Arrow"
+  | Pipe => "Pipe"
   | LeftParen => "LeftParen"
   | RightParen => "RightParen"
   | LeftBrace => "LeftBrace"

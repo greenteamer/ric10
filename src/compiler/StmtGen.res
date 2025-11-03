@@ -1,16 +1,36 @@
 // StmtGen - Statement code generation
 // Orchestrates expression and branch generation for statements
 
-// Type alias for codegen state
-type codegenState = {
-  allocator: RegisterAlloc.allocator,
-  instructions: array<string>,
-  labelCounter: int,
-}
+// Type alias for codegen state (shared with other modules)
+type codegenState = CodegenTypes.codegenState
 
 // Generate IC10 code for a statement
 let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState, string> => {
   switch stmt {
+  | AST.TypeDeclaration(typeName, constructors) =>
+    // Type declarations are compile-time only - populate variant maps
+    let rec buildVariantTags = (
+      tags: Belt.Map.String.t<int>,
+      constructors: array<AST.variantConstructor>,
+      index: int,
+    ): Belt.Map.String.t<int> => {
+      if index >= Array.length(constructors) {
+        tags
+      } else {
+        switch constructors[index] {
+        | Some(constructor) =>
+          let newTags = Belt.Map.String.set(tags, constructor.name, index)
+          buildVariantTags(newTags, constructors, index + 1)
+        | None => buildVariantTags(tags, constructors, index + 1)
+        }
+      }
+    }
+
+    let newVariantTags = buildVariantTags(state.variantTags, constructors, 0)
+    let newVariantTypes = Belt.Map.String.set(state.variantTypes, typeName, constructors)
+
+    Ok({...state, variantTags: newVariantTags, variantTypes: newVariantTypes})
+
   | AST.VariableDeclaration(name, expr) =>
     // Allocate register for the variable
     switch RegisterAlloc.allocate(state.allocator, name) {
@@ -129,6 +149,20 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
 
   | AST.Identifier(_) =>
     // Standalone identifier - generate it
+    switch ExprGen.generate(state, stmt) {
+    | Error(msg) => Error(msg)
+    | Ok((newState, _reg)) => Ok(newState)
+    }
+
+  | AST.VariantConstructor(_, _) =>
+    // Standalone variant constructor - generate it
+    switch ExprGen.generate(state, stmt) {
+    | Error(msg) => Error(msg)
+    | Ok((newState, _reg)) => Ok(newState)
+    }
+
+  | AST.MatchExpression(_, _) =>
+    // Standalone match expression - generate it
     switch ExprGen.generate(state, stmt) {
     | Error(msg) => Error(msg)
     | Ok((newState, _reg)) => Ok(newState)

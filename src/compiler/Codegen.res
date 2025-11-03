@@ -1,19 +1,18 @@
 // Code Generator for ReScript → IC10 compiler
 // Orchestrates the compilation pipeline from AST to IC10 assembly
 
-// Code generation state
-type codegenState = {
-  allocator: RegisterAlloc.allocator,
-  instructions: array<string>, // Generated IC10 instructions
-  labelCounter: int, // Counter for generating unique labels
-}
+// Code generation state (shared type definition in CodegenTypes.res)
+type codegenState = CodegenTypes.codegenState
 
 // Create initial codegen state
 let create = (): codegenState => {
   {
     allocator: RegisterAlloc.create(),
+    stackAllocator: StackAlloc.create(),
     instructions: Array.make(~length=0, ""),
     labelCounter: 0,
+    variantTypes: Belt.Map.String.empty,
+    variantTags: Belt.Map.String.empty,
   }
 }
 

@@ -2,8 +2,8 @@
 // Simple linear allocation strategy: assigns registers sequentially (r0, r1, r2, ...)
 // IC10 has 16 registers (r0-r15)
 
-// Variable-to-register mapping (association list)
-type varMap = list<(string, Register.t)>
+// Variable-to-register mapping (Belt.Map.String for O(log n) lookups)
+type varMap = Belt.Map.String.t<Register.t>
 
 // Register allocation state
 type allocator = {
@@ -17,28 +17,13 @@ let create = (): allocator => {
   {
     nextRegister: 0,
     nextTempRegister: 15,
-    variableMap: list{},
+    variableMap: Belt.Map.String.empty,
   }
 }
 
-// Look up a variable in the map
+// Look up a variable in the map - O(log n) instead of O(n)
 let lookup = (varMap: varMap, variableName: string): option<Register.t> => {
-  let rec loop = lst => {
-    switch lst {
-    | list{} => None
-    | list =>
-      switch List.head(list) {
-      | Some((name, register)) if name == variableName => Some(register)
-      | Some(_) =>
-        switch List.tail(list) {
-        | Some(rest) => loop(rest)
-        | None => None
-        }
-      | None => None
-      }
-    }
-  }
-  loop(varMap)
+  Belt.Map.String.get(varMap, variableName)
 }
 
 // Allocate a register for a variable
@@ -61,7 +46,7 @@ let allocate = (allocator: allocator, variableName: string): result<
           {
             ...allocator,
             nextRegister: allocator.nextRegister + 1,
-            variableMap: list{(variableName, reg), ...allocator.variableMap},
+            variableMap: Belt.Map.String.set(allocator.variableMap, variableName, reg),
           },
           reg,
         )
@@ -82,7 +67,7 @@ let allocateTempRegister = (allocator: allocator): result<(allocator, Register.t
           {
             ...allocator,
             nextTempRegister: allocator.nextTempRegister - 1,
-            variableMap: list{(tempName, reg), ...allocator.variableMap},
+            variableMap: Belt.Map.String.set(allocator.variableMap, tempName, reg),
           },
           reg,
         )
@@ -119,26 +104,16 @@ let getOrAllocate = (allocator: allocator, variableName: string): result<
 // Free a temporary register (removes it from the map and potentially reuses the slot)
 let freeTempRegister = (allocator: allocator, register: Register.t): allocator => {
   // Remove all temporary variables that use this register
-  let rec removeTempFromMap = (varMap: varMap): varMap => {
-    switch varMap {
-    | list{} => list{}
-    | list{(name, reg), ...rest} =>
-      // Check if this is a temp variable with the target register
-      if String.startsWith(name, "_temp_") && reg == register {
-        removeTempFromMap(rest) // Skip this entry
-      } else {
-        list{(name, reg), ...removeTempFromMap(rest)} // Keep this entry
-      }
-    }
-  }
+  let newVariableMap = Belt.Map.String.keep(allocator.variableMap, (name, reg) => {
+    // Keep entry if it's NOT a temp variable with the target register
+    !(String.startsWith(name, "_temp_") && reg == register)
+  })
 
-  let newVariableMap = removeTempFromMap(allocator.variableMap)
-
-  // Если освобождаем "последний" временный (самый правый использованный)
+  // If freeing the "last" temporary register (rightmost used)
   if Register.toInt(register) == allocator.nextTempRegister + 1 {
     {
       ...allocator,
-      nextTempRegister: allocator.nextTempRegister + 1, // двигаем вправо
+      nextTempRegister: allocator.nextTempRegister + 1, // Move right
       variableMap: newVariableMap,
     }
   } else {
@@ -156,9 +131,9 @@ let freeTempRegisterMultiple = (allocator: allocator, regNums: array<Register.t>
 
 // Get variable name by register number (reverse lookup)
 let getVariableName = (allocator: allocator, register: Register.t): option<string> => {
-  allocator.variableMap
-  ->List.find(((_, reg)) => Register.equal(reg, register))
-  ->Option.map(((name, _)) => name)
+  Belt.Map.String.findFirstBy(allocator.variableMap, (_name, reg) => {
+    Register.equal(reg, register)
+  })->Option.map(((name, _reg)) => name)
 }
 
 let freeTempIfTemp = (allocator: allocator, register: Register.t): allocator => {

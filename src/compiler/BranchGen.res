@@ -1,12 +1,8 @@
 // BranchGen - Branch instruction generation for if/else statements
 // Eliminates code duplication by providing reusable branching logic
 
-// Type alias for codegen state (avoid circular dependency)
-type codegenState = {
-  allocator: RegisterAlloc.allocator,
-  instructions: array<string>,
-  labelCounter: int,
-}
+// Type alias for codegen state (shared with other modules)
+type codegenState = CodegenTypes.codegenState
 
 // Add an instruction to the state
 let addInstruction = (state: codegenState, instruction: string): codegenState => {

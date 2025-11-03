@@ -184,4 +184,4 @@ When working on this project, Claude should:
 6. **Consider register allocation constraints** in all code generation changes
 7. **Run tests after changes** to ensure correctness (`npm test`)
 8. **Update test expectations** when modifying compiler behavior
-
+- You can use npm run res:build to check correctness

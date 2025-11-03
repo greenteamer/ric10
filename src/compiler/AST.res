@@ -11,6 +11,12 @@ type binaryOp =
   | Lt // <
   | Eq // ==
 
+// Variant constructor definition (in type declarations)
+type variantConstructor = {
+  name: string,
+  hasArgument: bool, // true if constructor takes a single argument
+}
+
 // AST node types (mutually recursive)
 type rec astNode =
   | VariableDeclaration(string, expr) // let x = expr
@@ -19,12 +25,22 @@ type rec astNode =
   | Identifier(string) // variable name
   | IfStatement(expr, blockStatement, option<blockStatement>) // if (expr) { stmts } else { stmts }
   | BlockStatement(blockStatement) // { stmt1; stmt2; ... }
+  | TypeDeclaration(string, array<variantConstructor>) // type name = Constructor1 | Constructor2(arg)
+  | VariantConstructor(string, option<expr>) // Constructor or Constructor(expr)
+  | MatchExpression(expr, array<matchCase>) // match expr { | Pattern1 => body1 | Pattern2 => body2 }
 
 and expr = astNode
 
 and stmt = astNode
 
 and blockStatement = array<astNode>
+
+// Match case for pattern matching (must be after blockStatement is defined)
+and matchCase = {
+  constructorName: string,
+  argumentBinding: option<string>, // variable name for argument (if constructor has one)
+  body: blockStatement, // code to execute for this case
+}
 
 // Program is a list of statements
 type program = array<stmt>
@@ -52,6 +68,18 @@ let createIfStatement = (condition: expr, thenBlock: blockStatement, elseBlock: 
 
 let createBlockStatement = (statements: array<astNode>): astNode => {
   BlockStatement(statements)
+}
+
+let createTypeDeclaration = (name: string, constructors: array<variantConstructor>): astNode => {
+  TypeDeclaration(name, constructors)
+}
+
+let createVariantConstructor = (name: string, argument: option<expr>): astNode => {
+  VariantConstructor(name, argument)
+}
+
+let createMatchExpression = (scrutinee: expr, cases: array<matchCase>): astNode => {
+  MatchExpression(scrutinee, cases)
 }
 
 // Helper: Convert binary operator to string

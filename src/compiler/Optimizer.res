@@ -85,6 +85,27 @@ let rec optimize = (node: astNode): astNode => {
   | BlockStatement(statements) =>
     BlockStatement(optimizeBlock(statements))
 
+  // Optimize type declarations (pass through unchanged - compile-time only)
+  | TypeDeclaration(_, _) => node
+
+  // Optimize variant constructors
+  | VariantConstructor(name, argumentOpt) =>
+    switch argumentOpt {
+    | None => node
+    | Some(arg) => VariantConstructor(name, Some(optimize(arg)))
+    }
+
+  // Optimize match expressions
+  | MatchExpression(scrutinee, cases) =>
+    let optimizedScrutinee = optimize(scrutinee)
+    let optimizedCases = Array.map(cases, matchCase => {
+      {
+        ...matchCase,
+        body: optimizeBlock(matchCase.body),
+      }
+    })
+    MatchExpression(optimizedScrutinee, optimizedCases)
+
   // Leaf nodes - no optimization needed
   | Literal(_) => node
   | Identifier(_) => node
@@ -93,20 +114,10 @@ let rec optimize = (node: astNode): astNode => {
 
 // Optimize a block of statements
 and optimizeBlock = (statements: blockStatement): blockStatement => {
-  Array.map(statements, stmt => {
-    switch stmt {
-    | Some(node) => Some(optimize(node))
-    | None => None
-    }
-  })
+  Array.map(statements, stmt => optimize(stmt))
 }
 
 // Optimize entire program
 let optimizeProgram = (program: program): program => {
-  Array.map(program, stmt => {
-    switch stmt {
-    | Some(node) => Some(optimize(node))
-    | None => None
-    }
-  })
+  Array.map(program, stmt => optimize(stmt))
 }
