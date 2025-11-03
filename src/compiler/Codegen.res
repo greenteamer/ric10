@@ -49,6 +49,17 @@ let generateDirectBranch = (op: AST.binaryOp, leftReg: Register.t, rightValue: s
   }
 }
 
+// Generate inverted direct branch instruction (for if-only statements)
+// Jumps to label when condition is FALSE
+let generateInvertedBranch = (op: AST.binaryOp, leftReg: Register.t, rightValue: string, label: string): (string, bool) => {
+  switch op {
+  | AST.Lt => ("bge " ++ Register.toString(leftReg) ++ " " ++ rightValue ++ " " ++ label, false) // >= (not <)
+  | AST.Gt => ("ble " ++ Register.toString(leftReg) ++ " " ++ rightValue ++ " " ++ label, false) // <= (not >)
+  | AST.Eq => ("bne " ++ Register.toString(leftReg) ++ " " ++ rightValue ++ " " ++ label, false) // != (not ==)
+  | _ => ("", true) // Not a comparison, fallback to old method
+  }
+}
+
 // Основная функция - генерирует выражение и возвращает регистр с результатом
 let rec generateExpression = (state: codegenState, expr: AST.expr): result<
   (codegenState, Register.t),
@@ -290,43 +301,109 @@ let rec generateStatement = (state: codegenState, stmt: AST.astNode): result<
       // Try to generate direct branch instruction
       switch (op, left, right) {
       | (AST.Lt | AST.Gt | AST.Eq, leftExpr, AST.Literal(rightVal)) =>
-        // Generate left operand
+        // Generate left operand for variable-to-literal comparison
         switch generateExpression(state, leftExpr) {
         | Error(msg) => Error(msg)
         | Ok((state1, leftReg)) =>
           // Generate labels
           switch generateLabel(state1) {
-          | (state2, thenLabel) =>
-            switch generateLabel(state2) {
-            | (state3, endLabel) =>
-              // For if-else: branch to then block if condition is true
-              let (branchInstr, _) = generateDirectBranch(op, leftReg, Int.toString(rightVal), thenLabel)
-              let state4 = addInstruction(state3, branchInstr)
+          | (state2, endLabel) =>
+            switch elseBlock {
+            | None =>
+              // If-only: use inverted branch to jump to end when condition is FALSE
+              let (branchInstr, _) = generateInvertedBranch(op, leftReg, Int.toString(rightVal), endLabel)
+              let state3 = addInstruction(state2, branchInstr)
 
-              // Generate else block first (falls through when condition is false)
-              let state5 = switch elseBlock {
-              | Some(elseStatements) =>
+              // Generate then block (falls through when condition is TRUE)
+              switch generateBlock(state3, thenBlock) {
+              | Error(msg) => Error(msg)
+              | Ok(state4) =>
+                // Add end label
+                Ok(addInstruction(state4, endLabel ++ ":"))
+              }
+            | Some(elseStatements) =>
+              // If-else: generate thenLabel and use normal branch
+              switch generateLabel(state2) {
+              | (state3, thenLabel) =>
+                // Branch to then block if condition is TRUE
+                let (branchInstr, _) = generateDirectBranch(op, leftReg, Int.toString(rightVal), thenLabel)
+                let state4 = addInstruction(state3, branchInstr)
+
+                // Generate else block (falls through when condition is FALSE)
                 switch generateBlock(state4, elseStatements) {
                 | Error(msg) => Error(msg)
-                | Ok(state) =>
+                | Ok(state5) =>
                   // Jump to end after else block
-                  switch addInstruction(state, "j " ++ endLabel) {
-                  | state => Ok(state)
+                  let state6 = addInstruction(state5, "j " ++ endLabel)
+
+                  // Add then label and generate then block
+                  let state7 = addInstruction(state6, thenLabel ++ ":")
+                  switch generateBlock(state7, thenBlock) {
+                  | Error(msg) => Error(msg)
+                  | Ok(state8) =>
+                    // Add end label
+                    Ok(addInstruction(state8, endLabel ++ ":"))
                   }
                 }
-              | None => Ok(state4)
               }
+            }
+          }
+        }
+      | (AST.Lt | AST.Gt | AST.Eq, leftExpr, rightExpr) =>
+        // Generate both operands for variable-to-variable comparison
+        switch generateExpression(state, leftExpr) {
+        | Error(msg) => Error(msg)
+        | Ok((state1, leftReg)) =>
+          switch generateExpression(state1, rightExpr) {
+          | Error(msg) => Error(msg)
+          | Ok((state2, rightReg)) =>
+            // Generate labels
+            switch generateLabel(state2) {
+            | (state3, endLabel) =>
+              // Free temporary registers
+              let allocator = RegisterAlloc.freeTempIfTemp(
+                RegisterAlloc.freeTempIfTemp(state3.allocator, leftReg),
+                rightReg,
+              )
+              let state4 = {...state3, allocator}
 
-              switch state5 {
-              | Error(msg) => Error(msg)
-              | Ok(state6) =>
-                // Add then label and generate then block
-                let state7 = addInstruction(state6, thenLabel ++ ":")
-                switch generateBlock(state7, thenBlock) {
+              switch elseBlock {
+              | None =>
+                // If-only: use inverted branch to jump to end when condition is FALSE
+                let (branchInstr, _) = generateInvertedBranch(op, leftReg, Register.toString(rightReg), endLabel)
+                let state5 = addInstruction(state4, branchInstr)
+
+                // Generate then block (falls through when condition is TRUE)
+                switch generateBlock(state5, thenBlock) {
                 | Error(msg) => Error(msg)
-                | Ok(state8) =>
+                | Ok(state6) =>
                   // Add end label
-                  Ok(addInstruction(state8, endLabel ++ ":"))
+                  Ok(addInstruction(state6, endLabel ++ ":"))
+                }
+              | Some(elseStatements) =>
+                // If-else: generate thenLabel and use normal branch
+                switch generateLabel(state4) {
+                | (state5, thenLabel) =>
+                  // Branch to then block if condition is TRUE
+                  let (branchInstr, _) = generateDirectBranch(op, leftReg, Register.toString(rightReg), thenLabel)
+                  let state6 = addInstruction(state5, branchInstr)
+
+                  // Generate else block (falls through when condition is FALSE)
+                  switch generateBlock(state6, elseStatements) {
+                  | Error(msg) => Error(msg)
+                  | Ok(state7) =>
+                    // Jump to end after else block
+                    let state8 = addInstruction(state7, "j " ++ endLabel)
+
+                    // Add then label and generate then block
+                    let state9 = addInstruction(state8, thenLabel ++ ":")
+                    switch generateBlock(state9, thenBlock) {
+                    | Error(msg) => Error(msg)
+                    | Ok(state10) =>
+                      // Add end label
+                      Ok(addInstruction(state10, endLabel ++ ":"))
+                    }
+                  }
                 }
               }
             }

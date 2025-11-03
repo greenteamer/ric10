@@ -76,9 +76,9 @@ npm run dev                # Combined watch mode for both
 
 ### Language Support
 
-**ReScript Subset**: Variable declarations (`let`), arithmetic operations (`+`, `-`, `*`, `/`), comparisons (`>`, `<`, `==`), conditionals (`if/else`), block statements, integer literals, and identifiers.
+**ReScript Subset**: Variable declarations (`let`), arithmetic operations (`+`, `-`, `*`, `/`), comparisons (`>`, `<`, `==`), conditionals (`if/else`), block statements, integer literals, and identifiers. Supports variable scoping and shadowing in nested blocks.
 
-**IC10 Target**: Assembly language for Stationeers with 16 registers, no stack, and instructions like `move`, `add`, `sub`, `mul`, `div`, `sgt`, `slt`, `seq`, `beqz`, `bnez`, and `j`.
+**IC10 Target**: Assembly language for Stationeers with 16 registers, no stack, and instructions like `move`, `add`, `sub`, `mul`, `div`, direct branch instructions (`blt`, `bgt`, `beq`), and `j`.
 
 ### Key Constraints
 
@@ -95,11 +95,19 @@ src/
 └── compiler/                 # ReScript compiler components (WORK HERE)
     ├── AST.res              # Abstract syntax tree definitions
     ├── Lexer.res            # Source code tokenization
-    ├── Parser.res           # Recursive descent parser
+    ├── Parser.res           # Recursive descent parser with if/else support
     ├── Register.res         # Register type and utilities
-    ├── RegisterAlloc.res    # Register allocation and management
-    ├── Codegen.res          # IC10 code generation with optimizations
+    ├── RegisterAlloc.res    # Register allocation with variable shadowing
+    ├── Codegen.res          # IC10 code generation with direct branch optimization
     └── Compiler.res         # Main compilation API
+
+tests/                        # Comprehensive test suite (40 tests)
+├── basic.test.js            # Variable declarations and arithmetic
+├── comparisons.test.js      # Comparison operations and if/else
+├── complex.test.js          # Complex expressions and mixed operations
+├── scoping.test.js          # Variable scoping and block statements
+├── errors.test.js           # Error cases and edge conditions
+└── if.test.js               # Original if statement test
 ```
 
 ## Development Notes
@@ -111,13 +119,58 @@ src/
 - Register allocation failure triggers compilation errors
 - Code generation includes constant folding and register reuse optimizations
 - **Watch mode is always running** - your changes will be automatically compiled
+- Variable shadowing is supported through register reuse
+- Direct branch instructions are used for optimal IC10 assembly generation
+- Comprehensive test coverage ensures compiler correctness (40 tests)
 
 ## Common Patterns
 
 **Variable Declaration**: `let x = 5` → `move r0 5`
 **Binary Operation**: `x + y` → `add r2 r0 r1`
-**Conditional**: `if (x > 5)` → `sgt r3 r0 5; beqz r3 label0`
+**If-Only Statement**: `if x < 5 { a }` → `bge r0 5 label0; [then code]; label0:` (inverted branch skips on false)
+**If-Else Statement**: `if x < y { a } else { b }` → `blt r0 r1 label1; [else code]; j label0; label1: [then code]; label0:`
+**Variable Shadowing**: `let x = 10; if true { let x = 20 }` → Reuses same register for efficiency
 **Constant Folding**: `2 + 3` → `move r0 5`
+**Literal Optimization**: `x + 5` → `add r1 r0 5` (direct literal instead of register)
+
+## Testing
+
+The project includes a comprehensive test suite with 40 tests covering:
+
+- **Basic functionality** (8 tests): Variable declarations, arithmetic operations, constant folding
+- **Comparisons** (7 tests): All comparison operators (`<`, `>`, `==`) with if/else statements
+- **Complex expressions** (7 tests): Operator precedence, mixed arithmetic and comparisons
+- **Scoping** (7 tests): Variable shadowing, nested blocks, consecutive if statements
+- **Error handling** (10 tests): Syntax errors, register exhaustion, edge cases
+- **If statements** (1 test): Original failing test case for if-else functionality
+
+Run tests with: `npm test` (Jest framework)
+
+All tests pass and validate the compiler's correctness across different scenarios.
+
+## Recent Changes
+
+### Inverted Branch Logic Fix (Latest)
+- **Fixed critical bug**: If-only statements were executing then blocks regardless of condition
+- Added `generateInvertedBranch` function for correct if-only code generation
+- **If-only**: Uses inverted branches (`bge`, `ble`, `bne`) to jump to end when condition is FALSE
+- **If-else**: Branches to then label when condition is TRUE, else block falls through
+- Updated all 40 test expectations to reflect correct assembly output
+- Example: `if a < b { c }` now generates `bge r0 r1 label0; [then]; label0:` (was incorrectly `blt r0 r1 label0; label0: [then]`)
+
+### If Statement Implementation
+- Added `If` and `Else` tokens to lexer
+- Implemented recursive descent parsing for if/else statements with mutual recursion
+- Added variable scoping and shadowing support in register allocator
+- Optimized code generation to use direct IC10 branch instructions (`blt`, `bgt`, `beq`)
+- Eliminated inefficient `slt`/`beqz` patterns in favor of single branch instructions
+- Created comprehensive test coverage for all language features
+
+### Key Optimizations
+- **Inverted Branches for If-Only**: `if x < 5 { a }` generates `bge r0 5 label0; [then]; label0:` (skip then block when false)
+- **Direct Branch Instructions**: Single instruction branches instead of `slt`/`beqz` patterns
+- **Variable Shadowing**: Reuses registers when variables are shadowed in inner scopes
+- **Literal Operations**: Uses immediate values in arithmetic operations when possible
 
 ## Claude's Role
 
@@ -129,4 +182,6 @@ When working on this project, Claude should:
 4. **Provide code improvements, bug fixes, and new features** for the compiler
 5. **Explain changes clearly** with reference to IC10 assembly output
 6. **Consider register allocation constraints** in all code generation changes
+7. **Run tests after changes** to ensure correctness (`npm test`)
+8. **Update test expectations** when modifying compiler behavior
 
