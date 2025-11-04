@@ -124,8 +124,19 @@ let rec optimize = (node: astNode): astNode => {
   // Raw instructions - pass through unchanged (no optimization possible)
   | RawInstruction(_) => node
 
+  // IC10 function calls - optimize arguments
+  | FunctionCall(name, args) =>
+    let optimizedArgs = Array.map(args, arg => {
+      switch arg {
+      | ArgExpr(expr) => ArgExpr(optimize(expr))
+      | ArgString(_) => arg // String literals don't need optimization
+      }
+    })
+    FunctionCall(name, optimizedArgs)
+
   // Leaf nodes - no optimization needed
   | Literal(_) => node
+  | StringLiteral(_) => node // String literals pass through unchanged
   | Identifier(_) => node
   }
 }

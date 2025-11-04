@@ -22,7 +22,9 @@ type rec astNode =
   | VariableDeclaration(string, expr) // let x = expr
   | BinaryExpression(binaryOp, expr, expr) // expr op expr
   | Literal(int) // integer literal
+  | StringLiteral(string) // string literal (for IC10 property names)
   | Identifier(string) // variable name
+  | FunctionCall(string, array<argument>) // functionName(arg1, arg2, ...)
   | IfStatement(expr, blockStatement, option<blockStatement>) // if (expr) { stmts } else { stmts }
   | WhileLoop(expr, blockStatement) // while expr { stmts }
   | BlockStatement(blockStatement) // { stmt1; stmt2; ... }
@@ -39,6 +41,11 @@ and expr = astNode
 and stmt = astNode
 
 and blockStatement = array<astNode>
+
+// Function call arguments (can be expressions or string literals)
+and argument =
+  | ArgExpr(expr) // Expression argument (evaluated)
+  | ArgString(string) // String literal argument (for property names, etc.)
 
 // Match case for pattern matching (must be after blockStatement is defined)
 and matchCase = {
@@ -105,6 +112,14 @@ let createRefAssignment = (name: string, value: expr): astNode => {
 
 let createRawInstruction = (instruction: string): astNode => {
   RawInstruction(instruction)
+}
+
+let createStringLiteral = (value: string): astNode => {
+  StringLiteral(value)
+}
+
+let createFunctionCall = (name: string, args: array<argument>): astNode => {
+  FunctionCall(name, args)
 }
 
 // Helper: Convert binary operator to string

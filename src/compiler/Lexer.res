@@ -27,6 +27,7 @@ type token =
   | ColonEqual // :=
   | Dot // .
   | Percent // %
+  | Comma // ,
   | LeftParen // (
   | RightParen // )
   | LeftBrace // {
@@ -179,6 +180,7 @@ let nextToken = (lexer: lexer): (lexer, token) => {
     | Some("|") => (advance(lexer), Pipe)
     | Some(".") => (advance(lexer), Dot)
     | Some("%") => (advance(lexer), Percent)
+    | Some(",") => (advance(lexer), Comma)
     | Some("(") => (advance(lexer), LeftParen)
     | Some(")") => (advance(lexer), RightParen)
     | Some("{") => (advance(lexer), LeftBrace)
@@ -266,6 +268,7 @@ let tokenToString = (token: token): string => {
   | ColonEqual => "ColonEqual"
   | Dot => "Dot"
   | Percent => "Percent"
+  | Comma => "Comma"
   | LeftParen => "LeftParen"
   | RightParen => "RightParen"
   | LeftBrace => "LeftBrace"

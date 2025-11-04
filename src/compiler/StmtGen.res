@@ -79,7 +79,7 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
       }
     }
 
-  | AST.BinaryExpression(op, left, right) =>
+  | AST.BinaryExpression(_op, _left, _right) =>
     // Standalone expression - generate it
     switch ExprGen.generate(state, stmt) {
     | Error(msg) => Error(msg)
@@ -232,7 +232,7 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
           s => generateBlock(s, body),
         )
 
-      | (AST.Lt | AST.Gt | AST.Eq, leftExpr, rightExpr) =>
+      | (AST.Lt | AST.Gt | AST.Eq, _leftExpr, _rightExpr) =>
         // Variable-to-variable comparison - use fallback for now
         generateWhileWithCondition(state, condition, body)
 
@@ -316,6 +316,18 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
     }
     newInstructions[len] = instruction
     Ok({...state, instructions: newInstructions})
+
+  | AST.StringLiteral(_) =>
+    Error("String literals cannot be used as standalone statements")
+
+  | AST.FunctionCall(_, _) =>
+    // Function calls as statements (e.g., IC10.s(d0, "Setting", 1))
+    switch ExprGen.generate(state, stmt) {
+    | Error(msg) => Error(msg)
+    | Ok((newState, _reg)) =>
+      // Discard result register (function was called for side effects)
+      Ok(newState)
+    }
   }
 }
 

@@ -51,6 +51,7 @@ let tokensMatch = (token1: Lexer.token, token2: Lexer.token): bool => {
   | (Lexer.ColonEqual, Lexer.ColonEqual) => true
   | (Lexer.Dot, Lexer.Dot) => true
   | (Lexer.Percent, Lexer.Percent) => true
+  | (Lexer.Comma, Lexer.Comma) => true
   | (Lexer.Plus, Lexer.Plus) => true
   | (Lexer.Minus, Lexer.Minus) => true
   | (Lexer.Multiply, Lexer.Multiply) => true
@@ -257,6 +258,70 @@ and parseRefCreation = (parser: parser): result<(parser, AST.expr), string> => {
   }
 }
 
+// Parse function call arguments: (arg1, arg2, ...)
+// Arguments can be expressions or string literals
+and parseFunctionArguments = (parser: parser): result<(parser, array<AST.argument>), string> => {
+  let rec parseArgs = (parser: parser, args: list<AST.argument>): result<(parser, list<AST.argument>), string> => {
+    switch peek(parser) {
+    | Some(Lexer.RightParen) =>
+      // End of arguments
+      Ok((advance(parser), args))
+    | Some(Lexer.StringLiteral(str)) =>
+      // String literal argument
+      let parser = advance(parser)
+      let arg = AST.ArgString(str)
+      // Check for comma (more arguments) or closing paren
+      switch peek(parser) {
+      | Some(Lexer.RightParen) =>
+        Ok((advance(parser), list{arg, ...args}))
+      | Some(Lexer.Comma) =>
+        // Consume comma and parse next argument
+        let parser = advance(parser)
+        parseArgs(parser, list{arg, ...args})
+      | _ =>
+        Error("Expected ',' or ')' after function argument")
+      }
+    | Some(_) =>
+      // Expression argument
+      switch parseExpression(parser) {
+      | Error(msg) => Error(msg)
+      | Ok((parser, expr)) =>
+        let arg = AST.ArgExpr(expr)
+        // Check for comma or closing paren
+        switch peek(parser) {
+        | Some(Lexer.RightParen) =>
+          Ok((advance(parser), list{arg, ...args}))
+        | Some(Lexer.Comma) =>
+          // Consume comma and parse next argument
+          let parser = advance(parser)
+          parseArgs(parser, list{arg, ...args})
+        | _ =>
+          Error("Expected ',' or ')' after function argument")
+        }
+      }
+    | None =>
+      Error("Unexpected end of file while parsing function arguments")
+    }
+  }
+
+  // Expect opening paren
+  switch expect(parser, Lexer.LeftParen) {
+  | Error(msg) => Error(msg)
+  | Ok(parser) =>
+    // Handle empty argument list
+    switch peek(parser) {
+    | Some(Lexer.RightParen) =>
+      Ok((advance(parser), []))
+    | _ =>
+      switch parseArgs(parser, list{}) {
+      | Error(msg) => Error(msg)
+      | Ok((parser, args)) =>
+        Ok((parser, List.toArray(List.reverse(args))))
+      }
+    }
+  }
+}
+
 and parsePrimaryExpression = (parser: parser): result<(parser, AST.expr), string> => {
   switch peek(parser) {
   | Some(Lexer.IntLiteral(value)) =>
@@ -270,20 +335,36 @@ and parsePrimaryExpression = (parser: parser): result<(parser, AST.expr), string
     parseRefCreation(parser)
   | Some(Lexer.Switch) =>
     parseSwitchExpression(parser)
+  | Some(Lexer.StringLiteral(str)) =>
+    let parser = advance(parser)
+    Ok((parser, AST.createStringLiteral(str)))
   | Some(Lexer.Identifier(name)) =>
     let parser = advance(parser)
-    // Check if this is a variant constructor call: Constructor(arg)
+    // Check if this is followed by parentheses
     switch peek(parser) {
     | Some(Lexer.LeftParen) =>
-      let parser = advance(parser) // consume (
-      // Parse argument expression
-      switch parseExpression(parser) {
-      | Error(msg) => Error(msg)
-      | Ok((parser, arg)) =>
-        // Expect closing paren
-        switch expect(parser, Lexer.RightParen) {
+      // Determine if this is a function call or variant constructor
+      // IC10 functions: l, lb, lbn, s, sb, sbn
+      let isIC10Function = name == "l" || name == "lb" || name == "lbn" ||
+                           name == "s" || name == "sb" || name == "sbn"
+
+      if isIC10Function {
+        // Parse as function call with multiple arguments
+        switch parseFunctionArguments(parser) {
         | Error(msg) => Error(msg)
-        | Ok(parser) => Ok((parser, AST.createVariantConstructor(name, Some(arg))))
+        | Ok((parser, args)) =>
+          Ok((parser, AST.createFunctionCall(name, args)))
+        }
+      } else {
+        // Parse as variant constructor (single argument)
+        let parser = advance(parser) // consume (
+        switch parseExpression(parser) {
+        | Error(msg) => Error(msg)
+        | Ok((parser, arg)) =>
+          switch expect(parser, Lexer.RightParen) {
+          | Error(msg) => Error(msg)
+          | Ok(parser) => Ok((parser, AST.createVariantConstructor(name, Some(arg))))
+          }
         }
       }
     | _ => Ok((parser, AST.createIdentifier(name)))
@@ -465,7 +546,7 @@ and parseTypeDeclaration = (parser: parser): result<(parser, AST.astNode), strin
                 let parser = advance(parser) // consume type identifier
                 // Expect closing paren
                 switch expect(parser, Lexer.RightParen) {
-                | Error(msg) => (parser, false) // fallback
+                | Error(_msg) => (parser, false) // fallback
                 | Ok(parser) => (parser, true)
                 }
               | _ => (parser, false)
