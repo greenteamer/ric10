@@ -32,15 +32,31 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
     Ok({...state, variantTags: newVariantTags, variantTypes: newVariantTypes})
 
   | AST.VariableDeclaration(name, expr) =>
-    // Allocate register for the variable
-    switch RegisterAlloc.allocate(state.allocator, name) {
-    | Error(msg) => Error(msg)
-    | Ok((allocator, varReg)) =>
-      let state1 = {...state, allocator}
-      // Generate expression directly into the variable's register
-      switch ExprGen.generateInto(state1, expr, varReg) {
+    // Check if this is a ref declaration
+    switch expr {
+    | AST.RefCreation(valueExpr) =>
+      // Allocate register for ref variable
+      switch RegisterAlloc.allocateRef(state.allocator, name) {
       | Error(msg) => Error(msg)
-      | Ok(newState) => Ok(newState)
+      | Ok((allocator, refReg)) =>
+        let state1 = {...state, allocator}
+        // Generate the initial value directly into the ref register
+        switch ExprGen.generateInto(state1, valueExpr, refReg) {
+        | Error(msg) => Error(msg)
+        | Ok(newState) => Ok(newState)
+        }
+      }
+    | _ =>
+      // Normal variable (not a ref)
+      switch RegisterAlloc.allocateNormal(state.allocator, name) {
+      | Error(msg) => Error(msg)
+      | Ok((allocator, varReg)) =>
+        let state1 = {...state, allocator}
+        // Generate expression directly into the variable's register
+        switch ExprGen.generateInto(state1, expr, varReg) {
+        | Error(msg) => Error(msg)
+        | Ok(newState) => Ok(newState)
+        }
       }
     }
 
@@ -161,11 +177,25 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
     | Ok((newState, _reg)) => Ok(newState)
     }
 
-  | AST.MatchExpression(_, _) =>
-    // Standalone match expression - generate it
+  | AST.SwitchExpression(_, _) =>
+    // Standalone switch expression - generate it
     switch ExprGen.generate(state, stmt) {
     | Error(msg) => Error(msg)
     | Ok((newState, _reg)) => Ok(newState)
+    }
+
+  | AST.RefAssignment(refName, valueExpr) =>
+    // Verify ref exists and is actually a ref
+    switch RegisterAlloc.getVariableInfo(state.allocator, refName) {
+    | None => Error("Undefined variable: " ++ refName)
+    | Some({register: _, isRef: false}) =>
+      Error(refName ++ " is not a ref - cannot use := operator")
+    | Some({register: refReg, isRef: true}) =>
+      // Generate the new value directly into the ref register
+      switch ExprGen.generateInto(state, valueExpr, refReg) {
+      | Error(msg) => Error(msg)
+      | Ok(newState) => Ok(newState)
+      }
     }
   }
 }

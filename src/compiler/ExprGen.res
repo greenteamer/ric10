@@ -48,6 +48,25 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
       Ok((addInstruction(newState, instr), reg))
     }
 
+  | AST.RefCreation(valueExpr) =>
+    // Generate the initial value expression
+    // Note: Ref register allocation happens in StmtGen for VariableDeclaration
+    // This case handles ref(expr) when it appears in expression position
+    // For Phase 1, just return the value (caller will handle allocation)
+    generate(state, valueExpr)
+
+  | AST.RefAccess(refName) =>
+    // Look up the ref's register
+    switch RegisterAlloc.getVariableInfo(state.allocator, refName) {
+    | None => Error("Undefined variable: " ++ refName)
+    | Some({register, isRef: false}) =>
+      Error(refName ++ " is not a ref - cannot use .contents")
+    | Some({register, isRef: true}) =>
+      // Ref's register already contains the value
+      // No IC10 instruction needed - just return the register
+      Ok((state, register))
+    }
+
   | AST.Identifier(name) =>
     // Check if this is a variant constructor (tag-only, no argument)
     switch Belt.Map.String.get(state.variantTags, name) {
@@ -240,8 +259,8 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
             let state2 = switch matchCase.argumentBinding {
             | None => state1
             | Some(argName) =>
-              // Allocate register for argument
-              switch RegisterAlloc.allocate(state1.allocator, argName) {
+              // Allocate register for argument (not a ref)
+              switch RegisterAlloc.allocateNormal(state1.allocator, argName) {
               | Error(_) => state1 // Fallback
               | Ok((allocator, argReg)) =>
                 // Generate: add sp scrutineeReg 1; peek argReg
@@ -289,6 +308,29 @@ let rec generateInto = (
     // Write literal directly to target register
     let instr = "move " ++ Register.toString(targetReg) ++ " " ++ Int.toString(value)
     Ok(addInstruction(state, instr))
+
+  | AST.RefCreation(valueExpr) =>
+    // Generate value directly into target register
+    generateInto(state, valueExpr, targetReg)
+
+  | AST.RefAccess(refName) =>
+    // Look up ref's register and copy to target if different
+    switch RegisterAlloc.getVariableInfo(state.allocator, refName) {
+    | None => Error("Undefined variable: " ++ refName)
+    | Some({register: _, isRef: false}) =>
+      Error(refName ++ " is not a ref - cannot use .contents")
+    | Some({register: refReg, isRef: true}) =>
+      if refReg == targetReg {
+        Ok(state) // Already in target
+      } else {
+        let instr = "move " ++ Register.toString(targetReg) ++ " " ++ Register.toString(refReg)
+        Ok(addInstruction(state, instr))
+      }
+    }
+
+  | AST.RefAssignment(_, _) =>
+    // RefAssignment is a statement, not an expression
+    Error("RefAssignment cannot be used as an expression")
 
   | AST.Identifier(name) =>
     // Check if this is a variant constructor (tag-only)

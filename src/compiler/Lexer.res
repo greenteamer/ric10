@@ -8,6 +8,7 @@ type token =
   | Else // keyword: else
   | Type // keyword: type
   | Switch // keyword: switch
+  | Ref // keyword: ref
   | Identifier(string) // variable names, function names
   | IntLiteral(int) // integer literals
   | Plus // +
@@ -20,6 +21,8 @@ type token =
   | EqualEqual // ==
   | Arrow // =>
   | Pipe // |
+  | ColonEqual // :=
+  | Dot // .
   | LeftParen // (
   | RightParen // )
   | LeftBrace // {
@@ -144,10 +147,17 @@ let nextToken = (lexer: lexer): (lexer, token) => {
     | Some(">") => (advance(lexer), GreaterThan)
     | Some("<") => (advance(lexer), LessThan)
     | Some("|") => (advance(lexer), Pipe)
+    | Some(".") => (advance(lexer), Dot)
     | Some("(") => (advance(lexer), LeftParen)
     | Some(")") => (advance(lexer), RightParen)
     | Some("{") => (advance(lexer), LeftBrace)
     | Some("}") => (advance(lexer), RightBrace)
+    | Some(":") =>
+      let lexer = advance(lexer)
+      switch peekChar(lexer) {
+      | Some("=") => (advance(lexer), ColonEqual)
+      | _ => (lexer, Invalid("Unexpected character ':'"))
+      }
     | Some("=") =>
       let lexer = advance(lexer)
       switch peekChar(lexer) {
@@ -166,6 +176,7 @@ let nextToken = (lexer: lexer): (lexer, token) => {
       | "else" => (lexer, Else)
       | "type" => (lexer, Type)
       | "switch" => (lexer, Switch)
+      | "ref" => (lexer, Ref)
       | _ => (lexer, Identifier(ident))
       }
     | Some(c) =>
@@ -200,6 +211,7 @@ let tokenToString = (token: token): string => {
   | Else => "Else"
   | Type => "Type"
   | Switch => "Switch"
+  | Ref => "Ref"
   | Identifier(name) => "Identifier(" ++ name ++ ")"
   | IntLiteral(n) => "IntLiteral(" ++ Int.toString(n) ++ ")"
   | Plus => "Plus"
@@ -212,6 +224,8 @@ let tokenToString = (token: token): string => {
   | EqualEqual => "EqualEqual"
   | Arrow => "Arrow"
   | Pipe => "Pipe"
+  | ColonEqual => "ColonEqual"
+  | Dot => "Dot"
   | LeftParen => "LeftParen"
   | RightParen => "RightParen"
   | LeftBrace => "LeftBrace"

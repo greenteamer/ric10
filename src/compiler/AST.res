@@ -28,6 +28,9 @@ type rec astNode =
   | TypeDeclaration(string, array<variantConstructor>) // type name = Constructor1 | Constructor2(arg)
   | VariantConstructor(string, option<expr>) // Constructor or Constructor(expr)
   | SwitchExpression(expr, array<matchCase>) // switch expr { | Pattern1 => body1 | Pattern2 => body2 }
+  | RefCreation(expr) // ref(expr)
+  | RefAccess(string) // identifier.contents
+  | RefAssignment(string, expr) // identifier := expr
 
 and expr = astNode
 
@@ -80,6 +83,18 @@ let createVariantConstructor = (name: string, argument: option<expr>): astNode =
 
 let createSwitchExpression = (scrutinee: expr, cases: array<matchCase>): astNode => {
   SwitchExpression(scrutinee, cases)
+}
+
+let createRefCreation = (value: expr): astNode => {
+  RefCreation(value)
+}
+
+let createRefAccess = (name: string): astNode => {
+  RefAccess(name)
+}
+
+let createRefAssignment = (name: string, value: expr): astNode => {
+  RefAssignment(name, value)
 }
 
 // Helper: Convert binary operator to string

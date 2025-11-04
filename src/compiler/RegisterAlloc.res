@@ -2,8 +2,14 @@
 // Simple linear allocation strategy: assigns registers sequentially (r0, r1, r2, ...)
 // IC10 has 16 registers (r0-r15)
 
-// Variable-to-register mapping (Belt.Map.String for O(log n) lookups)
-type varMap = Belt.Map.String.t<Register.t>
+// Variable information
+type variableInfo = {
+  register: Register.t,
+  isRef: bool,
+}
+
+// Variable-to-info mapping (Belt.Map.String for O(log n) lookups)
+type varMap = Belt.Map.String.t<variableInfo>
 
 // Register allocation state
 type allocator = {
@@ -22,19 +28,25 @@ let create = (): allocator => {
 }
 
 // Look up a variable in the map - O(log n) instead of O(n)
-let lookup = (varMap: varMap, variableName: string): option<Register.t> => {
+let lookup = (varMap: varMap, variableName: string): option<variableInfo> => {
   Belt.Map.String.get(varMap, variableName)
 }
 
 // Allocate a register for a variable
-let allocate = (allocator: allocator, variableName: string): result<
+let allocate = (allocator: allocator, variableName: string, isRef: bool): result<
   (allocator, Register.t),
   string,
 > => {
   switch lookup(allocator.variableMap, variableName) {
-  | Some(existingRegister) =>
+  | Some({register: existingRegister, _}) =>
     // Variable shadowing: reuse the same register
-    Ok((allocator, existingRegister))
+    // Update isRef status for this shadowing
+    let newVarMap = Belt.Map.String.set(
+      allocator.variableMap,
+      variableName,
+      {register: existingRegister, isRef: isRef}
+    )
+    Ok(({...allocator, variableMap: newVarMap}, existingRegister))
   | None =>
     if allocator.nextRegister > allocator.nextTempRegister {
       Error("Out of registers")
@@ -46,13 +58,33 @@ let allocate = (allocator: allocator, variableName: string): result<
           {
             ...allocator,
             nextRegister: allocator.nextRegister + 1,
-            variableMap: Belt.Map.String.set(allocator.variableMap, variableName, reg),
+            variableMap: Belt.Map.String.set(
+              allocator.variableMap,
+              variableName,
+              {register: reg, isRef: isRef}
+            ),
           },
           reg,
         )
       }
     }
   }
+}
+
+// Allocate a register for a ref variable
+let allocateRef = (allocator: allocator, variableName: string): result<
+  (allocator, Register.t),
+  string,
+> => {
+  allocate(allocator, variableName, true)
+}
+
+// Allocate a register for a normal (non-ref) variable
+let allocateNormal = (allocator: allocator, variableName: string): result<
+  (allocator, Register.t),
+  string,
+> => {
+  allocate(allocator, variableName, false)
 }
 
 let allocateTempRegister = (allocator: allocator): result<(allocator, Register.t), string> => {
@@ -67,7 +99,11 @@ let allocateTempRegister = (allocator: allocator): result<(allocator, Register.t
           {
             ...allocator,
             nextTempRegister: allocator.nextTempRegister - 1,
-            variableMap: Belt.Map.String.set(allocator.variableMap, tempName, reg),
+            variableMap: Belt.Map.String.set(
+              allocator.variableMap,
+              tempName,
+              {register: reg, isRef: false}
+            ),
           },
           reg,
         )
@@ -79,6 +115,14 @@ let allocateTempRegister = (allocator: allocator): result<(allocator, Register.t
 // Get the register for an existing variable
 // Returns None if variable not found
 let getRegister = (allocator: allocator, variableName: string): option<Register.t> => {
+  switch lookup(allocator.variableMap, variableName) {
+  | Some({register, _}) => Some(register)
+  | None => None
+  }
+}
+
+// Get full variable info (register + isRef flag)
+let getVariableInfo = (allocator: allocator, variableName: string): option<variableInfo> => {
   lookup(allocator.variableMap, variableName)
 }
 
@@ -91,22 +135,22 @@ let isAllocated = (allocator: allocator, variableName: string): bool => {
 }
 
 // Get or allocate a register (allocates if not found)
-let getOrAllocate = (allocator: allocator, variableName: string): result<
+let getOrAllocate = (allocator: allocator, variableName: string, isRef: bool): result<
   (allocator, Register.t),
   string,
 > => {
   switch getRegister(allocator, variableName) {
   | Some(reg) => Ok(allocator, reg)
-  | None => allocate(allocator, variableName)
+  | None => allocate(allocator, variableName, isRef)
   }
 }
 
 // Free a temporary register (removes it from the map and potentially reuses the slot)
 let freeTempRegister = (allocator: allocator, register: Register.t): allocator => {
   // Remove all temporary variables that use this register
-  let newVariableMap = Belt.Map.String.keep(allocator.variableMap, (name, reg) => {
+  let newVariableMap = Belt.Map.String.keep(allocator.variableMap, (name, varInfo) => {
     // Keep entry if it's NOT a temp variable with the target register
-    !(String.startsWith(name, "_temp_") && reg == register)
+    !(String.startsWith(name, "_temp_") && varInfo.register == register)
   })
 
   // If freeing the "last" temporary register (rightmost used)
@@ -131,9 +175,9 @@ let freeTempRegisterMultiple = (allocator: allocator, regNums: array<Register.t>
 
 // Get variable name by register number (reverse lookup)
 let getVariableName = (allocator: allocator, register: Register.t): option<string> => {
-  Belt.Map.String.findFirstBy(allocator.variableMap, (_name, reg) => {
-    Register.equal(reg, register)
-  })->Option.map(((name, _reg)) => name)
+  Belt.Map.String.findFirstBy(allocator.variableMap, (_name, varInfo) => {
+    Register.equal(varInfo.register, register)
+  })->Option.map(((name, _varInfo)) => name)
 }
 
 let freeTempIfTemp = (allocator: allocator, register: Register.t): allocator => {

@@ -95,8 +95,8 @@ let rec optimize = (node: astNode): astNode => {
     | Some(arg) => VariantConstructor(name, Some(optimize(arg)))
     }
 
-  // Optimize match expressions
-  | MatchExpression(scrutinee, cases) =>
+  // Optimize switch expressions
+  | SwitchExpression(scrutinee, cases) =>
     let optimizedScrutinee = optimize(scrutinee)
     let optimizedCases = Array.map(cases, matchCase => {
       {
@@ -104,7 +104,16 @@ let rec optimize = (node: astNode): astNode => {
         body: optimizeBlock(matchCase.body),
       }
     })
-    MatchExpression(optimizedScrutinee, optimizedCases)
+    SwitchExpression(optimizedScrutinee, optimizedCases)
+
+  // Ref expressions
+  | RefCreation(valueExpr) =>
+    RefCreation(optimize(valueExpr))
+
+  | RefAccess(_) => node // No optimization needed
+
+  | RefAssignment(name, valueExpr) =>
+    RefAssignment(name, optimize(valueExpr))
 
   // Leaf nodes - no optimization needed
   | Literal(_) => node

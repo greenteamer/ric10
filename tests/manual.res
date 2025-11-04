@@ -8,10 +8,12 @@ let maxPressure = 5000
 
 let state = Fill(10)
 
+let someMutVar = ref(0)
+
 let newState = switch state {
 | Idle => Idle
-| Fill(x) =>
-  if x > maxPressure {
+| Fill(x) => if x > maxPressure {
+    someMutVar := x + 100
     Purge(x)
   } else {
     Fill(x)

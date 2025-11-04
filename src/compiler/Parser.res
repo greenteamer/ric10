@@ -44,7 +44,10 @@ let tokensMatch = (token1: Lexer.token, token2: Lexer.token): bool => {
   | (Lexer.Else, Lexer.Else) => true
   | (Lexer.Type, Lexer.Type) => true
   | (Lexer.Switch, Lexer.Switch) => true
+  | (Lexer.Ref, Lexer.Ref) => true
   | (Lexer.Assign, Lexer.Assign) => true
+  | (Lexer.ColonEqual, Lexer.ColonEqual) => true
+  | (Lexer.Dot, Lexer.Dot) => true
   | (Lexer.Plus, Lexer.Plus) => true
   | (Lexer.Minus, Lexer.Minus) => true
   | (Lexer.Multiply, Lexer.Multiply) => true
@@ -142,11 +145,47 @@ and parseMultiplicativeExpressionRest = (parser: parser, left: AST.expr): result
 }
 
 // Parse comparison expressions (>, <, ==)
+// Parse postfix expressions like .contents
+and parsePostfixExpression = (parser: parser, base: AST.expr): result<(parser, AST.expr), string> => {
+  switch peek(parser) {
+  | Some(Lexer.Dot) =>
+    // Consume dot
+    let parser = advance(parser)
+    // Expect identifier for field name
+    switch peek(parser) {
+    | Some(Lexer.Identifier(fieldName)) =>
+      let parser = advance(parser)
+      if fieldName == "contents" {
+        // Base must be a simple identifier
+        switch base {
+        | AST.Identifier(refName) =>
+          // Return RefAccess node
+          Ok((parser, AST.createRefAccess(refName)))
+        | _ =>
+          Error("Only simple identifiers can be dereferenced with .contents")
+        }
+      } else {
+        Error("Only .contents field is supported for refs")
+      }
+    | _ =>
+      Error("Expected field name after '.'")
+    }
+  | _ =>
+    // No postfix operator, return base as-is
+    Ok((parser, base))
+  }
+}
+
 and parseComparisonExpression = (parser: parser): result<(parser, AST.expr), string> => {
   switch parsePrimaryExpression(parser) {
   | Error(msg) => Error(msg)
-  | Ok((parser, left)) =>
-    parseComparisonExpressionRest(parser, left)
+  | Ok((parser, expr)) =>
+    // Check for postfix operators like .contents
+    switch parsePostfixExpression(parser, expr) {
+    | Error(msg) => Error(msg)
+    | Ok((parser, postfixExpr)) =>
+      parseComparisonExpressionRest(parser, postfixExpr)
+    }
   }
 }
 
@@ -178,11 +217,35 @@ and parseComparisonExpressionRest = (parser: parser, left: AST.expr): result<(pa
 }
 
 // Parse primary expressions: literals, identifiers, parentheses, switch, variant constructors
+// Parse ref(expr) - ref creation
+and parseRefCreation = (parser: parser): result<(parser, AST.expr), string> => {
+  // Expect "ref" token (already consumed by caller)
+  // Expect "("
+  switch expect(parser, Lexer.LeftParen) {
+  | Error(e) => Error(e)
+  | Ok(parser) =>
+    // Parse inner expression
+    switch parseExpression(parser) {
+    | Error(e) => Error(e)
+    | Ok((parser, expr)) =>
+      // Expect ")"
+      switch expect(parser, Lexer.RightParen) {
+      | Error(e) => Error(e)
+      | Ok(parser) =>
+        Ok((parser, AST.createRefCreation(expr)))
+      }
+    }
+  }
+}
+
 and parsePrimaryExpression = (parser: parser): result<(parser, AST.expr), string> => {
   switch peek(parser) {
   | Some(Lexer.IntLiteral(value)) =>
     let parser = advance(parser)
     Ok((parser, AST.createLiteral(value)))
+  | Some(Lexer.Ref) =>
+    let parser = advance(parser)
+    parseRefCreation(parser)
   | Some(Lexer.Switch) =>
     parseSwitchExpression(parser)
   | Some(Lexer.Identifier(name)) =>
@@ -445,6 +508,21 @@ and parseIfStatement = (parser: parser): result<(parser, AST.astNode), string> =
 }
 
 // Parse a statement
+// Parse ref assignment: identifier := expr
+and parseRefAssignment = (parser: parser, name: string): result<(parser, AST.stmt), string> => {
+  // Expect ":=" (caller has already identified this pattern)
+  switch expect(parser, Lexer.ColonEqual) {
+  | Error(e) => Error(e)
+  | Ok(parser) =>
+    // Parse right-hand side expression
+    switch parseExpression(parser) {
+    | Error(e) => Error(e)
+    | Ok((parser, expr)) =>
+      Ok((parser, AST.createRefAssignment(name, expr)))
+    }
+  }
+}
+
 and parseStatement = (parser: parser): result<(parser, AST.astNode), string> => {
   switch peek(parser) {
   | Some(Lexer.Let) => parseVariableDeclaration(parser)
@@ -456,6 +534,17 @@ and parseStatement = (parser: parser): result<(parser, AST.astNode), string> => 
     switch parseBlockStatement(parser) {
     | Error(msg) => Error(msg)
     | Ok((parser, block)) => Ok((parser, AST.createBlockStatement(block)))
+    }
+  | Some(Lexer.Identifier(name)) =>
+    // Look ahead for := operator
+    let parser1 = advance(parser) // Consume identifier
+    switch peek(parser1) {
+    | Some(Lexer.ColonEqual) =>
+      // This is a ref assignment
+      parseRefAssignment(parser1, name)
+    | _ =>
+      // Not an assignment, try parsing as expression
+      parseExpression(parser)
     }
   | Some(Lexer.LeftParen) =>
     // Could be an if statement - for now parse as expression
