@@ -18,6 +18,24 @@ let addInstruction = (state: codegenState, instruction: string): codegenState =>
   {...state, instructions: newInstructions}
 }
 
+// Add an instruction with a comment (conditional based on options)
+let addInstructionWithComment = (state: codegenState, instruction: string, comment: string): codegenState => {
+  if state.options.includeComments {
+    let fullInstruction = instruction ++ "  # " ++ comment
+    addInstruction(state, fullInstruction)
+  } else {
+    addInstruction(state, instruction)
+  }
+}
+
+// Get variable name from register, or return register name
+let getRegisterName = (state: codegenState, reg: Register.t): string => {
+  switch RegisterAlloc.getVariableName(state.allocator, reg) {
+  | Some(name) if !String.startsWith(name, "_temp_") => name
+  | _ => Register.toString(reg)
+  }
+}
+
 // Get operation string for IC10
 let getOpString = (op: AST.binaryOp): string => {
   switch op {
@@ -28,6 +46,19 @@ let getOpString = (op: AST.binaryOp): string => {
   | AST.Gt => "sgt"
   | AST.Lt => "slt"
   | AST.Eq => "seq"
+  }
+}
+
+// Get operation symbol for comments
+let getOpSymbol = (op: AST.binaryOp): string => {
+  switch op {
+  | AST.Add => "+"
+  | AST.Sub => "-"
+  | AST.Mul => "*"
+  | AST.Div => "/"
+  | AST.Gt => ">"
+  | AST.Lt => "<"
+  | AST.Eq => "=="
   }
 }
 
@@ -45,7 +76,8 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
     | Ok((allocator, reg)) =>
       let newState = {...state, allocator}
       let instr = "move " ++ Register.toString(reg) ++ " " ++ Int.toString(value)
-      Ok((addInstruction(newState, instr), reg))
+      let comment = Int.toString(value)
+      Ok((addInstructionWithComment(newState, instr, comment), reg))
     }
 
   | AST.RefCreation(valueExpr) =>
@@ -74,7 +106,8 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
       // This is a tag-only variant constructor
       // Push tag onto stack
       let instr1 = "push " ++ Int.toString(tag)
-      let state1 = addInstruction(state, instr1)
+      let comment1 = name ++ " variant tag"
+      let state1 = addInstructionWithComment(state, instr1, comment1)
 
       // Allocate register to hold stack base address
       switch RegisterAlloc.allocateTempRegister(state1.allocator) {
@@ -82,11 +115,13 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
       | Ok((allocator, baseReg)) =>
         // Generate: move baseReg sp; sub baseReg baseReg 1
         let instr2 = "move " ++ Register.toString(baseReg) ++ " sp"
+        let comment2 = "get stack pointer"
         let instr3 =
           "sub " ++ Register.toString(baseReg) ++ " " ++ Register.toString(baseReg) ++ " 1"
+        let comment3 = "adjust to variant address"
 
-        let state2 = addInstruction({...state1, allocator}, instr2)
-        let state3 = addInstruction(state2, instr3)
+        let state2 = addInstructionWithComment({...state1, allocator}, instr2, comment2)
+        let state3 = addInstructionWithComment(state2, instr3, comment3)
 
         Ok((state3, baseReg))
       }
@@ -125,7 +160,13 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
             " " ++
             Register.toString(rightReg)
 
-          let state4 = addInstruction(state3, instr)
+          // Generate comment showing the operation
+          let leftName = getRegisterName(state3, leftReg)
+          let rightName = getRegisterName(state3, rightReg)
+          let opSymbol = getOpSymbol(op)
+          let comment = leftName ++ " " ++ opSymbol ++ " " ++ rightName
+
+          let state4 = addInstructionWithComment(state3, instr, comment)
 
           // Free temporary registers
           let allocator2 = RegisterAlloc.freeTempIfTemp(
@@ -145,7 +186,8 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
     | Some(tag) =>
       // Push tag onto stack
       let instr1 = "push " ++ Int.toString(tag)
-      let state1 = addInstruction(state, instr1)
+      let comment1 = constructorName ++ " variant tag"
+      let state1 = addInstructionWithComment(state, instr1, comment1)
 
       // If has argument, generate and push it
       let state2 = switch argumentOpt {
@@ -156,7 +198,8 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
         | Error(msg) => state1 // fallback - shouldn't happen
         | Ok((state2, argReg)) =>
           let instr2 = "push " ++ Register.toString(argReg)
-          let state3 = addInstruction(state2, instr2)
+          let comment2 = constructorName ++ " payload"
+          let state3 = addInstructionWithComment(state2, instr2, comment2)
 
           // Free temp register if it was temporary
           let allocator = RegisterAlloc.freeTempIfTemp(state3.allocator, argReg)
@@ -175,6 +218,7 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
         }
 
         let instr3 = "move " ++ Register.toString(baseReg) ++ " sp"
+        let comment3 = "get stack pointer"
         let instr4 =
           "sub " ++
           Register.toString(baseReg) ++
@@ -182,9 +226,10 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
           Register.toString(baseReg) ++
           " " ++
           Int.toString(slotsUsed)
+        let comment4 = "adjust to variant address"
 
-        let state3 = addInstruction({...state2, allocator}, instr3)
-        let state4 = addInstruction(state3, instr4)
+        let state3 = addInstructionWithComment({...state2, allocator}, instr3, comment3)
+        let state4 = addInstructionWithComment(state3, instr4, comment4)
 
         Ok((state4, baseReg))
       }
@@ -201,9 +246,11 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
       | Ok((allocator, tagReg)) =>
         // Generate: move sp scrutineeReg; peek tagReg
         let instr1 = "move sp " ++ Register.toString(scrutineeReg)
+        let comment1 = "set stack pointer to variant"
         let instr2 = "peek " ++ Register.toString(tagReg)
-        let state2 = addInstruction({...state1, allocator}, instr1)
-        let state3 = addInstruction(state2, instr2)
+        let comment2 = "read variant tag"
+        let state2 = addInstructionWithComment({...state1, allocator}, instr1, comment1)
+        let state3 = addInstructionWithComment(state2, instr2, comment2)
 
         // Free scrutinee register if temp
         let allocator2 = RegisterAlloc.freeTempIfTemp(state3.allocator, scrutineeReg)
@@ -238,7 +285,8 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
                   Int.toString(tag) ++
                   " " ++
                   caseLabel
-                (addInstruction(newState, branchInstr), Array.concat(labels, [(caseLabel, matchCase)]))
+                let comment = "match " ++ matchCase.constructorName
+                (addInstructionWithComment(newState, branchInstr, comment), Array.concat(labels, [(caseLabel, matchCase)]))
               }
             },
           )
@@ -248,12 +296,13 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
           let state8 = {...state7, allocator: allocator4}
 
           // Jump to end if no case matched (fallthrough - shouldn't happen with exhaustive match)
-          let state9 = addInstruction(state8, "j " ++ matchEndLabel)
+          let state9 = addInstructionWithComment(state8, "j " ++ matchEndLabel, "no match")
 
           // Generate code for each case body
           let stateAfterCases = Array.reduce(caseLabels, state9, (state, (label, matchCase)) => {
             // Add case label
-            let state1 = addInstruction(state, label ++ ":")
+            let comment = "case " ++ matchCase.constructorName
+            let state1 = addInstructionWithComment(state, label ++ ":", comment)
 
             // If case has argument binding, extract it from stack
             let state2 = switch matchCase.argumentBinding {
@@ -278,11 +327,11 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
             let state3 = state2
 
             // Jump to match end
-            addInstruction(state3, "j " ++ matchEndLabel)
+            addInstructionWithComment(state3, "j " ++ matchEndLabel, "end case")
           })
 
           // Add match end label
-          let stateFinal = addInstruction(stateAfterCases, matchEndLabel ++ ":")
+          let stateFinal = addInstructionWithComment(stateAfterCases, matchEndLabel ++ ":", "end match")
 
           Ok((stateFinal, resultReg))
         }
@@ -292,7 +341,10 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
   | AST.VariableDeclaration(_, _) => Error("VariableDeclaration in expression context")
   | AST.TypeDeclaration(_, _) => Error("TypeDeclaration in expression context")
   | AST.IfStatement(_, _, _) => Error("IfStatement in expression context")
+  | AST.WhileLoop(_, _) => Error("WhileLoop in expression context")
   | AST.BlockStatement(_) => Error("BlockStatement in expression context")
+  | AST.RefAssignment(_, _) => Error("RefAssignment in expression context")
+  | AST.RawInstruction(_) => Error("RawInstruction in expression context")
   }
 }
 
@@ -307,7 +359,8 @@ let rec generateInto = (
   | AST.Literal(value) =>
     // Write literal directly to target register
     let instr = "move " ++ Register.toString(targetReg) ++ " " ++ Int.toString(value)
-    Ok(addInstruction(state, instr))
+    let comment = Int.toString(value)
+    Ok(addInstructionWithComment(state, instr, comment))
 
   | AST.RefCreation(valueExpr) =>
     // Generate value directly into target register
@@ -324,7 +377,8 @@ let rec generateInto = (
         Ok(state) // Already in target
       } else {
         let instr = "move " ++ Register.toString(targetReg) ++ " " ++ Register.toString(refReg)
-        Ok(addInstruction(state, instr))
+        let comment = refName ++ ".contents"
+        Ok(addInstructionWithComment(state, instr, comment))
       }
     }
 
@@ -358,7 +412,8 @@ let rec generateInto = (
           Ok(state) // Already in target register
         } else {
           let instr = "move " ++ Register.toString(targetReg) ++ " " ++ Register.toString(sourceReg)
-          Ok(addInstruction(state, instr))
+          let comment = name
+          Ok(addInstructionWithComment(state, instr, comment))
         }
       }
     }
@@ -377,7 +432,9 @@ let rec generateInto = (
       | AST.Eq => leftVal == rightVal ? 1 : 0
       }
       let instr = "move " ++ Register.toString(targetReg) ++ " " ++ Int.toString(resultVal)
-      Ok(addInstruction(state, instr))
+      let opSymbol = getOpSymbol(op)
+      let comment = Int.toString(leftVal) ++ " " ++ opSymbol ++ " " ++ Int.toString(rightVal)
+      Ok(addInstructionWithComment(state, instr, comment))
 
     // ===== LITERAL OPTIMIZATION (Commutative ops: add, mul) =====
     | (nonLiteral, AST.Literal(literalVal)) when op == AST.Add || op == AST.Mul =>
@@ -393,8 +450,11 @@ let rec generateInto = (
           Register.toString(nonLiteralReg) ++
           " " ++
           Int.toString(literalVal)
+        let leftName = getRegisterName(state1, nonLiteralReg)
+        let opSymbol = getOpSymbol(op)
+        let comment = leftName ++ " " ++ opSymbol ++ " " ++ Int.toString(literalVal)
         let allocator = RegisterAlloc.freeTempIfTemp(state1.allocator, nonLiteralReg)
-        Ok(addInstruction({...state1, allocator}, instr))
+        Ok(addInstructionWithComment({...state1, allocator}, instr, comment))
       }
 
     | (AST.Literal(literalVal), nonLiteral) when op == AST.Add || op == AST.Mul =>
@@ -410,8 +470,11 @@ let rec generateInto = (
           Register.toString(nonLiteralReg) ++
           " " ++
           Int.toString(literalVal)
+        let rightName = getRegisterName(state1, nonLiteralReg)
+        let opSymbol = getOpSymbol(op)
+        let comment = Int.toString(literalVal) ++ " " ++ opSymbol ++ " " ++ rightName
         let allocator = RegisterAlloc.freeTempIfTemp(state1.allocator, nonLiteralReg)
-        Ok(addInstruction({...state1, allocator}, instr))
+        Ok(addInstructionWithComment({...state1, allocator}, instr, comment))
       }
 
     // ===== LITERAL OPTIMIZATION (Non-commutative ops: sub, div) =====
@@ -428,8 +491,11 @@ let rec generateInto = (
           Register.toString(nonLiteralReg) ++
           " " ++
           Int.toString(literalVal)
+        let leftName = getRegisterName(state1, nonLiteralReg)
+        let opSymbol = getOpSymbol(op)
+        let comment = leftName ++ " " ++ opSymbol ++ " " ++ Int.toString(literalVal)
         let allocator = RegisterAlloc.freeTempIfTemp(state1.allocator, nonLiteralReg)
-        Ok(addInstruction({...state1, allocator}, instr))
+        Ok(addInstructionWithComment({...state1, allocator}, instr, comment))
       }
 
     // ===== DEFAULT: General binary expression =====
@@ -450,12 +516,17 @@ let rec generateInto = (
             " " ++
             Register.toString(rightReg)
 
+          let leftName = getRegisterName(state2, leftReg)
+          let rightName = getRegisterName(state2, rightReg)
+          let opSymbol = getOpSymbol(op)
+          let comment = leftName ++ " " ++ opSymbol ++ " " ++ rightName
+
           let allocator = RegisterAlloc.freeTempIfTemp(
             RegisterAlloc.freeTempIfTemp(state2.allocator, leftReg),
             rightReg,
           )
 
-          Ok(addInstruction({...state2, allocator}, instr))
+          Ok(addInstructionWithComment({...state2, allocator}, instr, comment))
         }
       }
     }
@@ -491,6 +562,9 @@ let rec generateInto = (
   | AST.VariableDeclaration(_, _) => Error("VariableDeclaration in expression context")
   | AST.TypeDeclaration(_, _) => Error("TypeDeclaration in expression context")
   | AST.IfStatement(_, _, _) => Error("IfStatement in expression context")
+  | AST.WhileLoop(_, _) => Error("WhileLoop in expression context")
   | AST.BlockStatement(_) => Error("BlockStatement in expression context")
+  | AST.RefAssignment(_, _) => Error("RefAssignment in expression context")
+  | AST.RawInstruction(_) => Error("RawInstruction in expression context")
   }
 }

@@ -24,6 +24,7 @@ type rec astNode =
   | Literal(int) // integer literal
   | Identifier(string) // variable name
   | IfStatement(expr, blockStatement, option<blockStatement>) // if (expr) { stmts } else { stmts }
+  | WhileLoop(expr, blockStatement) // while expr { stmts }
   | BlockStatement(blockStatement) // { stmt1; stmt2; ... }
   | TypeDeclaration(string, array<variantConstructor>) // type name = Constructor1 | Constructor2(arg)
   | VariantConstructor(string, option<expr>) // Constructor or Constructor(expr)
@@ -31,6 +32,7 @@ type rec astNode =
   | RefCreation(expr) // ref(expr)
   | RefAccess(string) // identifier.contents
   | RefAssignment(string, expr) // identifier := expr
+  | RawInstruction(string) // %raw("instruction") - raw IC10 assembly
 
 and expr = astNode
 
@@ -69,6 +71,10 @@ let createIfStatement = (condition: expr, thenBlock: blockStatement, elseBlock: 
   IfStatement(condition, thenBlock, elseBlock)
 }
 
+let createWhileLoop = (condition: expr, body: blockStatement): astNode => {
+  WhileLoop(condition, body)
+}
+
 let createBlockStatement = (statements: array<astNode>): astNode => {
   BlockStatement(statements)
 }
@@ -95,6 +101,10 @@ let createRefAccess = (name: string): astNode => {
 
 let createRefAssignment = (name: string, value: expr): astNode => {
   RefAssignment(name, value)
+}
+
+let createRawInstruction = (instruction: string): astNode => {
+  RawInstruction(instruction)
 }
 
 // Helper: Convert binary operator to string

@@ -18,6 +18,16 @@ let addInstruction = (state: codegenState, instruction: string): codegenState =>
   {...state, instructions: newInstructions}
 }
 
+// Add an instruction with a comment (conditional based on options)
+let addInstructionWithComment = (state: codegenState, instruction: string, comment: string): codegenState => {
+  if state.options.includeComments {
+    let fullInstruction = instruction ++ "  # " ++ comment
+    addInstruction(state, fullInstruction)
+  } else {
+    addInstruction(state, instruction)
+  }
+}
+
 // Generate a unique label
 let generateLabel = (state: codegenState): (codegenState, string) => {
   let label = "label" ++ Int.toString(state.labelCounter)
@@ -71,14 +81,21 @@ let generateIfOnly = (
 
   // Generate inverted branch: jump to end when condition is FALSE
   let branchInstr = generateInvertedBranch(op, leftReg, rightValue, endLabel)
-  let state2 = addInstruction(state1, branchInstr)
+  let opStr = switch op {
+  | AST.Lt => "<"
+  | AST.Gt => ">"
+  | AST.Eq => "=="
+  | _ => ""
+  }
+  let comment = "if " ++ Register.toString(leftReg) ++ " " ++ opStr ++ " " ++ rightValue
+  let state2 = addInstructionWithComment(state1, branchInstr, comment)
 
   // Generate then block (executed when condition is TRUE)
   switch generateThenBlock(state2) {
   | Error(msg) => Error(msg)
   | Ok(state3) =>
     // Add end label
-    Ok(addInstruction(state3, endLabel ++ ":"))
+    Ok(addInstructionWithComment(state3, endLabel ++ ":", "end if"))
   }
 }
 
@@ -98,22 +115,29 @@ let generateIfElse = (
 
   // Branch to then block when condition is TRUE
   let branchInstr = generateDirectBranch(op, leftReg, rightValue, thenLabel)
-  let state3 = addInstruction(state2, branchInstr)
+  let opStr = switch op {
+  | AST.Lt => "<"
+  | AST.Gt => ">"
+  | AST.Eq => "=="
+  | _ => ""
+  }
+  let comment = "if " ++ Register.toString(leftReg) ++ " " ++ opStr ++ " " ++ rightValue
+  let state3 = addInstructionWithComment(state2, branchInstr, comment)
 
   // Generate else block (falls through when condition is FALSE)
   switch generateElseBlock(state3) {
   | Error(msg) => Error(msg)
   | Ok(state4) =>
     // Jump to end after else block
-    let state5 = addInstruction(state4, "j " ++ endLabel)
+    let state5 = addInstructionWithComment(state4, "j " ++ endLabel, "skip then block")
 
     // Add then label and generate then block
-    let state6 = addInstruction(state5, thenLabel ++ ":")
+    let state6 = addInstructionWithComment(state5, thenLabel ++ ":", "then block")
     switch generateThenBlock(state6) {
     | Error(msg) => Error(msg)
     | Ok(state7) =>
       // Add end label
-      Ok(addInstruction(state7, endLabel ++ ":"))
+      Ok(addInstructionWithComment(state7, endLabel ++ ":", "end if"))
     }
   }
 }
@@ -165,6 +189,84 @@ let generateIfWithConditionReg = (
         // Add end label
         Ok(addInstruction(state7, endLabel ++ ":"))
       }
+    }
+  }
+}
+
+// Generate while loop with direct comparison optimization
+// Strategy: Evaluate condition on each iteration, use inverted branch to exit when FALSE
+let generateWhileLoop = (
+  state: codegenState,
+  op: AST.binaryOp,
+  rightValue: string,
+  generateCondition: codegenState => result<(codegenState, Register.t), string>,
+  generateBody: codegenState => result<codegenState, string>,
+): result<codegenState, string> => {
+  // Generate labels (start label first so it gets lower number)
+  let (state1, startLabel) = generateLabel(state)
+  let (state2, endLabel) = generateLabel(state1)
+
+  // Emit start label
+  let state3 = addInstructionWithComment(state2, startLabel ++ ":", "while loop start")
+
+  // Generate condition evaluation (re-evaluated on each iteration)
+  switch generateCondition(state3) {
+  | Error(msg) => Error(msg)
+  | Ok((state4, condReg)) =>
+    // Generate inverted branch: jump to end when condition is FALSE
+    let branchInstr = generateInvertedBranch(op, condReg, rightValue, endLabel)
+    let opStr = switch op {
+    | AST.Lt => "<"
+    | AST.Gt => ">"
+    | AST.Eq => "=="
+    | _ => ""
+    }
+    let comment = "while " ++ Register.toString(condReg) ++ " " ++ opStr ++ " " ++ rightValue
+    let state5 = addInstructionWithComment(state4, branchInstr, comment)
+
+    // Generate loop body
+    switch generateBody(state5) {
+    | Error(msg) => Error(msg)
+    | Ok(state6) =>
+      // Jump back to start
+      let state7 = addInstructionWithComment(state6, "j " ++ startLabel, "loop back")
+
+      // Add end label
+      Ok(addInstructionWithComment(state7, endLabel ++ ":", "end while"))
+    }
+  }
+}
+
+// Generate while loop using condition register (for non-comparison conditions)
+let generateWhileLoopWithConditionReg = (
+  state: codegenState,
+  generateCondition: codegenState => result<(codegenState, Register.t), string>,
+  generateBody: codegenState => result<codegenState, string>,
+): result<codegenState, string> => {
+  // Generate labels (start label first so it gets lower number)
+  let (state1, startLabel) = generateLabel(state)
+  let (state2, endLabel) = generateLabel(state1)
+
+  // Emit start label
+  let state3 = addInstructionWithComment(state2, startLabel ++ ":", "while loop start")
+
+  // Generate condition evaluation (re-evaluated on each iteration)
+  switch generateCondition(state3) {
+  | Error(msg) => Error(msg)
+  | Ok((state4, condReg)) =>
+    // Jump to end when condition is zero (false)
+    let branchInstr = "beqz " ++ Register.toString(condReg) ++ " " ++ endLabel
+    let state5 = addInstructionWithComment(state4, branchInstr, "while " ++ Register.toString(condReg))
+
+    // Generate loop body
+    switch generateBody(state5) {
+    | Error(msg) => Error(msg)
+    | Ok(state6) =>
+      // Jump back to start
+      let state7 = addInstructionWithComment(state6, "j " ++ startLabel, "loop back")
+
+      // Add end label
+      Ok(addInstructionWithComment(state7, endLabel ++ ":", "end while"))
     }
   }
 }

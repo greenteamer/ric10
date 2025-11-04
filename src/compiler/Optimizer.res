@@ -81,6 +81,12 @@ let rec optimize = (node: astNode): astNode => {
       IfStatement(optimizedCondition, optimizedThen, optimizedElse)
     }
 
+  // Optimize while loops
+  | WhileLoop(condition, body) =>
+    let optimizedCondition = optimize(condition)
+    let optimizedBody = optimizeBlock(body)
+    WhileLoop(optimizedCondition, optimizedBody)
+
   // Optimize block statements
   | BlockStatement(statements) =>
     BlockStatement(optimizeBlock(statements))
@@ -114,6 +120,9 @@ let rec optimize = (node: astNode): astNode => {
 
   | RefAssignment(name, valueExpr) =>
     RefAssignment(name, optimize(valueExpr))
+
+  // Raw instructions - pass through unchanged (no optimization possible)
+  | RawInstruction(_) => node
 
   // Leaf nodes - no optimization needed
   | Literal(_) => node

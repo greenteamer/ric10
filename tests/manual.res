@@ -5,15 +5,14 @@ type state =
   | Work
 
 let maxPressure = 5000
+let maxTemp = 403
 
-let state = Fill(10)
-
-let someMutVar = ref(0)
+let state = Idle
 
 let newState = switch state {
 | Idle => Idle
-| Fill(x) => if x > maxPressure {
-    someMutVar := x + 100
+| Fill(x) =>
+  if x > maxPressure {
     Purge(x)
   } else {
     Fill(x)

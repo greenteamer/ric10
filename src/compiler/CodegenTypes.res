@@ -1,6 +1,10 @@
 // Shared types for code generation modules
 // Avoids type incompatibility issues between StmtGen, ExprGen, BranchGen, etc.
 
+type compilerOptions = {
+  includeComments: bool,
+}
+
 type codegenState = {
   allocator: RegisterAlloc.allocator,
   stackAllocator: StackAlloc.stackAllocator,
@@ -8,4 +12,5 @@ type codegenState = {
   labelCounter: int,
   variantTypes: Belt.Map.String.t<array<AST.variantConstructor>>,
   variantTags: Belt.Map.String.t<int>,
+  options: compilerOptions,
 }

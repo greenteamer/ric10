@@ -5,7 +5,7 @@
 type codegenState = CodegenTypes.codegenState
 
 // Create initial codegen state
-let create = (): codegenState => {
+let create = (options: CodegenTypes.compilerOptions): codegenState => {
   {
     allocator: RegisterAlloc.create(),
     stackAllocator: StackAlloc.create(),
@@ -13,16 +13,17 @@ let create = (): codegenState => {
     labelCounter: 0,
     variantTypes: Belt.Map.String.empty,
     variantTags: Belt.Map.String.empty,
+    options: options,
   }
 }
 
 // Generate IC10 code for a program
-let generate = (program: AST.program): result<string, string> => {
+let generate = (program: AST.program, options: CodegenTypes.compilerOptions): result<string, string> => {
   // First, optimize the AST
   let optimizedProgram = Optimizer.optimizeProgram(program)
 
   // Generate code for each statement
-  let state = create()
+  let state = create(options)
   let rec loop = (state: codegenState, i: int): result<codegenState, string> => {
     if i >= Array.length(optimizedProgram) {
       Ok(state)

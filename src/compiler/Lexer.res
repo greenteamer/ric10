@@ -6,11 +6,14 @@ type token =
   | Let // keyword: let
   | If // keyword: if
   | Else // keyword: else
+  | While // keyword: while
   | Type // keyword: type
   | Switch // keyword: switch
   | Ref // keyword: ref
+  | True // keyword: true
   | Identifier(string) // variable names, function names
   | IntLiteral(int) // integer literals
+  | StringLiteral(string) // string literals
   | Plus // +
   | Minus // -
   | Multiply // *
@@ -23,6 +26,7 @@ type token =
   | Pipe // |
   | ColonEqual // :=
   | Dot // .
+  | Percent // %
   | LeftParen // (
   | RightParen // )
   | LeftBrace // {
@@ -132,6 +136,32 @@ let readIdentifier = (lexer: lexer): (lexer, string) => {
   }
 }
 
+// Read a string literal (handles "string")
+let readStringLiteral = (lexer: lexer): (lexer, string) => {
+  let rec loop = (l: lexer, acc: string): (lexer, string) => {
+    switch peekChar(l) {
+    | Some("\"") => (advance(l), acc) // End quote
+    | Some("\\") =>
+      // Handle escape sequences
+      let l = advance(l)
+      switch peekChar(l) {
+      | Some("n") => loop(advance(l), acc ++ "\n")
+      | Some("t") => loop(advance(l), acc ++ "\t")
+      | Some("\\") => loop(advance(l), acc ++ "\\")
+      | Some("\"") => loop(advance(l), acc ++ "\"")
+      | Some(c) => loop(advance(l), acc ++ c) // Unknown escape, keep as is
+      | None => (l, acc)
+      }
+    | Some(c) => loop(advance(l), acc ++ c)
+    | None => (l, acc) // Unterminated string
+    }
+  }
+  switch peekChar(lexer) {
+  | Some("\"") => loop(advance(lexer), "")
+  | _ => (lexer, "")
+  }
+}
+
 // Read next token from source
 let nextToken = (lexer: lexer): (lexer, token) => {
   let lexer = skipWhitespace(lexer)
@@ -148,10 +178,14 @@ let nextToken = (lexer: lexer): (lexer, token) => {
     | Some("<") => (advance(lexer), LessThan)
     | Some("|") => (advance(lexer), Pipe)
     | Some(".") => (advance(lexer), Dot)
+    | Some("%") => (advance(lexer), Percent)
     | Some("(") => (advance(lexer), LeftParen)
     | Some(")") => (advance(lexer), RightParen)
     | Some("{") => (advance(lexer), LeftBrace)
     | Some("}") => (advance(lexer), RightBrace)
+    | Some("\"") =>
+      let (lexer, str) = readStringLiteral(lexer)
+      (lexer, StringLiteral(str))
     | Some(":") =>
       let lexer = advance(lexer)
       switch peekChar(lexer) {
@@ -174,9 +208,11 @@ let nextToken = (lexer: lexer): (lexer, token) => {
       | "let" => (lexer, Let)
       | "if" => (lexer, If)
       | "else" => (lexer, Else)
+      | "while" => (lexer, While)
       | "type" => (lexer, Type)
       | "switch" => (lexer, Switch)
       | "ref" => (lexer, Ref)
+      | "true" => (lexer, True)
       | _ => (lexer, Identifier(ident))
       }
     | Some(c) =>
@@ -209,11 +245,14 @@ let tokenToString = (token: token): string => {
   | Let => "Let"
   | If => "If"
   | Else => "Else"
+  | While => "While"
   | Type => "Type"
   | Switch => "Switch"
   | Ref => "Ref"
+  | True => "True"
   | Identifier(name) => "Identifier(" ++ name ++ ")"
   | IntLiteral(n) => "IntLiteral(" ++ Int.toString(n) ++ ")"
+  | StringLiteral(str) => "StringLiteral(" ++ str ++ ")"
   | Plus => "Plus"
   | Minus => "Minus"
   | Multiply => "Multiply"
@@ -226,6 +265,7 @@ let tokenToString = (token: token): string => {
   | Pipe => "Pipe"
   | ColonEqual => "ColonEqual"
   | Dot => "Dot"
+  | Percent => "Percent"
   | LeftParen => "LeftParen"
   | RightParen => "RightParen"
   | LeftBrace => "LeftBrace"

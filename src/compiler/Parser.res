@@ -42,12 +42,15 @@ let tokensMatch = (token1: Lexer.token, token2: Lexer.token): bool => {
   | (Lexer.Let, Lexer.Let) => true
   | (Lexer.If, Lexer.If) => true
   | (Lexer.Else, Lexer.Else) => true
+  | (Lexer.While, Lexer.While) => true
   | (Lexer.Type, Lexer.Type) => true
   | (Lexer.Switch, Lexer.Switch) => true
   | (Lexer.Ref, Lexer.Ref) => true
+  | (Lexer.True, Lexer.True) => true
   | (Lexer.Assign, Lexer.Assign) => true
   | (Lexer.ColonEqual, Lexer.ColonEqual) => true
   | (Lexer.Dot, Lexer.Dot) => true
+  | (Lexer.Percent, Lexer.Percent) => true
   | (Lexer.Plus, Lexer.Plus) => true
   | (Lexer.Minus, Lexer.Minus) => true
   | (Lexer.Multiply, Lexer.Multiply) => true
@@ -63,6 +66,7 @@ let tokensMatch = (token1: Lexer.token, token2: Lexer.token): bool => {
   | (Lexer.RightBrace, Lexer.RightBrace) => true
   | (Lexer.EOF, Lexer.EOF) => true
   | (Lexer.IntLiteral(n1), Lexer.IntLiteral(n2)) => n1 == n2
+  | (Lexer.StringLiteral(s1), Lexer.StringLiteral(s2)) => s1 == s2
   | (Lexer.Identifier(s1), Lexer.Identifier(s2)) => s1 == s2
   | (Lexer.Invalid(s1), Lexer.Invalid(s2)) => s1 == s2
   | _ => false
@@ -196,21 +200,36 @@ and parseComparisonExpressionRest = (parser: parser, left: AST.expr): result<(pa
     switch parsePrimaryExpression(parser) {
     | Error(msg) => Error(msg)
     | Ok((parser, right)) =>
-      parseComparisonExpressionRest(parser, AST.createBinaryExpression(AST.Gt, left, right))
+      // Also handle postfix expressions like .contents on the right side
+      switch parsePostfixExpression(parser, right) {
+      | Error(msg) => Error(msg)
+      | Ok((parser, rightPostfix)) =>
+        parseComparisonExpressionRest(parser, AST.createBinaryExpression(AST.Gt, left, rightPostfix))
+      }
     }
   | Some(Lexer.LessThan) =>
     let parser = advance(parser)
     switch parsePrimaryExpression(parser) {
     | Error(msg) => Error(msg)
     | Ok((parser, right)) =>
-      parseComparisonExpressionRest(parser, AST.createBinaryExpression(AST.Lt, left, right))
+      // Also handle postfix expressions like .contents on the right side
+      switch parsePostfixExpression(parser, right) {
+      | Error(msg) => Error(msg)
+      | Ok((parser, rightPostfix)) =>
+        parseComparisonExpressionRest(parser, AST.createBinaryExpression(AST.Lt, left, rightPostfix))
+      }
     }
   | Some(Lexer.EqualEqual) =>
     let parser = advance(parser)
     switch parsePrimaryExpression(parser) {
     | Error(msg) => Error(msg)
     | Ok((parser, right)) =>
-      parseComparisonExpressionRest(parser, AST.createBinaryExpression(AST.Eq, left, right))
+      // Also handle postfix expressions like .contents on the right side
+      switch parsePostfixExpression(parser, right) {
+      | Error(msg) => Error(msg)
+      | Ok((parser, rightPostfix)) =>
+        parseComparisonExpressionRest(parser, AST.createBinaryExpression(AST.Eq, left, rightPostfix))
+      }
     }
   | _ => Ok((parser, left))
   }
@@ -243,6 +262,9 @@ and parsePrimaryExpression = (parser: parser): result<(parser, AST.expr), string
   | Some(Lexer.IntLiteral(value)) =>
     let parser = advance(parser)
     Ok((parser, AST.createLiteral(value)))
+  | Some(Lexer.True) =>
+    let parser = advance(parser)
+    Ok((parser, AST.createLiteral(1))) // true is represented as 1
   | Some(Lexer.Ref) =>
     let parser = advance(parser)
     parseRefCreation(parser)
@@ -507,6 +529,21 @@ and parseIfStatement = (parser: parser): result<(parser, AST.astNode), string> =
   }
 }
 
+// Parse a while loop: while condition { statements }
+// Part of the same mutual recursion group as expression parsers
+and parseWhileLoop = (parser: parser): result<(parser, AST.astNode), string> => {
+  // Parse: while expr { statements }
+  switch parseExpression(parser) {
+  | Error(msg) => Error(msg)
+  | Ok((parser, condition)) =>
+    switch parseBlockStatement(parser) {
+    | Error(msg) => Error(msg)
+    | Ok((parser, body)) =>
+      Ok((parser, AST.createWhileLoop(condition, body)))
+    }
+  }
+}
+
 // Parse a statement
 // Parse ref assignment: identifier := expr
 and parseRefAssignment = (parser: parser, name: string): result<(parser, AST.stmt), string> => {
@@ -523,6 +560,39 @@ and parseRefAssignment = (parser: parser, name: string): result<(parser, AST.stm
   }
 }
 
+// Parse %raw("instruction") - raw IC10 assembly instruction
+and parseRawInstruction = (parser: parser): result<(parser, AST.astNode), string> => {
+  // Expect %
+  switch expect(parser, Lexer.Percent) {
+  | Error(msg) => Error(msg)
+  | Ok(parser) =>
+    // Expect "raw" identifier
+    switch peek(parser) {
+    | Some(Lexer.Identifier("raw")) =>
+      let parser = advance(parser)
+      // Expect (
+      switch expect(parser, Lexer.LeftParen) {
+      | Error(msg) => Error(msg)
+      | Ok(parser) =>
+        // Expect string literal
+        switch peek(parser) {
+        | Some(Lexer.StringLiteral(instruction)) =>
+          let parser = advance(parser)
+          // Expect )
+          switch expect(parser, Lexer.RightParen) {
+          | Error(msg) => Error(msg)
+          | Ok(parser) => Ok((parser, AST.createRawInstruction(instruction)))
+          }
+        | Some(token) => Error("Expected string literal in %raw() but found " ++ Lexer.tokenToString(token))
+        | None => Error("Expected string literal in %raw() but reached end of file")
+        }
+      }
+    | Some(token) => Error("Expected 'raw' after % but found " ++ Lexer.tokenToString(token))
+    | None => Error("Expected 'raw' after % but reached end of file")
+    }
+  }
+}
+
 and parseStatement = (parser: parser): result<(parser, AST.astNode), string> => {
   switch peek(parser) {
   | Some(Lexer.Let) => parseVariableDeclaration(parser)
@@ -530,6 +600,12 @@ and parseStatement = (parser: parser): result<(parser, AST.astNode), string> => 
   | Some(Lexer.If) =>
     let parser = advance(parser) // consume 'if' token
     parseIfStatement(parser)
+  | Some(Lexer.While) =>
+    let parser = advance(parser) // consume 'while' token
+    parseWhileLoop(parser)
+  | Some(Lexer.Percent) =>
+    // Parse %raw("instruction")
+    parseRawInstruction(parser)
   | Some(Lexer.LeftBrace) =>
     switch parseBlockStatement(parser) {
     | Error(msg) => Error(msg)
