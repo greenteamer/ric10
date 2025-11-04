@@ -7,7 +7,7 @@ type token =
   | If // keyword: if
   | Else // keyword: else
   | Type // keyword: type
-  | Match // keyword: match
+  | Switch // keyword: switch
   | Identifier(string) // variable names, function names
   | IntLiteral(int) // integer literals
   | Plus // +
@@ -165,7 +165,7 @@ let nextToken = (lexer: lexer): (lexer, token) => {
       | "if" => (lexer, If)
       | "else" => (lexer, Else)
       | "type" => (lexer, Type)
-      | "match" => (lexer, Match)
+      | "switch" => (lexer, Switch)
       | _ => (lexer, Identifier(ident))
       }
     | Some(c) =>
@@ -199,7 +199,7 @@ let tokenToString = (token: token): string => {
   | If => "If"
   | Else => "Else"
   | Type => "Type"
-  | Match => "Match"
+  | Switch => "Switch"
   | Identifier(name) => "Identifier(" ++ name ++ ")"
   | IntLiteral(n) => "IntLiteral(" ++ Int.toString(n) ++ ")"
   | Plus => "Plus"

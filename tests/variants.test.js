@@ -74,12 +74,12 @@ describe('Variant Types', () => {
     });
   });
 
-  describe('Match Expressions (Basic)', () => {
-    test('should compile simple match with tag-only variants', () => {
+  describe('Switch Expressions (Basic)', () => {
+    test('should compile simple switch with tag-only variants', () => {
       const input = `
         type state = Idle | Active
         let currentState = Idle
-        let result = match currentState {
+        let result = switch currentState {
           | Idle => 0
           | Active => 1
         }

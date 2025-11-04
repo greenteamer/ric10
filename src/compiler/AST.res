@@ -27,7 +27,7 @@ type rec astNode =
   | BlockStatement(blockStatement) // { stmt1; stmt2; ... }
   | TypeDeclaration(string, array<variantConstructor>) // type name = Constructor1 | Constructor2(arg)
   | VariantConstructor(string, option<expr>) // Constructor or Constructor(expr)
-  | MatchExpression(expr, array<matchCase>) // match expr { | Pattern1 => body1 | Pattern2 => body2 }
+  | SwitchExpression(expr, array<matchCase>) // switch expr { | Pattern1 => body1 | Pattern2 => body2 }
 
 and expr = astNode
 
@@ -78,8 +78,8 @@ let createVariantConstructor = (name: string, argument: option<expr>): astNode =
   VariantConstructor(name, argument)
 }
 
-let createMatchExpression = (scrutinee: expr, cases: array<matchCase>): astNode => {
-  MatchExpression(scrutinee, cases)
+let createSwitchExpression = (scrutinee: expr, cases: array<matchCase>): astNode => {
+  SwitchExpression(scrutinee, cases)
 }
 
 // Helper: Convert binary operator to string

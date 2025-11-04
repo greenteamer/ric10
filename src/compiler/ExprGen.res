@@ -171,7 +171,7 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
       }
     }
 
-  | AST.MatchExpression(scrutinee, cases) =>
+  | AST.SwitchExpression(scrutinee, cases) =>
     // Generate code for scrutinee - get register pointing to variant's stack base
     switch generate(state, scrutinee) {
     | Error(msg) => Error(msg)
@@ -432,8 +432,8 @@ let rec generateInto = (
       }
     }
 
-  | AST.MatchExpression(_, _) =>
-    // For match expressions in generateInto, use generate then move result
+  | AST.SwitchExpression(_, _) =>
+    // For switch expressions in generateInto, use generate then move result
     switch generate(state, expr) {
     | Error(msg) => Error(msg)
     | Ok((state1, resultReg)) =>

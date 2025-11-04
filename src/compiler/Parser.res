@@ -43,7 +43,7 @@ let tokensMatch = (token1: Lexer.token, token2: Lexer.token): bool => {
   | (Lexer.If, Lexer.If) => true
   | (Lexer.Else, Lexer.Else) => true
   | (Lexer.Type, Lexer.Type) => true
-  | (Lexer.Match, Lexer.Match) => true
+  | (Lexer.Switch, Lexer.Switch) => true
   | (Lexer.Assign, Lexer.Assign) => true
   | (Lexer.Plus, Lexer.Plus) => true
   | (Lexer.Minus, Lexer.Minus) => true
@@ -177,14 +177,14 @@ and parseComparisonExpressionRest = (parser: parser, left: AST.expr): result<(pa
   }
 }
 
-// Parse primary expressions: literals, identifiers, parentheses, match, variant constructors
+// Parse primary expressions: literals, identifiers, parentheses, switch, variant constructors
 and parsePrimaryExpression = (parser: parser): result<(parser, AST.expr), string> => {
   switch peek(parser) {
   | Some(Lexer.IntLiteral(value)) =>
     let parser = advance(parser)
     Ok((parser, AST.createLiteral(value)))
-  | Some(Lexer.Match) =>
-    parseMatchExpression(parser)
+  | Some(Lexer.Switch) =>
+    parseSwitchExpression(parser)
   | Some(Lexer.Identifier(name)) =>
     let parser = advance(parser)
     // Check if this is a variant constructor call: Constructor(arg)
@@ -218,11 +218,11 @@ and parsePrimaryExpression = (parser: parser): result<(parser, AST.expr), string
   }
 }
 
-// Parse a match expression: match expr { | Pattern1 => body1 | Pattern2 => body2 }
+// Parse a switch expression: switch expr { | Pattern1 => body1 | Pattern2 => body2 }
 // Part of expression parser mutual recursion, but calls parseBlockStatement (defined later)
-and parseMatchExpression = (parser: parser): result<(parser, AST.expr), string> => {
-  // Expect "match"
-  switch expect(parser, Lexer.Match) {
+and parseSwitchExpression = (parser: parser): result<(parser, AST.expr), string> => {
+  // Expect "switch"
+  switch expect(parser, Lexer.Switch) {
   | Error(msg) => Error(msg)
   | Ok(parser) =>
     // Parse scrutinee (the expression being matched)
@@ -306,7 +306,7 @@ and parseMatchExpression = (parser: parser): result<(parser, AST.expr), string> 
         switch parseMatchCases(parser, list{}) {
         | Error(msg) => Error(msg)
         | Ok((parser, cases)) =>
-          Ok((parser, AST.createMatchExpression(scrutinee, List.toArray(List.reverse(cases)))))
+          Ok((parser, AST.createSwitchExpression(scrutinee, List.toArray(List.reverse(cases)))))
         }
       }
     }

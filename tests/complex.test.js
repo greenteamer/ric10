@@ -15,9 +15,9 @@ sgt r15 r1 r2
 move r14 4
 mul r13 r15 r14
 add r12 r0 r13
-beqz r12 label1
+beqz r12 label0
 move r3 1
-label1:`;
+label0:`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Ok');
