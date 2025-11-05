@@ -13,6 +13,8 @@ let create = (options: CodegenTypes.compilerOptions): codegenState => {
     labelCounter: 0,
     variantTypes: Belt.Map.String.empty,
     variantTags: Belt.Map.String.empty,
+    defines: Belt.Map.String.empty,
+    defineOrder: [],
     options: options,
   }
 }
@@ -42,8 +44,21 @@ let generate = (program: AST.program, options: CodegenTypes.compilerOptions): re
   switch loop(state, 0) {
   | Error(msg) => Error("Code generation error: " ++ msg)
   | Ok(finalState) =>
-    // Join instructions with newlines
-    let code = Array.join(finalState.instructions, "\n")
+    let defineInstructions = Array.map(finalState.defineOrder, ((name, value)) => {
+      let valueStr = switch value {
+      | CodegenTypes.HashExpr(str) => "HASH(\"" ++ str ++ "\")"
+      | CodegenTypes.NumberValue(num) => Int.toString(num)
+      }
+      "define " ++ name ++ " " ++ valueStr
+    })
+
+    let allInstructions = if Array.length(defineInstructions) > 0 {
+      Array.concat(defineInstructions, finalState.instructions)
+    } else {
+      finalState.instructions
+    }
+
+    let code = Array.join(allInstructions, "\n")
     Ok(code)
   }
 }

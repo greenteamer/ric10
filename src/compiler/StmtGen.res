@@ -55,10 +55,32 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
     Ok({...state, variantTags: newVariantTags, variantTypes: newVariantTypes})
 
   | AST.VariableDeclaration(name, expr) =>
-    // Check if this is a ref declaration
+    // Check if this is a constant (literal or HASH)
     switch expr {
+    | AST.Literal(value) =>
+      // Integer constant - add to defines
+      let defineValue = CodegenTypes.NumberValue(value)
+      let newDefines = Belt.Map.String.set(state.defines, name, defineValue)
+      let newDefineOrder = Array.concat(state.defineOrder, [(name, defineValue)])
+      Ok({...state, defines: newDefines, defineOrder: newDefineOrder})
+
+    | AST.FunctionCall("HASH", args) =>
+      // HASH constant - add to defines
+      if Array.length(args) != 1 {
+        Error("HASH() expects 1 argument: string")
+      } else {
+        switch args[0] {
+        | Some(AST.ArgString(str)) =>
+          let defineValue = CodegenTypes.HashExpr(str)
+          let newDefines = Belt.Map.String.set(state.defines, name, defineValue)
+          let newDefineOrder = Array.concat(state.defineOrder, [(name, defineValue)])
+          Ok({...state, defines: newDefines, defineOrder: newDefineOrder})
+        | _ => Error("HASH() expects a string argument")
+        }
+      }
+
     | AST.RefCreation(valueExpr) =>
-      // Allocate register for ref variable
+      // Mutable ref variable - allocate register
       switch RegisterAlloc.allocateRef(state.allocator, name) {
       | Error(msg) => Error(msg)
       | Ok((allocator, refReg)) =>
@@ -69,8 +91,13 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
         | Ok(newState) => Ok(newState)
         }
       }
+
+    | AST.Identifier(_) =>
+      // Disallow let x = y pattern (too confusing - use ref or constants)
+      Error("Cannot assign identifier to variable. Use 'let x = ref(y)' for mutable copy, or use constants (let x = 500 or let x = HASH(\"...\")).")
+
     | _ =>
-      // Normal variable (not a ref)
+      // Normal variable (not a constant or ref) - allocate register
       switch RegisterAlloc.allocateNormal(state.allocator, name) {
       | Error(msg) => Error(msg)
       | Ok((allocator, varReg)) =>
@@ -231,11 +258,11 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
 // Generate while loop with fallback method (evaluate condition to register)
 and generateWhileMainLoop = (
   state: codegenState,
-  condition: AST.expr,
+  _condition: AST.expr,
   body: AST.blockStatement,
 ): result<codegenState, string> => {
   Console.log("[StmtGen] generateWhileMainLoop called")
-  BranchGen.generateWhileMainLoopReg(state, s => generateBlock(s, body)) // s => ExprGen.generate(s, condition),
+  BranchGen.generateWhileMainLoopReg(state, s => generateBlock(s, body))
 }
 
 // Generate IC10 code for a block of statements

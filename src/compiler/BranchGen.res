@@ -26,29 +26,34 @@ module Utils = {
     (newState, label)
   }
 
-  let binaryOperandsToString = (state, left, right) => {
-    switch (left, right) {
-    | (lExpr, AST.Literal(rVal)) =>
-      ExprGen.generate(state, lExpr)->Result.map(((s, reg)) => (
-        s,
-        Register.toString(reg),
-        Int.toString(rVal),
-      ))
-    | (AST.Literal(lVal), rExpr) =>
-      ExprGen.generate(state, rExpr)->Result.map(((s, reg)) => (
-        s,
-        Int.toString(lVal),
-        Register.toString(reg),
-      ))
-    | (lExpr, rExpr) =>
-      ExprGen.generate(state, lExpr)->Result.flatMap(((s, lReg)) =>
-        ExprGen.generate(s, rExpr)->Result.map(((newState, rReg)) => (
-          newState,
-          Register.toString(lReg),
-          Register.toString(rReg),
-        ))
-      )
+  let binaryOperandsToString = (state: codegenState, left, right) => {
+    // Helper: Get string representation of an operand (constant or register)
+    let operandToString = (state: codegenState, expr) => {
+      switch expr {
+      | AST.Literal(val) => Ok((state, Int.toString(val)))
+      | AST.Identifier(name) =>
+        // Check if it's a constant
+        switch Belt.Map.String.get(state.defines, name) {
+        | Some(_) => Ok((state, name))
+        | None =>
+          // It's a variable - generate it
+          switch ExprGen.generate(state, expr) {
+          | Error(msg) => Error(msg)
+          | Ok((s, reg)) => Ok((s, Register.toString(reg)))
+          }
+        }
+      | _ =>
+        // Complex expression - generate it
+        switch ExprGen.generate(state, expr) {
+        | Error(msg) => Error(msg)
+        | Ok((s, reg)) => Ok((s, Register.toString(reg)))
+        }
+      }
     }
+
+    operandToString(state, left)->Result.flatMap(((s1, leftVal)) =>
+      operandToString(s1, right)->Result.map(((s2, rightVal)) => (s2, leftVal, rightVal))
+    )
   }
 
   // Generate direct branch instruction for binary comparison

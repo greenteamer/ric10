@@ -108,37 +108,54 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
     Error("String literals can only be used as IC10 function arguments")
 
   | AST.Identifier(name) =>
-    // Check if this is a variant constructor (tag-only, no argument)
-    switch Belt.Map.String.get(state.variantTags, name) {
-    | Some(tag) =>
-      // This is a tag-only variant constructor
-      // Push tag onto stack
-      let instr1 = "push " ++ Int.toString(tag)
-      let comment1 = name ++ " variant tag"
-      let state1 = addInstructionWithComment(state, instr1, comment1)
-
-      // Allocate register to hold stack base address
-      switch RegisterAlloc.allocateTempRegister(state1.allocator) {
+    // Check if this is a constant
+    switch Belt.Map.String.get(state.defines, name) {
+    | Some(CodegenTypes.NumberValue(value)) =>
+      // Integer constant - allocate temp register and load the value
+      switch RegisterAlloc.allocateTempRegister(state.allocator) {
       | Error(msg) => Error(msg)
-      | Ok((allocator, baseReg)) =>
-        // Generate: move baseReg sp; sub baseReg baseReg 1
-        let instr2 = "move " ++ Register.toString(baseReg) ++ " sp"
-        let comment2 = "get stack pointer"
-        let instr3 =
-          "sub " ++ Register.toString(baseReg) ++ " " ++ Register.toString(baseReg) ++ " 1"
-        let comment3 = "adjust to variant address"
-
-        let state2 = addInstructionWithComment({...state1, allocator}, instr2, comment2)
-        let state3 = addInstructionWithComment(state2, instr3, comment3)
-
-        Ok((state3, baseReg))
+      | Ok((allocator, reg)) =>
+        let newState = {...state, allocator}
+        let instr = "move " ++ Register.toString(reg) ++ " " ++ name
+        let comment = Int.toString(value)
+        Ok((addInstructionWithComment(newState, instr, comment), reg))
       }
-
+    | Some(CodegenTypes.HashExpr(_)) =>
+      // HASH constant - can't be used as runtime value in expressions
+      Error(name ++ " is a HASH constant and cannot be used in arithmetic expressions. Use it only in IC10 functions like lb() or sb().")
     | None =>
-      // Not a constructor, treat as variable reference
-      switch RegisterAlloc.getRegister(state.allocator, name) {
-      | None => Error("Variable not found: " ++ name)
-      | Some(reg) => Ok((state, reg))
+      // Check if this is a variant constructor (tag-only, no argument)
+      switch Belt.Map.String.get(state.variantTags, name) {
+      | Some(tag) =>
+        // This is a tag-only variant constructor
+        // Push tag onto stack
+        let instr1 = "push " ++ Int.toString(tag)
+        let comment1 = name ++ " variant tag"
+        let state1 = addInstructionWithComment(state, instr1, comment1)
+
+        // Allocate register to hold stack base address
+        switch RegisterAlloc.allocateTempRegister(state1.allocator) {
+        | Error(msg) => Error(msg)
+        | Ok((allocator, baseReg)) =>
+          // Generate: move baseReg sp; sub baseReg baseReg 1
+          let instr2 = "move " ++ Register.toString(baseReg) ++ " sp"
+          let comment2 = "get stack pointer"
+          let instr3 =
+            "sub " ++ Register.toString(baseReg) ++ " " ++ Register.toString(baseReg) ++ " 1"
+          let comment3 = "adjust to variant address"
+
+          let state2 = addInstructionWithComment({...state1, allocator}, instr2, comment2)
+          let state3 = addInstructionWithComment(state2, instr3, comment3)
+
+          Ok((state3, baseReg))
+        }
+
+      | None =>
+        // Not a constructor or constant, treat as variable reference
+        switch RegisterAlloc.getRegister(state.allocator, name) {
+        | None => Error("Variable not found: " ++ name)
+        | Some(reg) => Ok((state, reg))
+        }
       }
     }
 
@@ -175,24 +192,35 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
       } else {
         switch (args[0], args[1]) {
         | (Some(AST.ArgExpr(hashExpr)), Some(AST.ArgString(property))) =>
-          switch generate(state, hashExpr) {
-          | Error(msg) => Error(msg)
-          | Ok((state1, hashReg)) =>
+          // Check if hashExpr is an identifier that's a define
+          let (hashValue, state1) = switch hashExpr {
+          | AST.Identifier(name) =>
+            switch Belt.Map.String.get(state.defines, name) {
+            | Some(_) => (name, state)
+            | None =>
+              switch generate(state, hashExpr) {
+              | Error(_) => ("", state)
+              | Ok((s, reg)) => (Register.toString(reg), s)
+              }
+            }
+          | _ =>
+            switch generate(state, hashExpr) {
+            | Error(_) => ("", state)
+            | Ok((s, reg)) => (Register.toString(reg), s)
+            }
+          }
+
+          if hashValue == "" {
+            Error("Failed to evaluate hash expression")
+          } else {
             switch RegisterAlloc.allocateTempRegister(state1.allocator) {
             | Error(msg) => Error(msg)
             | Ok((allocator, resultReg)) =>
               let state2 = {...state1, allocator}
-              let instr =
-                "lb " ++
-                Register.toString(resultReg) ++
-                " " ++
-                Register.toString(hashReg) ++
-                " " ++
-                property
+              let instr = "lb " ++ Register.toString(resultReg) ++ " " ++ hashValue ++ " " ++ property
               let comment = "load " ++ property ++ " by hash"
               let state3 = addInstructionWithComment(state2, instr, comment)
-              let allocator2 = RegisterAlloc.freeTempIfTemp(state3.allocator, hashReg)
-              Ok({...state3, allocator: allocator2}, resultReg)
+              Ok((state3, resultReg))
             }
           }
         | _ => Error("lb() expects arguments: (hash, \"property\")")
@@ -288,26 +316,37 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
             Some(AST.ArgString(property)),
             Some(AST.ArgExpr(valueExpr)),
           ) =>
-          switch generate(state, hashExpr) {
-          | Error(msg) => Error(msg)
-          | Ok((state1, hashReg)) =>
+          // Check if hashExpr is an identifier that's a define
+          let (hashValue, state1, needsHashFree) = switch hashExpr {
+          | AST.Identifier(name) =>
+            switch Belt.Map.String.get(state.defines, name) {
+            | Some(_) => (name, state, false)
+            | None =>
+              switch generate(state, hashExpr) {
+              | Error(_) => ("", state, false)
+              | Ok((s, reg)) => (Register.toString(reg), s, true)
+              }
+            }
+          | _ =>
+            switch generate(state, hashExpr) {
+            | Error(_) => ("", state, false)
+            | Ok((s, reg)) => (Register.toString(reg), s, true)
+            }
+          }
+
+          if hashValue == "" {
+            Error("Failed to evaluate hash expression")
+          } else {
             let stateAfterSb = switch valueExpr {
             | AST.Literal(value) =>
-              let instr =
-                "sb " ++ Register.toString(hashReg) ++ " " ++ property ++ " " ++ Int.toString(value)
+              let instr = "sb " ++ hashValue ++ " " ++ property ++ " " ++ Int.toString(value)
               let comment = "store " ++ property ++ " by hash"
               Ok(addInstructionWithComment(state1, instr, comment))
             | _ =>
               switch generate(state1, valueExpr) {
               | Error(msg) => Error(msg)
               | Ok((state2, valueReg)) =>
-                let instr =
-                  "sb " ++
-                  Register.toString(hashReg) ++
-                  " " ++
-                  property ++
-                  " " ++
-                  Register.toString(valueReg)
+                let instr = "sb " ++ hashValue ++ " " ++ property ++ " " ++ Register.toString(valueReg)
                 let comment = "store " ++ property ++ " by hash"
                 let state3 = addInstructionWithComment(state2, instr, comment)
                 let allocator = RegisterAlloc.freeTempIfTemp(state3.allocator, valueReg)
@@ -318,18 +357,20 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
             switch stateAfterSb {
             | Error(msg) => Error(msg)
             | Ok(state2) =>
-              let allocator = RegisterAlloc.freeTempIfTemp(state2.allocator, hashReg)
-              let state3 = {...state2, allocator}
+              // Only free hash register if it was generated (not a define)
+              let state3 = if needsHashFree {
+                switch Register.fromString(hashValue) {
+                | Some(reg) =>
+                  let allocator = RegisterAlloc.freeTempIfTemp(state2.allocator, reg)
+                  {...state2, allocator}
+                | None => state2
+                }
+              } else {
+                state2
+              }
               switch RegisterAlloc.allocateTempRegister(state3.allocator) {
               | Error(msg) => Error(msg)
-              | Ok((allocator, dummyReg)) =>
-                Ok((
-                  {
-                    ...state3,
-                    allocator,
-                  },
-                  dummyReg,
-                ))
+              | Ok((allocator, dummyReg)) => Ok(({...state3, allocator}, dummyReg))
               }
             }
           }
@@ -668,16 +709,28 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
       }
 
     | None =>
-      // Not a constructor, copy from source variable to target register (if different)
-      switch RegisterAlloc.getRegister(state.allocator, name) {
-      | None => Error("Variable not found: " ++ name)
-      | Some(sourceReg) =>
-        if sourceReg == targetReg {
-          Ok(state) // Already in target register
-        } else {
-          let instr = "move " ++ Register.toString(targetReg) ++ " " ++ Register.toString(sourceReg)
-          let comment = name
-          Ok(addInstructionWithComment(state, instr, comment))
+      // Check if this is a constant
+      switch Belt.Map.String.get(state.defines, name) {
+      | Some(CodegenTypes.NumberValue(_)) =>
+        // Integer constant - load into target register
+        let instr = "move " ++ Register.toString(targetReg) ++ " " ++ name
+        let comment = name
+        Ok(addInstructionWithComment(state, instr, comment))
+      | Some(CodegenTypes.HashExpr(_)) =>
+        // HASH constant - can't be used as runtime value
+        Error(name ++ " is a HASH constant and cannot be used in arithmetic expressions. Use it only in IC10 functions like lb() or sb().")
+      | None =>
+        // Not a constructor or constant, copy from source variable to target register (if different)
+        switch RegisterAlloc.getRegister(state.allocator, name) {
+        | None => Error("Variable not found: " ++ name)
+        | Some(sourceReg) =>
+          if sourceReg == targetReg {
+            Ok(state) // Already in target register
+          } else {
+            let instr = "move " ++ Register.toString(targetReg) ++ " " ++ Register.toString(sourceReg)
+            let comment = name
+            Ok(addInstructionWithComment(state, instr, comment))
+          }
         }
       }
     }
@@ -846,20 +899,41 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
       } else {
         switch (args[0], args[1]) {
         | (Some(AST.ArgExpr(hashExpr)), Some(AST.ArgString(property))) =>
-          switch generate(state, hashExpr) {
-          | Error(msg) => Error(msg)
-          | Ok((state1, hashReg)) =>
-            let instr =
-              "lb " ++
-              Register.toString(targetReg) ++
-              " " ++
-              Register.toString(hashReg) ++
-              " " ++
-              property
+          // Check if hashExpr is an identifier that's a define
+          let (hashValue, state1, needsHashFree) = switch hashExpr {
+          | AST.Identifier(name) =>
+            switch Belt.Map.String.get(state.defines, name) {
+            | Some(_) => (name, state, false)
+            | None =>
+              switch generate(state, hashExpr) {
+              | Error(_) => ("", state, false)
+              | Ok((s, reg)) => (Register.toString(reg), s, true)
+              }
+            }
+          | _ =>
+            switch generate(state, hashExpr) {
+            | Error(_) => ("", state, false)
+            | Ok((s, reg)) => (Register.toString(reg), s, true)
+            }
+          }
+
+          if hashValue == "" {
+            Error("Failed to evaluate hash expression")
+          } else {
+            let instr = "lb " ++ Register.toString(targetReg) ++ " " ++ hashValue ++ " " ++ property
             let comment = "load " ++ property ++ " by hash"
             let state2 = addInstructionWithComment(state1, instr, comment)
-            let allocator = RegisterAlloc.freeTempIfTemp(state2.allocator, hashReg)
-            Ok({...state2, allocator})
+            // Only free hash register if it was generated (not a define)
+            if needsHashFree {
+              switch Register.fromString(hashValue) {
+              | Some(reg) =>
+                let allocator = RegisterAlloc.freeTempIfTemp(state2.allocator, reg)
+                Ok({...state2, allocator})
+              | None => Ok(state2)
+              }
+            } else {
+              Ok(state2)
+            }
           }
         | _ => Error("lb() expects arguments: (hash, \"property\")")
         }

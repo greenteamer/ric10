@@ -11,13 +11,13 @@ let d2: device = 2
 let d3: device = 3
 let d4: device = 4
 let d5: device = 5
-let db: device = -1  // Database device
+let db: device = -1 // Database device
 
 // Load operations - read from devices
 // l r0 d0 Temperature
 @genType
 let l = (_device: device, _property: string): int => {
-  0  // Stub - never executed, replaced by compiler
+  0 // Stub - never executed, replaced by compiler
 }
 
 // lb r0 HASH Temperature
@@ -36,7 +36,7 @@ let lbn = (_deviceType: string, _deviceName: string, _property: string, _mode: s
 // s d0 Setting 1
 @genType
 let s = (_device: device, _property: string, _value: int): unit => {
-  ()  // Stub - never executed
+  () // Stub - never executed
 }
 
 // sb HASH Setting 1
@@ -66,7 +66,7 @@ module Property = {
 
   // Logic
   let activate = "Activate"
-  let open_ = "Open"  // 'open' is reserved keyword
+  let open_ = "Open" // 'open' is reserved keyword
   let lock = "Lock"
 
   // Network modes for lbn

@@ -4,6 +4,7 @@ let fromInt: int => result<t, string>
 let toInt: t => int
 
 let toString: t => string
+let fromString: string => option<t>
 
 let next: t => option<t>
 let prev: t => option<t>

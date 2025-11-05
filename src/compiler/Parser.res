@@ -384,8 +384,10 @@ and parsePrimaryExpression = (parser: parser): result<(parser, AST.expr), string
     | Some(Lexer.LeftParen) =>
       // Determine if this is a function call or variant constructor
       // IC10 functions: l, lb, lbn, s, sb, sbn
+      // HASH is also a function (used in constants)
       let isIC10Function = name == "l" || name == "lb" || name == "lbn" ||
-                           name == "s" || name == "sb" || name == "sbn"
+                           name == "s" || name == "sb" || name == "sbn" ||
+                           name == "HASH"
 
       if isIC10Function {
         // Parse as function call with multiple arguments

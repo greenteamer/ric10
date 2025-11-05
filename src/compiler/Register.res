@@ -15,6 +15,17 @@ let toInt = r => r
 
 let toString = r => "r" ++ Int.toString(r)
 
+let fromString = (s: string): option<t> => {
+  if String.startsWith(s, "r") {
+    switch Int.fromString(String.sliceToEnd(s, ~start=1)) {
+    | Some(n) if isValid(n) => Some(n)
+    | _ => None
+    }
+  } else {
+    None
+  }
+}
+
 let compare = (r1, r2) => r1 - r2
 let equal = (r1, r2) => r1 == r2
 
