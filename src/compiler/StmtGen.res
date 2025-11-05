@@ -5,7 +5,11 @@
 type codegenState = CodegenTypes.codegenState
 
 // Add an instruction with a comment (conditional based on options)
-let addInstructionWithComment = (state: codegenState, instruction: string, comment: string): codegenState => {
+let addInstructionWithComment = (
+  state: codegenState,
+  instruction: string,
+  comment: string,
+): codegenState => {
   let fullInstruction = if state.options.includeComments {
     instruction ++ "  # " ++ comment
   } else {
@@ -102,12 +106,8 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
           switch elseBlock {
           | None =>
             // If-only statement
-            BranchGen.generateIfOnly(
-              state1,
-              op,
-              leftReg,
-              rightValue,
-              s => generateBlock(s, thenBlock),
+            BranchGen.generateIfOnly(state1, op, leftReg, rightValue, s =>
+              generateBlock(s, thenBlock)
             )
           | Some(elseStatements) =>
             // If-else statement
@@ -142,12 +142,8 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
             switch elseBlock {
             | None =>
               // If-only statement
-              BranchGen.generateIfOnly(
-                state3,
-                op,
-                leftReg,
-                rightValue,
-                s => generateBlock(s, thenBlock),
+              BranchGen.generateIfOnly(state3, op, leftReg, rightValue, s =>
+                generateBlock(s, thenBlock)
               )
             | Some(elseStatements) =>
               // If-else statement
@@ -234,16 +230,19 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
 
       | (AST.Lt | AST.Gt | AST.Eq, _leftExpr, _rightExpr) =>
         // Variable-to-variable comparison - use fallback for now
-        generateWhileWithCondition(state, condition, body)
+        Console.log("[StmtGen] While loop variable-to-variable comparison - using fallback")
+        generateWhileMainLoop(state, condition, body)
 
       | _ =>
         // Non-comparison binary expression - use fallback
-        generateWhileWithCondition(state, condition, body)
+        Console.log("[StmtGen] Non-comparison binary expression in while loop - using fallback")
+        generateWhileMainLoop(state, condition, body)
       }
 
     | _ =>
       // Non-binary-expression condition - use fallback
-      generateWhileWithCondition(state, condition, body)
+      Console.log("[StmtGen] Non-binary-expression condition in while loop - using fallback")
+      BranchGen.generateWhileMainLoopReg(state, s => generateBlock(s, body)) // s => ExprGen.generate(s, condition),
     }
 
   | AST.BlockStatement(statements) => generateBlock(state, statements)
@@ -317,8 +316,7 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
     newInstructions[len] = instruction
     Ok({...state, instructions: newInstructions})
 
-  | AST.StringLiteral(_) =>
-    Error("String literals cannot be used as standalone statements")
+  | AST.StringLiteral(_) => Error("String literals cannot be used as standalone statements")
 
   | AST.FunctionCall(_, _) =>
     // Function calls as statements (e.g., IC10.s(d0, "Setting", 1))
@@ -358,16 +356,14 @@ and generateIfWithCondition = (
 }
 
 // Generate while loop with fallback method (evaluate condition to register)
-and generateWhileWithCondition = (
+and generateWhileMainLoop = (
   state: codegenState,
   condition: AST.expr,
   body: AST.blockStatement,
 ): result<codegenState, string> => {
-  BranchGen.generateWhileLoopWithConditionReg(
-    state,
-    s => ExprGen.generate(s, condition),
-    s => generateBlock(s, body),
-  )
+  Console.log("[StmtGen] generateWhileMainLoop called")
+  BranchGen.generateWhileMainLoopReg(state, // s => ExprGen.generate(s, condition),
+  s => generateBlock(s, body))
 }
 
 // Generate IC10 code for a block of statements

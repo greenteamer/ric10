@@ -1,5 +1,9 @@
 @genType
-let compile = (source: string, ~options: option<CodegenTypes.compilerOptions>=?, ()): result<string, string> => {
+let compile = (source: string, ~options: option<CodegenTypes.compilerOptions>=?, ()): result<
+  string,
+  string,
+> => {
+  Console.log(">>> Starting compilation process...")
   // Default options: comments disabled for backward compatibility
   let defaultOptions = {CodegenTypes.includeComments: false}
   let compilerOptions = switch options {

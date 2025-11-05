@@ -19,7 +19,11 @@ let addInstruction = (state: codegenState, instruction: string): codegenState =>
 }
 
 // Add an instruction with a comment (conditional based on options)
-let addInstructionWithComment = (state: codegenState, instruction: string, comment: string): codegenState => {
+let addInstructionWithComment = (
+  state: codegenState,
+  instruction: string,
+  comment: string,
+): codegenState => {
   if state.options.includeComments {
     let fullInstruction = instruction ++ "  # " ++ comment
     addInstruction(state, fullInstruction)
@@ -238,35 +242,14 @@ let generateWhileLoop = (
 }
 
 // Generate while loop using condition register (for non-comparison conditions)
-let generateWhileLoopWithConditionReg = (
+let generateWhileMainLoopReg = (
   state: codegenState,
-  generateCondition: codegenState => result<(codegenState, Register.t), string>,
   generateBody: codegenState => result<codegenState, string>,
 ): result<codegenState, string> => {
-  // Generate labels (start label first so it gets lower number)
-  let (state1, startLabel) = generateLabel(state)
-  let (state2, endLabel) = generateLabel(state1)
-
-  // Emit start label
-  let state3 = addInstructionWithComment(state2, startLabel ++ ":", "while loop start")
-
-  // Generate condition evaluation (re-evaluated on each iteration)
-  switch generateCondition(state3) {
-  | Error(msg) => Error(msg)
-  | Ok((state4, condReg)) =>
-    // Jump to end when condition is zero (false)
-    let branchInstr = "beqz " ++ Register.toString(condReg) ++ " " ++ endLabel
-    let state5 = addInstructionWithComment(state4, branchInstr, "while " ++ Register.toString(condReg))
-
-    // Generate loop body
-    switch generateBody(state5) {
-    | Error(msg) => Error(msg)
-    | Ok(state6) =>
-      // Jump back to start
-      let state7 = addInstructionWithComment(state6, "j " ++ startLabel, "loop back")
-
-      // Add end label
-      Ok(addInstructionWithComment(state7, endLabel ++ ":", "end while"))
-    }
-  }
+  Console.log("[BranchGen] generateWhileMainLoopReg")
+  let (state1, label) = generateLabel(state)
+  state1
+  ->addInstructionWithComment(label ++ ":", "while loop start")
+  ->generateBody
+  ->Result.map(s => addInstructionWithComment(s, "j " ++ label, "loop back"))
 }
