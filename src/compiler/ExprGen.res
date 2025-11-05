@@ -19,7 +19,11 @@ let addInstruction = (state: codegenState, instruction: string): codegenState =>
 }
 
 // Add an instruction with a comment (conditional based on options)
-let addInstructionWithComment = (state: codegenState, instruction: string, comment: string): codegenState => {
+let addInstructionWithComment = (
+  state: codegenState,
+  instruction: string,
+  comment: string,
+): codegenState => {
   if state.options.includeComments {
     let fullInstruction = instruction ++ "  # " ++ comment
     addInstruction(state, fullInstruction)
@@ -91,8 +95,7 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
     // Look up the ref's register
     switch RegisterAlloc.getVariableInfo(state.allocator, refName) {
     | None => Error("Undefined variable: " ++ refName)
-    | Some({register: _, isRef: false}) =>
-      Error(refName ++ " is not a ref - cannot use .contents")
+    | Some({register: _, isRef: false}) => Error(refName ++ " is not a ref - cannot use .contents")
     | Some({register, isRef: true}) =>
       // Ref's register already contains the value
       // No IC10 instruction needed - just return the register
@@ -179,7 +182,13 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
             | Error(msg) => Error(msg)
             | Ok((allocator, resultReg)) =>
               let state2 = {...state1, allocator}
-              let instr = "lb " ++ Register.toString(resultReg) ++ " " ++ Register.toString(hashReg) ++ " " ++ property
+              let instr =
+                "lb " ++
+                Register.toString(resultReg) ++
+                " " ++
+                Register.toString(hashReg) ++
+                " " ++
+                property
               let comment = "load " ++ property ++ " by hash"
               let state3 = addInstructionWithComment(state2, instr, comment)
               let allocator2 = RegisterAlloc.freeTempIfTemp(state3.allocator, hashReg)
@@ -197,47 +206,71 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
         Error("lbn() expects 4 arguments: deviceType, deviceName, property, mode")
       } else {
         switch (args[0], args[1], args[2], args[3]) {
-        | (Some(AST.ArgString(deviceType)), Some(AST.ArgString(deviceName)),
-           Some(AST.ArgString(property)), Some(AST.ArgString(mode))) =>
+        | (
+            Some(AST.ArgString(deviceType)),
+            Some(AST.ArgString(deviceName)),
+            Some(AST.ArgString(property)),
+            Some(AST.ArgString(mode)),
+          ) =>
           switch RegisterAlloc.allocateTempRegister(state.allocator) {
           | Error(msg) => Error(msg)
           | Ok((allocator, resultReg)) =>
             let state1 = {...state, allocator}
-            let instr = "lbn " ++ Register.toString(resultReg) ++
-                       " HASH(\"" ++ deviceType ++ "\") HASH(\"" ++ deviceName ++ "\") " ++
-                       property ++ " " ++ mode
+            let instr =
+              "lbn " ++
+              Register.toString(resultReg) ++
+              " HASH(\"" ++
+              deviceType ++
+              "\") HASH(\"" ++
+              deviceName ++
+              "\") " ++
+              property ++
+              " " ++
+              mode
             let comment = "load " ++ property ++ " from network"
             Ok((addInstructionWithComment(state1, instr, comment), resultReg))
           }
-        | _ => Error("lbn() expects 4 string arguments: (\"type\", \"name\", \"property\", \"mode\")")
+        | _ =>
+          Error("lbn() expects 4 string arguments: (\"type\", \"name\", \"property\", \"mode\")")
         }
       }
 
     | "s" =>
       // s device property value
-      // This is a statement (returns unit), but we'll handle it here
       // args: [ArgDevice(device), ArgString(property), ArgExpr(value)]
       if Array.length(args) != 3 {
         Error("s() expects 3 arguments: device, property, value")
       } else {
         switch (args[0], args[1], args[2]) {
-        | (Some(AST.ArgDevice(deviceName)), Some(AST.ArgString(property)), Some(AST.ArgExpr(valueExpr))) =>
-          switch generate(state, valueExpr) {
-          | Error(msg) => Error(msg)
-          | Ok((state1, valueReg)) =>
-            // Use device name directly (d0, d1, etc.)
-            let instr = "s " ++ deviceName ++ " " ++ property ++ " " ++ Register.toString(valueReg)
+        | (
+            Some(AST.ArgDevice(deviceName)),
+            Some(AST.ArgString(property)),
+            Some(AST.ArgExpr(valueExpr)),
+          ) =>
+          let stateAfterS = switch valueExpr {
+          | AST.Literal(value) =>
+            let instr = "s " ++ deviceName ++ " " ++ property ++ " " ++ Int.toString(value)
             let comment = "store " ++ property
-            let state2 = addInstructionWithComment(state1, instr, comment)
-            let allocator2 = RegisterAlloc.freeTempIfTemp(state2.allocator, valueReg)
-            // s returns unit, but we need to return a register for consistency
-            // Allocate a dummy register with value 0
-            switch RegisterAlloc.allocateTempRegister(allocator2) {
+            Ok(addInstructionWithComment(state, instr, comment))
+          | _ =>
+            switch generate(state, valueExpr) {
             | Error(msg) => Error(msg)
-            | Ok((allocator3, dummyReg)) =>
-              let state3 = {...state2, allocator: allocator3}
-              let moveInstr = "move " ++ Register.toString(dummyReg) ++ " 0"
-              Ok((addInstruction(state3, moveInstr), dummyReg))
+            | Ok((state1, valueReg)) =>
+              let instr =
+                "s " ++ deviceName ++ " " ++ property ++ " " ++ Register.toString(valueReg)
+              let comment = "store " ++ property
+              let state2 = addInstructionWithComment(state1, instr, comment)
+              let allocator = RegisterAlloc.freeTempIfTemp(state2.allocator, valueReg)
+              Ok({...state2, allocator})
+            }
+          }
+
+          switch stateAfterS {
+          | Error(msg) => Error(msg)
+          | Ok(state1) =>
+            switch RegisterAlloc.allocateTempRegister(state1.allocator) {
+            | Error(msg) => Error(msg)
+            | Ok((allocator, dummyReg)) => Ok(({...state1, allocator}, dummyReg))
             }
           }
         | _ => Error("s() expects arguments: (device_identifier, \"property\", value)")
@@ -250,26 +283,53 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
         Error("sb() expects 3 arguments: hash, property, value")
       } else {
         switch (args[0], args[1], args[2]) {
-        | (Some(AST.ArgExpr(hashExpr)), Some(AST.ArgString(property)), Some(AST.ArgExpr(valueExpr))) =>
+        | (
+            Some(AST.ArgExpr(hashExpr)),
+            Some(AST.ArgString(property)),
+            Some(AST.ArgExpr(valueExpr)),
+          ) =>
           switch generate(state, hashExpr) {
           | Error(msg) => Error(msg)
           | Ok((state1, hashReg)) =>
-            switch generate(state1, valueExpr) {
-            | Error(msg) => Error(msg)
-            | Ok((state2, valueReg)) =>
-              let instr = "sb " ++ Register.toString(hashReg) ++ " " ++ property ++ " " ++ Register.toString(valueReg)
+            let stateAfterSb = switch valueExpr {
+            | AST.Literal(value) =>
+              let instr =
+                "sb " ++ Register.toString(hashReg) ++ " " ++ property ++ " " ++ Int.toString(value)
               let comment = "store " ++ property ++ " by hash"
-              let state3 = addInstructionWithComment(state2, instr, comment)
-              let allocator2 = RegisterAlloc.freeTempIfTemp(
-                RegisterAlloc.freeTempIfTemp(state3.allocator, hashReg),
-                valueReg
-              )
-              switch RegisterAlloc.allocateTempRegister(allocator2) {
+              Ok(addInstructionWithComment(state1, instr, comment))
+            | _ =>
+              switch generate(state1, valueExpr) {
               | Error(msg) => Error(msg)
-              | Ok((allocator3, dummyReg)) =>
-                let state4 = {...state3, allocator: allocator3}
-                let moveInstr = "move " ++ Register.toString(dummyReg) ++ " 0"
-                Ok((addInstruction(state4, moveInstr), dummyReg))
+              | Ok((state2, valueReg)) =>
+                let instr =
+                  "sb " ++
+                  Register.toString(hashReg) ++
+                  " " ++
+                  property ++
+                  " " ++
+                  Register.toString(valueReg)
+                let comment = "store " ++ property ++ " by hash"
+                let state3 = addInstructionWithComment(state2, instr, comment)
+                let allocator = RegisterAlloc.freeTempIfTemp(state3.allocator, valueReg)
+                Ok({...state3, allocator})
+              }
+            }
+
+            switch stateAfterSb {
+            | Error(msg) => Error(msg)
+            | Ok(state2) =>
+              let allocator = RegisterAlloc.freeTempIfTemp(state2.allocator, hashReg)
+              let state3 = {...state2, allocator}
+              switch RegisterAlloc.allocateTempRegister(state3.allocator) {
+              | Error(msg) => Error(msg)
+              | Ok((allocator, dummyReg)) =>
+                Ok((
+                  {
+                    ...state3,
+                    allocator,
+                  },
+                  dummyReg,
+                ))
               }
             }
           }
@@ -283,22 +343,51 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
         Error("sbn() expects 4 arguments: deviceType, deviceName, property, value")
       } else {
         switch (args[0], args[1], args[2], args[3]) {
-        | (Some(AST.ArgString(deviceType)), Some(AST.ArgString(deviceName)),
-           Some(AST.ArgString(property)), Some(AST.ArgExpr(valueExpr))) =>
-          switch generate(state, valueExpr) {
-          | Error(msg) => Error(msg)
-          | Ok((state1, valueReg)) =>
-            let instr = "sbn HASH(\"" ++ deviceType ++ "\") HASH(\"" ++ deviceName ++ "\") " ++
-                       property ++ " " ++ Register.toString(valueReg)
+        | (
+            Some(AST.ArgString(deviceType)),
+            Some(AST.ArgString(deviceName)),
+            Some(AST.ArgString(property)),
+            Some(AST.ArgExpr(valueExpr)),
+          ) =>
+          let stateAfterSbn = switch valueExpr {
+          | AST.Literal(value) =>
+            let instr =
+              "sbn HASH(\"" ++
+              deviceType ++
+              "\") HASH(\"" ++
+              deviceName ++
+              "\") " ++
+              property ++
+              " " ++
+              Int.toString(value)
             let comment = "store " ++ property ++ " on network"
-            let state2 = addInstructionWithComment(state1, instr, comment)
-            let allocator2 = RegisterAlloc.freeTempIfTemp(state2.allocator, valueReg)
-            switch RegisterAlloc.allocateTempRegister(allocator2) {
+            Ok(addInstructionWithComment(state, instr, comment))
+          | _ =>
+            switch generate(state, valueExpr) {
             | Error(msg) => Error(msg)
-            | Ok((allocator3, dummyReg)) =>
-              let state3 = {...state2, allocator: allocator3}
-              let moveInstr = "move " ++ Register.toString(dummyReg) ++ " 0"
-              Ok((addInstruction(state3, moveInstr), dummyReg))
+            | Ok((state1, valueReg)) =>
+              let instr =
+                "sbn HASH(\"" ++
+                deviceType ++
+                "\") HASH(\"" ++
+                deviceName ++
+                "\") " ++
+                property ++
+                " " ++
+                Register.toString(valueReg)
+              let comment = "store " ++ property ++ " on network"
+              let state2 = addInstructionWithComment(state1, instr, comment)
+              let allocator = RegisterAlloc.freeTempIfTemp(state2.allocator, valueReg)
+              Ok({...state2, allocator})
+            }
+          }
+
+          switch stateAfterSbn {
+          | Error(msg) => Error(msg)
+          | Ok(state1) =>
+            switch RegisterAlloc.allocateTempRegister(state1.allocator) {
+            | Error(msg) => Error(msg)
+            | Ok((allocator, dummyReg)) => Ok(({...state1, allocator}, dummyReg))
             }
           }
         | _ => Error("sbn() expects arguments: (\"type\", \"name\", \"property\", value)")
@@ -441,29 +530,27 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
           let state6 = {...state5, labelCounter: state5.labelCounter + 1}
 
           // Generate branch instructions for each case
-          let (state7, caseLabels) = Array.reduceWithIndex(
-            cases,
-            (state6, []),
-            ((state, labels), matchCase, _idx) => {
-              // Look up constructor tag
-              switch Belt.Map.String.get(state.variantTags, matchCase.constructorName) {
-              | None => (state, labels) // Skip unknown constructors
-              | Some(tag) =>
-                let caseLabel = "match_case_" ++ Int.toString(state.labelCounter)
-                let newState = {...state, labelCounter: state.labelCounter + 1}
-                // Generate: beq tagReg tag caseLabel
-                let branchInstr =
-                  "beq " ++
-                  Register.toString(tagReg) ++
-                  " " ++
-                  Int.toString(tag) ++
-                  " " ++
-                  caseLabel
-                let comment = "match " ++ matchCase.constructorName
-                (addInstructionWithComment(newState, branchInstr, comment), Array.concat(labels, [(caseLabel, matchCase)]))
-              }
-            },
-          )
+          let (state7, caseLabels) = Array.reduceWithIndex(cases, (state6, []), (
+            (state, labels),
+            matchCase,
+            _idx,
+          ) => {
+            // Look up constructor tag
+            switch Belt.Map.String.get(state.variantTags, matchCase.constructorName) {
+            | None => (state, labels) // Skip unknown constructors
+            | Some(tag) =>
+              let caseLabel = "match_case_" ++ Int.toString(state.labelCounter)
+              let newState = {...state, labelCounter: state.labelCounter + 1}
+              // Generate: beq tagReg tag caseLabel
+              let branchInstr =
+                "beq " ++ Register.toString(tagReg) ++ " " ++ Int.toString(tag) ++ " " ++ caseLabel
+              let comment = "match " ++ matchCase.constructorName
+              (
+                addInstructionWithComment(newState, branchInstr, comment),
+                Array.concat(labels, [(caseLabel, matchCase)]),
+              )
+            }
+          })
 
           // Free tag register after branches
           let allocator4 = RegisterAlloc.freeTempIfTemp(state7.allocator, tagReg)
@@ -490,6 +577,7 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
                 // Note: scrutineeReg may have been freed, we need to recalculate
                 // For now, we'll use a simplified approach
                 let state2 = {...state1, allocator}
+
                 // TODO: This needs scrutinee register - for now skip
                 state2
               }
@@ -505,7 +593,11 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
           })
 
           // Add match end label
-          let stateFinal = addInstructionWithComment(stateAfterCases, matchEndLabel ++ ":", "end match")
+          let stateFinal = addInstructionWithComment(
+            stateAfterCases,
+            matchEndLabel ++ ":",
+            "end match",
+          )
 
           Ok((stateFinal, resultReg))
         }
@@ -524,11 +616,10 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
 
 // Generate expression directly into a target register
 // More efficient when the target register is known in advance (e.g., variable declarations)
-let rec generateInto = (
-  state: codegenState,
-  expr: AST.expr,
-  targetReg: Register.t,
-): result<codegenState, string> => {
+let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register.t): result<
+  codegenState,
+  string,
+> => {
   switch expr {
   | AST.Literal(value) =>
     // Write literal directly to target register
@@ -544,8 +635,7 @@ let rec generateInto = (
     // Look up ref's register and copy to target if different
     switch RegisterAlloc.getVariableInfo(state.allocator, refName) {
     | None => Error("Undefined variable: " ++ refName)
-    | Some({register: _, isRef: false}) =>
-      Error(refName ++ " is not a ref - cannot use .contents")
+    | Some({register: _, isRef: false}) => Error(refName ++ " is not a ref - cannot use .contents")
     | Some({register: refReg, isRef: true}) =>
       if refReg == targetReg {
         Ok(state) // Already in target
@@ -611,7 +701,7 @@ let rec generateInto = (
       Ok(addInstructionWithComment(state, instr, comment))
 
     // ===== LITERAL OPTIMIZATION (Commutative ops: add, mul) =====
-    | (nonLiteral, AST.Literal(literalVal)) when op == AST.Add || op == AST.Mul =>
+    | (nonLiteral, AST.Literal(literalVal)) if op == AST.Add || op == AST.Mul =>
       let opStr = op == AST.Add ? "add" : "mul"
       switch generate(state, nonLiteral) {
       | Error(msg) => Error(msg)
@@ -631,7 +721,7 @@ let rec generateInto = (
         Ok(addInstructionWithComment({...state1, allocator}, instr, comment))
       }
 
-    | (AST.Literal(literalVal), nonLiteral) when op == AST.Add || op == AST.Mul =>
+    | (AST.Literal(literalVal), nonLiteral) if op == AST.Add || op == AST.Mul =>
       let opStr = op == AST.Add ? "add" : "mul"
       switch generate(state, nonLiteral) {
       | Error(msg) => Error(msg)
@@ -652,7 +742,7 @@ let rec generateInto = (
       }
 
     // ===== LITERAL OPTIMIZATION (Non-commutative ops: sub, div) =====
-    | (nonLiteral, AST.Literal(literalVal)) when op == AST.Sub || op == AST.Div =>
+    | (nonLiteral, AST.Literal(literalVal)) if op == AST.Sub || op == AST.Div =>
       let opStr = op == AST.Sub ? "sub" : "div"
       switch generate(state, nonLiteral) {
       | Error(msg) => Error(msg)
@@ -734,19 +824,89 @@ let rec generateInto = (
     }
 
   | AST.StringLiteral(_) => Error("String literals can only be used as IC10 function arguments")
-  | AST.FunctionCall(_, _) =>
+  | AST.FunctionCall(funcName, args) =>
     // For function calls, use generate then move to target if needed
-    switch generate(state, expr) {
-    | Error(msg) => Error(msg)
-    | Ok((state1, resultReg)) =>
-      if resultReg == targetReg {
-        Ok(state1)
+    // OPTIMIZATION: Handle value-returning IC10 functions directly
+    switch funcName {
+    | "l" =>
+      if Array.length(args) != 2 {
+        Error("l() expects 2 arguments: device and property")
       } else {
-        let instr = "move " ++ Register.toString(targetReg) ++ " " ++ Register.toString(resultReg)
-        let allocator = RegisterAlloc.freeTempIfTemp(state1.allocator, resultReg)
-        Ok(addInstruction({...state1, allocator}, instr))
+        switch (args[0], args[1]) {
+        | (Some(AST.ArgDevice(deviceName)), Some(AST.ArgString(property))) =>
+          let instr = "l " ++ Register.toString(targetReg) ++ " " ++ deviceName ++ " " ++ property
+          let comment = "load " ++ property
+          Ok(addInstructionWithComment(state, instr, comment))
+        | _ => Error("l() expects arguments: (device_identifier, \"property\")")
+        }
+      }
+    | "lb" =>
+      if Array.length(args) != 2 {
+        Error("lb() expects 2 arguments: hash and property")
+      } else {
+        switch (args[0], args[1]) {
+        | (Some(AST.ArgExpr(hashExpr)), Some(AST.ArgString(property))) =>
+          switch generate(state, hashExpr) {
+          | Error(msg) => Error(msg)
+          | Ok((state1, hashReg)) =>
+            let instr =
+              "lb " ++
+              Register.toString(targetReg) ++
+              " " ++
+              Register.toString(hashReg) ++
+              " " ++
+              property
+            let comment = "load " ++ property ++ " by hash"
+            let state2 = addInstructionWithComment(state1, instr, comment)
+            let allocator = RegisterAlloc.freeTempIfTemp(state2.allocator, hashReg)
+            Ok({...state2, allocator})
+          }
+        | _ => Error("lb() expects arguments: (hash, \"property\")")
+        }
+      }
+    | "lbn" =>
+      if Array.length(args) != 4 {
+        Error("lbn() expects 4 arguments: deviceType, deviceName, property, mode")
+      } else {
+        switch (args[0], args[1], args[2], args[3]) {
+        | (
+            Some(AST.ArgString(deviceType)),
+            Some(AST.ArgString(deviceName)),
+            Some(AST.ArgString(property)),
+            Some(AST.ArgString(mode)),
+          ) =>
+          let instr =
+            "lbn " ++
+            Register.toString(targetReg) ++
+            " HASH(\"" ++
+            deviceType ++
+            "\") HASH(\"" ++
+            deviceName ++
+            "\") " ++
+            property ++
+            " " ++
+            mode
+          let comment = "load " ++ property ++ " from network"
+          Ok(addInstructionWithComment(state, instr, comment))
+        | _ =>
+          Error("lbn() expects 4 string arguments: (\"type\", \"name\", \"property\", \"mode\")")
+        }
+      }
+    | _ =>
+      // Fallback for other functions
+      switch generate(state, expr) {
+      | Error(msg) => Error(msg)
+      | Ok((state1, resultReg)) =>
+        if resultReg == targetReg {
+          Ok(state1)
+        } else {
+          let instr = "move " ++ Register.toString(targetReg) ++ " " ++ Register.toString(resultReg)
+          let allocator = RegisterAlloc.freeTempIfTemp(state1.allocator, resultReg)
+          Ok(addInstruction({...state1, allocator}, instr))
+        }
       }
     }
+
   | AST.VariableDeclaration(_, _) => Error("VariableDeclaration in expression context")
   | AST.TypeDeclaration(_, _) => Error("TypeDeclaration in expression context")
   | AST.IfStatement(_, _, _) => Error("IfStatement in expression context")

@@ -324,9 +324,11 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
     // Function calls as statements (e.g., IC10.s(d0, "Setting", 1))
     switch ExprGen.generate(state, stmt) {
     | Error(msg) => Error(msg)
-    | Ok((newState, _reg)) =>
+    | Ok((newState, reg)) =>
       // Discard result register (function was called for side effects)
-      Ok(newState)
+      // and free it if it's temporary.
+      let allocator = RegisterAlloc.freeTempIfTemp(newState.allocator, reg)
+      Ok({...newState, allocator})
     }
   }
 }
