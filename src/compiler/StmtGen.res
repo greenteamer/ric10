@@ -91,82 +91,35 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
     }
 
   | AST.IfStatement(condition, thenBlock, elseBlock) =>
-    // Check if condition is a simple comparison for direct branching
     switch condition {
     | AST.BinaryExpression(op, left, right) =>
-      // Try direct branching optimization
-      switch (op, left, right) {
-      | (AST.Lt | AST.Gt | AST.Eq, leftExpr, AST.Literal(rightVal)) =>
-        // Variable-to-literal comparison
-        switch ExprGen.generate(state, leftExpr) {
-        | Error(msg) => Error(msg)
-        | Ok((state1, leftReg)) =>
-          let rightValue = Int.toString(rightVal)
+      switch op {
+      | AST.Lt | AST.Gt | AST.Eq =>
+        switch elseBlock {
+        | None =>
+          // If-only statement
+          BranchGen.generateIfOnly(state, op, left, right, s => generateBlock(s, thenBlock))
 
-          switch elseBlock {
-          | None =>
-            // If-only statement
-            BranchGen.generateIfOnly(state1, op, leftReg, rightValue, s =>
-              generateBlock(s, thenBlock)
-            )
-          | Some(elseStatements) =>
-            // If-else statement
-            BranchGen.generateIfElse(
-              state1,
-              op,
-              leftReg,
-              rightValue,
-              s => generateBlock(s, thenBlock),
-              s => generateBlock(s, elseStatements),
-            )
-          }
-        }
-
-      | (AST.Lt | AST.Gt | AST.Eq, leftExpr, rightExpr) =>
-        // Variable-to-variable comparison
-        switch ExprGen.generate(state, leftExpr) {
-        | Error(msg) => Error(msg)
-        | Ok((state1, leftReg)) =>
-          switch ExprGen.generate(state1, rightExpr) {
-          | Error(msg) => Error(msg)
-          | Ok((state2, rightReg)) =>
-            let rightValue = Register.toString(rightReg)
-
-            // Free temporary registers before branching
-            let allocator = RegisterAlloc.freeTempIfTemp(
-              RegisterAlloc.freeTempIfTemp(state2.allocator, leftReg),
-              rightReg,
-            )
-            let state3 = {...state2, allocator}
-
-            switch elseBlock {
-            | None =>
-              // If-only statement
-              BranchGen.generateIfOnly(state3, op, leftReg, rightValue, s =>
-                generateBlock(s, thenBlock)
-              )
-            | Some(elseStatements) =>
-              // If-else statement
-              BranchGen.generateIfElse(
-                state3,
-                op,
-                leftReg,
-                rightValue,
-                s => generateBlock(s, thenBlock),
-                s => generateBlock(s, elseStatements),
-              )
-            }
-          }
+        | Some(elseStatements) =>
+          // If-else statement
+          BranchGen.generateIfElse(
+            state,
+            op,
+            left,
+            right,
+            s => generateBlock(s, thenBlock),
+            s => generateBlock(s, elseStatements),
+          )
         }
 
       | _ =>
         // Non-comparison binary expression - use fallback
-        generateIfWithCondition(state, condition, thenBlock, elseBlock)
+        Error("[ExprGen] Non-comparison binary expression in if statement")
       }
 
     | _ =>
       // Non-binary-expression condition - use fallback
-      generateIfWithCondition(state, condition, thenBlock, elseBlock)
+      Error("[ExprGen] Non-binary-expression condition in if statement")
     }
 
   | AST.WhileLoop(condition, body) =>
@@ -174,69 +127,13 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
     switch condition {
     | AST.BinaryExpression(op, leftExpr, rightExpr) =>
       switch (op, leftExpr, rightExpr) {
-      | (AST.Lt | AST.Gt | AST.Eq, leftExpr, AST.Literal(rightValue)) =>
-        // Comparison with literal on right
-        BranchGen.generateWhileLoop(
-          state,
-          op,
-          Int.toString(rightValue),
-          s =>
-            // Allocate a temporary register for the comparison
-            switch RegisterAlloc.allocateTempRegister(s.allocator) {
-            | Error(msg) => Error(msg)
-            | Ok((allocator1, tempReg)) =>
-              let state1 = {...s, allocator: allocator1}
-              // Generate left expression into the temp register
-              switch ExprGen.generateInto(state1, leftExpr, tempReg) {
-              | Error(msg) => Error(msg)
-              | Ok(state2) =>
-                // Free the temp register after use
-                let allocator3 = RegisterAlloc.freeTempRegister(state2.allocator, tempReg)
-                Ok(({...state2, allocator: allocator3}, tempReg))
-              }
-            },
-          s => generateBlock(s, body),
-        )
-
-      | (AST.Lt | AST.Gt | AST.Eq, AST.Literal(leftValue), rightExpr) =>
-        // Comparison with literal on left - swap to have literal on right
-        let swappedOp = switch op {
-        | AST.Lt => AST.Gt // x < y becomes y > x
-        | AST.Gt => AST.Lt // x > y becomes y < x
-        | AST.Eq => AST.Eq // x == y becomes y == x
-        | _ => op
-        }
-        BranchGen.generateWhileLoop(
-          state,
-          swappedOp,
-          Int.toString(leftValue),
-          s =>
-            // Allocate a temporary register for the comparison
-            switch RegisterAlloc.allocateTempRegister(s.allocator) {
-            | Error(msg) => Error(msg)
-            | Ok((allocator1, tempReg)) =>
-              let state1 = {...s, allocator: allocator1}
-              // Generate right expression into the temp register
-              switch ExprGen.generateInto(state1, rightExpr, tempReg) {
-              | Error(msg) => Error(msg)
-              | Ok(state2) =>
-                // Free the temp register after use
-                let allocator3 = RegisterAlloc.freeTempRegister(state2.allocator, tempReg)
-                Ok(({...state2, allocator: allocator3}, tempReg))
-              }
-            },
-          s => generateBlock(s, body),
-        )
-
       | (AST.Lt | AST.Gt | AST.Eq, _leftExpr, _rightExpr) =>
-        // Variable-to-variable comparison - use fallback for now
-        Console.log("[StmtGen] While loop variable-to-variable comparison - using fallback")
-        generateWhileMainLoop(state, condition, body)
+        // Comparison with literal on right
+        BranchGen.generateWhileLoop(state, op, _leftExpr, _rightExpr, s => generateBlock(s, body))
 
       | _ =>
         // Non-comparison binary expression - use fallback
-        Console.log("[StmtGen] Non-comparison binary expression in while loop - using fallback")
-        generateWhileMainLoop(state, condition, body)
+        Error("[StmtGen] Non-comparison binary expression in while loop")
       }
 
     | _ =>
@@ -331,30 +228,6 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
   }
 }
 
-// Generate if statement with fallback method (evaluate condition to register)
-and generateIfWithCondition = (
-  state: codegenState,
-  condition: AST.expr,
-  thenBlock: AST.blockStatement,
-  elseBlock: option<AST.blockStatement>,
-): result<codegenState, string> => {
-  switch ExprGen.generate(state, condition) {
-  | Error(msg) => Error(msg)
-  | Ok((state1, condReg)) =>
-    let generateElse = switch elseBlock {
-    | Some(statements) => Some(s => generateBlock(s, statements))
-    | None => None
-    }
-
-    BranchGen.generateIfWithConditionReg(
-      state1,
-      condReg,
-      s => generateBlock(s, thenBlock),
-      generateElse,
-    )
-  }
-}
-
 // Generate while loop with fallback method (evaluate condition to register)
 and generateWhileMainLoop = (
   state: codegenState,
@@ -362,8 +235,7 @@ and generateWhileMainLoop = (
   body: AST.blockStatement,
 ): result<codegenState, string> => {
   Console.log("[StmtGen] generateWhileMainLoop called")
-  BranchGen.generateWhileMainLoopReg(state, // s => ExprGen.generate(s, condition),
-  s => generateBlock(s, body))
+  BranchGen.generateWhileMainLoopReg(state, s => generateBlock(s, body)) // s => ExprGen.generate(s, condition),
 }
 
 // Generate IC10 code for a block of statements
