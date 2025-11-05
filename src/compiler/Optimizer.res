@@ -130,6 +130,7 @@ let rec optimize = (node: astNode): astNode => {
       switch arg {
       | ArgExpr(expr) => ArgExpr(optimize(expr))
       | ArgString(_) => arg // String literals don't need optimization
+      | ArgDevice(_) => arg // Device identifiers don't need optimization
       }
     })
     FunctionCall(name, optimizedArgs)

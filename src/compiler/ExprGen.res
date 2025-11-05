@@ -105,69 +105,37 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
     Error("String literals can only be used as IC10 function arguments")
 
   | AST.Identifier(name) =>
-    // Check if this is a device reference (d0-d5, db)
-    if name == "d0" || name == "d1" || name == "d2" || name == "d3" || name == "d4" || name == "d5" {
-      // Device references are just integer literals (d0=0, d1=1, etc.)
-      let deviceNum = switch name {
-      | "d0" => 0
-      | "d1" => 1
-      | "d2" => 2
-      | "d3" => 3
-      | "d4" => 4
-      | "d5" => 5
-      | _ => 0
-      }
-      switch RegisterAlloc.allocateTempRegister(state.allocator) {
+    // Check if this is a variant constructor (tag-only, no argument)
+    switch Belt.Map.String.get(state.variantTags, name) {
+    | Some(tag) =>
+      // This is a tag-only variant constructor
+      // Push tag onto stack
+      let instr1 = "push " ++ Int.toString(tag)
+      let comment1 = name ++ " variant tag"
+      let state1 = addInstructionWithComment(state, instr1, comment1)
+
+      // Allocate register to hold stack base address
+      switch RegisterAlloc.allocateTempRegister(state1.allocator) {
       | Error(msg) => Error(msg)
-      | Ok((allocator, reg)) =>
-        let newState = {...state, allocator}
-        let instr = "move " ++ Register.toString(reg) ++ " " ++ Int.toString(deviceNum)
-        let comment = name
-        Ok((addInstructionWithComment(newState, instr, comment), reg))
+      | Ok((allocator, baseReg)) =>
+        // Generate: move baseReg sp; sub baseReg baseReg 1
+        let instr2 = "move " ++ Register.toString(baseReg) ++ " sp"
+        let comment2 = "get stack pointer"
+        let instr3 =
+          "sub " ++ Register.toString(baseReg) ++ " " ++ Register.toString(baseReg) ++ " 1"
+        let comment3 = "adjust to variant address"
+
+        let state2 = addInstructionWithComment({...state1, allocator}, instr2, comment2)
+        let state3 = addInstructionWithComment(state2, instr3, comment3)
+
+        Ok((state3, baseReg))
       }
-    } else if name == "db" {
-      // db is a special device reference (-1 or special handling)
-      switch RegisterAlloc.allocateTempRegister(state.allocator) {
-      | Error(msg) => Error(msg)
-      | Ok((allocator, reg)) =>
-        let newState = {...state, allocator}
-        let instr = "move " ++ Register.toString(reg) ++ " db"
-        let comment = "db device"
-        Ok((addInstructionWithComment(newState, instr, comment), reg))
-      }
-    } else {
-      // Check if this is a variant constructor (tag-only, no argument)
-      switch Belt.Map.String.get(state.variantTags, name) {
-      | Some(tag) =>
-        // This is a tag-only variant constructor
-        // Push tag onto stack
-        let instr1 = "push " ++ Int.toString(tag)
-        let comment1 = name ++ " variant tag"
-        let state1 = addInstructionWithComment(state, instr1, comment1)
 
-        // Allocate register to hold stack base address
-        switch RegisterAlloc.allocateTempRegister(state1.allocator) {
-        | Error(msg) => Error(msg)
-        | Ok((allocator, baseReg)) =>
-          // Generate: move baseReg sp; sub baseReg baseReg 1
-          let instr2 = "move " ++ Register.toString(baseReg) ++ " sp"
-          let comment2 = "get stack pointer"
-          let instr3 =
-            "sub " ++ Register.toString(baseReg) ++ " " ++ Register.toString(baseReg) ++ " 1"
-          let comment3 = "adjust to variant address"
-
-          let state2 = addInstructionWithComment({...state1, allocator}, instr2, comment2)
-          let state3 = addInstructionWithComment(state2, instr3, comment3)
-
-          Ok((state3, baseReg))
-        }
-
-      | None =>
-        // Not a constructor, treat as variable reference
-        switch RegisterAlloc.getRegister(state.allocator, name) {
-        | None => Error("Variable not found: " ++ name)
-        | Some(reg) => Ok((state, reg))
-        }
+    | None =>
+      // Not a constructor, treat as variable reference
+      switch RegisterAlloc.getRegister(state.allocator, name) {
+      | None => Error("Variable not found: " ++ name)
+      | Some(reg) => Ok((state, reg))
       }
     }
 
@@ -176,30 +144,23 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
     switch funcName {
     | "l" =>
       // l resultReg device property
-      // args: [ArgExpr(device), ArgString(property)]
+      // args: [ArgDevice(device), ArgString(property)]
       if Array.length(args) != 2 {
         Error("l() expects 2 arguments: device and property")
       } else {
         switch (args[0], args[1]) {
-        | (Some(AST.ArgExpr(deviceExpr)), Some(AST.ArgString(property))) =>
-          // Generate device expression
-          switch generate(state, deviceExpr) {
+        | (Some(AST.ArgDevice(deviceName)), Some(AST.ArgString(property))) =>
+          // Allocate result register
+          switch RegisterAlloc.allocateTempRegister(state.allocator) {
           | Error(msg) => Error(msg)
-          | Ok((state1, deviceReg)) =>
-            // Allocate result register
-            switch RegisterAlloc.allocateTempRegister(state1.allocator) {
-            | Error(msg) => Error(msg)
-            | Ok((allocator, resultReg)) =>
-              let state2 = {...state1, allocator}
-              let instr = "l " ++ Register.toString(resultReg) ++ " d" ++ Register.toString(deviceReg) ++ " " ++ property
-              let comment = "load " ++ property
-              let state3 = addInstructionWithComment(state2, instr, comment)
-              // Free device register if temp
-              let allocator2 = RegisterAlloc.freeTempIfTemp(state3.allocator, deviceReg)
-              Ok({...state3, allocator: allocator2}, resultReg)
-            }
+          | Ok((allocator, resultReg)) =>
+            let state1 = {...state, allocator}
+            // Use device name directly (d0, d1, etc.)
+            let instr = "l " ++ Register.toString(resultReg) ++ " " ++ deviceName ++ " " ++ property
+            let comment = "load " ++ property
+            Ok((addInstructionWithComment(state1, instr, comment), resultReg))
           }
-        | _ => Error("l() expects arguments: (device, \"property\")")
+        | _ => Error("l() expects arguments: (device_identifier, \"property\")")
         }
       }
 
@@ -255,37 +216,31 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
     | "s" =>
       // s device property value
       // This is a statement (returns unit), but we'll handle it here
-      // args: [ArgExpr(device), ArgString(property), ArgExpr(value)]
+      // args: [ArgDevice(device), ArgString(property), ArgExpr(value)]
       if Array.length(args) != 3 {
         Error("s() expects 3 arguments: device, property, value")
       } else {
         switch (args[0], args[1], args[2]) {
-        | (Some(AST.ArgExpr(deviceExpr)), Some(AST.ArgString(property)), Some(AST.ArgExpr(valueExpr))) =>
-          switch generate(state, deviceExpr) {
+        | (Some(AST.ArgDevice(deviceName)), Some(AST.ArgString(property)), Some(AST.ArgExpr(valueExpr))) =>
+          switch generate(state, valueExpr) {
           | Error(msg) => Error(msg)
-          | Ok((state1, deviceReg)) =>
-            switch generate(state1, valueExpr) {
+          | Ok((state1, valueReg)) =>
+            // Use device name directly (d0, d1, etc.)
+            let instr = "s " ++ deviceName ++ " " ++ property ++ " " ++ Register.toString(valueReg)
+            let comment = "store " ++ property
+            let state2 = addInstructionWithComment(state1, instr, comment)
+            let allocator2 = RegisterAlloc.freeTempIfTemp(state2.allocator, valueReg)
+            // s returns unit, but we need to return a register for consistency
+            // Allocate a dummy register with value 0
+            switch RegisterAlloc.allocateTempRegister(allocator2) {
             | Error(msg) => Error(msg)
-            | Ok((state2, valueReg)) =>
-              let instr = "s d" ++ Register.toString(deviceReg) ++ " " ++ property ++ " " ++ Register.toString(valueReg)
-              let comment = "store " ++ property
-              let state3 = addInstructionWithComment(state2, instr, comment)
-              let allocator2 = RegisterAlloc.freeTempIfTemp(
-                RegisterAlloc.freeTempIfTemp(state3.allocator, deviceReg),
-                valueReg
-              )
-              // s returns unit, but we need to return a register for consistency
-              // Allocate a dummy register with value 0
-              switch RegisterAlloc.allocateTempRegister(allocator2) {
-              | Error(msg) => Error(msg)
-              | Ok((allocator3, dummyReg)) =>
-                let state4 = {...state3, allocator: allocator3}
-                let moveInstr = "move " ++ Register.toString(dummyReg) ++ " 0"
-                Ok((addInstruction(state4, moveInstr), dummyReg))
-              }
+            | Ok((allocator3, dummyReg)) =>
+              let state3 = {...state2, allocator: allocator3}
+              let moveInstr = "move " ++ Register.toString(dummyReg) ++ " 0"
+              Ok((addInstruction(state3, moveInstr), dummyReg))
             }
           }
-        | _ => Error("s() expects arguments: (device, \"property\", value)")
+        | _ => Error("s() expects arguments: (device_identifier, \"property\", value)")
         }
       }
 

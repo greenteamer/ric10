@@ -259,7 +259,7 @@ and parseRefCreation = (parser: parser): result<(parser, AST.expr), string> => {
 }
 
 // Parse function call arguments: (arg1, arg2, ...)
-// Arguments can be expressions or string literals
+// Arguments can be expressions, string literals, or device identifiers
 and parseFunctionArguments = (parser: parser): result<(parser, array<AST.argument>), string> => {
   let rec parseArgs = (parser: parser, args: list<AST.argument>): result<(parser, list<AST.argument>), string> => {
     switch peek(parser) {
@@ -281,8 +281,47 @@ and parseFunctionArguments = (parser: parser): result<(parser, array<AST.argumen
       | _ =>
         Error("Expected ',' or ')' after function argument")
       }
+    | Some(Lexer.Identifier(name)) =>
+      // Check if this is a device identifier (d0-d5, db)
+      let isDeviceId = name == "d0" || name == "d1" || name == "d2" ||
+                       name == "d3" || name == "d4" || name == "d5" || name == "db"
+
+      if isDeviceId {
+        // Device identifier - treat as ArgDevice
+        let parser = advance(parser)
+        let arg = AST.ArgDevice(name)
+        // Check for comma or closing paren
+        switch peek(parser) {
+        | Some(Lexer.RightParen) =>
+          Ok((advance(parser), list{arg, ...args}))
+        | Some(Lexer.Comma) =>
+          // Consume comma and parse next argument
+          let parser = advance(parser)
+          parseArgs(parser, list{arg, ...args})
+        | _ =>
+          Error("Expected ',' or ')' after function argument")
+        }
+      } else {
+        // Regular identifier - parse as expression
+        switch parseExpression(parser) {
+        | Error(msg) => Error(msg)
+        | Ok((parser, expr)) =>
+          let arg = AST.ArgExpr(expr)
+          // Check for comma or closing paren
+          switch peek(parser) {
+          | Some(Lexer.RightParen) =>
+            Ok((advance(parser), list{arg, ...args}))
+          | Some(Lexer.Comma) =>
+            // Consume comma and parse next argument
+            let parser = advance(parser)
+            parseArgs(parser, list{arg, ...args})
+          | _ =>
+            Error("Expected ',' or ')' after function argument")
+          }
+        }
+      }
     | Some(_) =>
-      // Expression argument
+      // Expression argument (for other token types)
       switch parseExpression(parser) {
       | Error(msg) => Error(msg)
       | Ok((parser, expr)) =>

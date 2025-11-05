@@ -42,10 +42,11 @@ and stmt = astNode
 
 and blockStatement = array<astNode>
 
-// Function call arguments (can be expressions or string literals)
+// Function call arguments (can be expressions, string literals, or device identifiers)
 and argument =
   | ArgExpr(expr) // Expression argument (evaluated)
   | ArgString(string) // String literal argument (for property names, etc.)
+  | ArgDevice(string) // Device identifier (d0-d5, db) - for IC10 device references
 
 // Match case for pattern matching (must be after blockStatement is defined)
 and matchCase = {
