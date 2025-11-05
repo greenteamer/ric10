@@ -4,6 +4,10 @@
     {
       "dir": "src",
       "subdirs": true
+    },
+    {
+      "dir": "examples",
+      "subdirs": true
     }
   ],
   "package-specs": [
@@ -13,15 +17,12 @@
     }
   ],
   "suffix": ".res.js",
-  "bs-dependencies": [
-    "@rescript/core"
-  ],
+  "bs-dependencies": ["@rescript/core"],
   "gentypeconfig": {
     "module": "esmodule",
     "moduleResolution": "node",
     "generatedFileExtension": ".gen.ts"
   },
-  "bsc-flags": [
-    "-open RescriptCore"
-  ]
+  "bsc-flags": ["-open RescriptCore", "-open IC10"]
 }
+

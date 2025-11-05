@@ -2,7 +2,7 @@
 // This is the common IC10 pattern for Stationeers
 
 // Game state
-type State = Idle | Processing | Complete
+type state = Idle | Processing | Complete
 
 let state = ref(Idle)
 let counter = ref(0)
