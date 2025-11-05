@@ -17,11 +17,8 @@ while true {
 }`;
         const expected = `move r0 0
 label0:
-move r15 1
-beqz r15 label1
 add r0 r0 1
-j label0
-label1:`;
+j label0`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Ok');
@@ -58,12 +55,9 @@ while true {
 }`;
         const expected = `move r0 0
 label0:
-move r15 1
-beqz r15 label1
 add r0 r0 1
 yield
-j label0
-label1:`;
+j label0`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Ok');
@@ -103,15 +97,11 @@ while outer.contents < 3 {
 }`;
         const expected = `move r0 0
 label0:
-move r15 r0
-bge r15 3 label1
+bge r0 3 label1
 move r1 0
 label2:
-move r15 1
-beqz r15 label3
 add r1 r1 1
 j label2
-label3:
 add r0 r0 1
 j label0
 label1:`;
@@ -172,16 +162,13 @@ move r15 sp
 sub r15 r15 1
 move r0 r15
 label0:
-move r15 1
-beqz r15 label1
 push 1
-move r14 sp
-sub r14 r14 1
-move r0 r14
+move r15 sp
+sub r15 r15 1
+move r0 r15
 move r1 100
 yield
-j label0
-label1:`;
+j label0`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Ok');

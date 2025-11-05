@@ -29,7 +29,7 @@ describe('IC10 Bindings - Basic Operations', () => {
     const asm = result._0;
     expect(asm).toContain('move r0 1');
     expect(asm).toContain('100');
-    expect(asm).toMatch(/s d.* Setting r\d+/);
+    expect(asm).toMatch(/s d.* Setting (r\d+|\d+)/);
   });
 
   test('multiple operations in sequence', () => {
@@ -73,7 +73,7 @@ describe('IC10 Bindings - Hash Operations', () => {
     expect(asm).toContain('67890');
     expect(asm).toContain('move r');
     expect(asm).toContain('1');
-    expect(asm).toMatch(/sb r.*? On r\d+/);
+    expect(asm).toMatch(/sb r.*? On (r\d+|\d+)/);
   });
 });
 

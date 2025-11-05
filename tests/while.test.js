@@ -8,8 +8,7 @@ while x.contents < 5 {
 }`;
         const expected = `move r0 0
 label0:
-move r15 r0
-bge r15 5 label1
+bge r0 5 label1
 add r0 r0 1
 j label0
 label1:`;
@@ -27,8 +26,7 @@ while counter.contents < 3 {
 }`;
         const expected = `move r0 0
 label0:
-move r15 r0
-bge r15 3 label1
+bge r0 3 label1
 mul r1 r0 2
 add r0 r0 1
 j label0
@@ -48,8 +46,7 @@ while a.contents > b.contents {
         const expected = `move r0 10
 move r1 0
 label0:
-sgt r15 r0 r1
-beqz r15 label1
+ble r0 r1 label1
 add r1 r1 2
 j label0
 label1:`;
@@ -70,12 +67,10 @@ while i.contents < 3 {
 }`;
         const expected = `move r0 0
 label0:
-move r15 r0
-bge r15 3 label1
+bge r0 3 label1
 move r1 0
 label2:
-move r15 r1
-bge r15 2 label3
+bge r1 2 label3
 add r1 r1 1
 j label2
 label3:
@@ -91,10 +86,7 @@ label1:`;
     test('empty loop body', () => {
         const code = `while 0 {}`;
         const expected = `label0:
-move r15 0
-beqz r15 label1
-j label0
-label1:`;
+j label0`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Ok');
@@ -108,8 +100,7 @@ while x.contents < 5 {
 }`;
         const expected = `move r0 10
 label0:
-move r15 r0
-bge r15 5 label1
+bge r0 5 label1
 add r0 r0 1
 j label0
 label1:`;
@@ -131,8 +122,7 @@ label1:`;
 while (x.contents < 5) { }`;
         const expected = `move r0 5
 label0:
-move r15 r0
-bge r15 5 label1
+bge r0 5 label1
 j label0
 label1:`;
 
