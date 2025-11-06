@@ -5,6 +5,15 @@
 // Device references (d0-d5, db)
 type device = int
 
+module Mode = {
+  type t = Maximum | Minimum | Average | Sum
+
+  let maximum = "Maximum"
+  let minimum = "Minimum"
+  let average = "Average"
+  let sum = "Sum"
+}
+
 let d0: device = 0
 let d1: device = 1
 let d2: device = 2
@@ -36,7 +45,7 @@ let s = (_device: device, _property: string, _value: int): unit => {
 }
 
 // sb HASH Setting 1
-let sb = (_hash: int, _property: string, _value: int): unit => {
+let sb = (_hash: int, _property: string, _value: int, _mode: Mode.t): unit => {
   ()
 }
 
@@ -66,10 +75,4 @@ module Property = {
   let activate = "Activate"
   let open_ = "Open" // 'open' is reserved keyword
   let lock = "Lock"
-
-  // Network modes for lbn
-  let maximum = "Maximum"
-  let minimum = "Minimum"
-  let average = "Average"
-  let sum = "Sum"
 }

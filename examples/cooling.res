@@ -11,6 +11,6 @@ let state = ref(Idle)
 
 while true {
   state := Full(10)
-  sb(tanks, "Temperature", 100)
+  sb(tanks, "Temperature", 100, Maximum)
   %raw("yield")
 }

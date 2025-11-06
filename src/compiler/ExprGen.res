@@ -122,7 +122,9 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
       }
     | Some(CodegenTypes.HashExpr(_)) =>
       // HASH constant - can't be used as runtime value in expressions
-      Error(name ++ " is a HASH constant and cannot be used in arithmetic expressions. Use it only in IC10 functions like lb() or sb().")
+      Error(
+        name ++ " is a HASH constant and cannot be used in arithmetic expressions. Use it only in IC10 functions like lb() or sb().",
+      )
     | None =>
       // Check if this is a variant constructor (tag-only, no argument)
       switch Belt.Map.String.get(state.variantTags, name) {
@@ -161,8 +163,10 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
 
   | AST.FunctionCall(funcName, args) =>
     // Handle IC10 device I/O functions
-    switch funcName {
-    | "l" =>
+    let parsedFuncName = funcName->String.split("")->List.fromArray
+    Console.log2("[ExprGen] Function call parsedFuncName: ", parsedFuncName)
+    switch parsedFuncName {
+    | list{"l"} =>
       // l resultReg device property
       // args: [ArgDevice(device), ArgString(property)]
       if Array.length(args) != 2 {
@@ -184,7 +188,7 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
         }
       }
 
-    | "lb" =>
+    | list{"l", "b"} =>
       // lb resultReg hash property
       // args: [ArgExpr(hash), ArgString(property)]
       if Array.length(args) != 2 {
@@ -217,7 +221,8 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
             | Error(msg) => Error(msg)
             | Ok((allocator, resultReg)) =>
               let state2 = {...state1, allocator}
-              let instr = "lb " ++ Register.toString(resultReg) ++ " " ++ hashValue ++ " " ++ property
+              let instr =
+                "lb " ++ Register.toString(resultReg) ++ " " ++ hashValue ++ " " ++ property
               let comment = "load " ++ property ++ " by hash"
               let state3 = addInstructionWithComment(state2, instr, comment)
               Ok((state3, resultReg))
@@ -227,7 +232,7 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
         }
       }
 
-    | "lbn" =>
+    | list{"l", "b", "n"} =>
       // lbn resultReg HASH("type") HASH("name") property mode
       // args: [ArgString(type), ArgString(name), ArgString(property), ArgString(mode)]
       if Array.length(args) != 4 {
@@ -263,7 +268,7 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
         }
       }
 
-    | "s" =>
+    | list{"s"} =>
       // s device property value
       // args: [ArgDevice(device), ArgString(property), ArgExpr(value)]
       if Array.length(args) != 3 {
@@ -305,16 +310,18 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
         }
       }
 
-    | "sb" =>
+    | list{"s", "b"} =>
       // sb hash property value
-      if Array.length(args) != 3 {
-        Error("sb() expects 3 arguments: hash, property, value")
+      Console.log2("[ExprGen] sb args: ", args)
+      if Array.length(args) != 4 {
+        Error("sb() expects 4 arguments: hash, property, value")
       } else {
-        switch (args[0], args[1], args[2]) {
+        switch (args[0], args[1], args[2], args[3]) {
         | (
             Some(AST.ArgExpr(hashExpr)),
             Some(AST.ArgString(property)),
             Some(AST.ArgExpr(valueExpr)),
+            Some(AST.ArgExpr(modeExpr)),
           ) =>
           // Check if hashExpr is an identifier that's a define
           let (hashValue, state1, needsHashFree) = switch hashExpr {
@@ -346,7 +353,8 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
               switch generate(state1, valueExpr) {
               | Error(msg) => Error(msg)
               | Ok((state2, valueReg)) =>
-                let instr = "sb " ++ hashValue ++ " " ++ property ++ " " ++ Register.toString(valueReg)
+                let instr =
+                  "sb " ++ hashValue ++ " " ++ property ++ " " ++ Register.toString(valueReg)
                 let comment = "store " ++ property ++ " by hash"
                 let state3 = addInstructionWithComment(state2, instr, comment)
                 let allocator = RegisterAlloc.freeTempIfTemp(state3.allocator, valueReg)
@@ -378,7 +386,7 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
         }
       }
 
-    | "sbn" =>
+    | list{"s", "b", "n"} =>
       // sbn HASH("type") HASH("name") property value
       if Array.length(args) != 4 {
         Error("sbn() expects 4 arguments: deviceType, deviceName, property, value")
@@ -718,7 +726,9 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
         Ok(addInstructionWithComment(state, instr, comment))
       | Some(CodegenTypes.HashExpr(_)) =>
         // HASH constant - can't be used as runtime value
-        Error(name ++ " is a HASH constant and cannot be used in arithmetic expressions. Use it only in IC10 functions like lb() or sb().")
+        Error(
+          name ++ " is a HASH constant and cannot be used in arithmetic expressions. Use it only in IC10 functions like lb() or sb().",
+        )
       | None =>
         // Not a constructor or constant, copy from source variable to target register (if different)
         switch RegisterAlloc.getRegister(state.allocator, name) {
@@ -727,7 +737,8 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
           if sourceReg == targetReg {
             Ok(state) // Already in target register
           } else {
-            let instr = "move " ++ Register.toString(targetReg) ++ " " ++ Register.toString(sourceReg)
+            let instr =
+              "move " ++ Register.toString(targetReg) ++ " " ++ Register.toString(sourceReg)
             let comment = name
             Ok(addInstructionWithComment(state, instr, comment))
           }
@@ -923,6 +934,7 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
             let instr = "lb " ++ Register.toString(targetReg) ++ " " ++ hashValue ++ " " ++ property
             let comment = "load " ++ property ++ " by hash"
             let state2 = addInstructionWithComment(state1, instr, comment)
+
             // Only free hash register if it was generated (not a define)
             if needsHashFree {
               switch Register.fromString(hashValue) {
