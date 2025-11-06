@@ -51,15 +51,15 @@ describe('IC10 Bindings - Basic Operations', () => {
 describe('IC10 Bindings - Hash Operations', () => {
   test('lb (load by hash) - basic', () => {
     const source = `
-      let avgTemp = lb(12345, "Temperature")
+      let hashVal = hash("StructuresTank")
+      let avgTemp = lb(hashVal, "Temperature", Average)
     `;
     const result = Compiler.compile(source, { includeComments: false });
     expect(result.TAG).toBe("Ok");
 
     const asm = result._0;
-    expect(asm).toContain('move r');
-    expect(asm).toContain('12345');
-    expect(asm).toMatch(/lb r\d+ r.*? Temperature/);
+    expect(asm).toContain('hashVal');
+    expect(asm).toMatch(/lb r\d+ hashVal Temperature Average/);
   });
 
   test('sb (store by hash) - basic', () => {
@@ -73,30 +73,34 @@ describe('IC10 Bindings - Hash Operations', () => {
 
     const asm = result._0;
     expect(asm).toContain('hashVal');
-    expect(asm).toContain('move r');
-    expect(asm).toMatch(/sb hashVal On r\d+/);
+    expect(asm).toContain('sb hashVal On');
+    expect(asm).toContain('Average');
   });
 });
 
 describe('IC10 Bindings - Network Operations', () => {
   test('lbn (load by network) - average', () => {
     const source = `
-      let avgTemp = lbn("Furnace", "MainFurnace", "Temperature", "Average")
+      let typeHash = hash("Furnace")
+      let nameHash = hash("MainFurnace")
+      let avgTemp = lbn(typeHash, nameHash, "Temperature", Average)
     `;
     const result = Compiler.compile(source, { includeComments: false });
     expect(result.TAG).toBe("Ok");
 
     const asm = result._0;
     expect(asm).toContain('lbn');
-    expect(asm).toContain('HASH("Furnace")');
-    expect(asm).toContain('HASH("MainFurnace")');
+    expect(asm).toContain('typeHash');
+    expect(asm).toContain('nameHash');
     expect(asm).toContain('Temperature');
     expect(asm).toContain('Average');
   });
 
   test('sbn (store by network) - basic', () => {
     const source = `
-      sbn("LEDDisplay", "StatusDisplay", "Setting", 100)
+      let typeHash = hash("LEDDisplay")
+      let nameHash = hash("StatusDisplay")
+      sbn(typeHash, nameHash, "Setting", 100)
     `;
     const result = Compiler.compile(source, { includeComments: false });
     expect(result.TAG).toBe("Ok");
@@ -104,8 +108,8 @@ describe('IC10 Bindings - Network Operations', () => {
     const asm = result._0;
     expect(asm).toContain('100');
     expect(asm).toContain('sbn');
-    expect(asm).toContain('HASH("LEDDisplay")');
-    expect(asm).toContain('HASH("StatusDisplay")');
+    expect(asm).toContain('typeHash');
+    expect(asm).toContain('nameHash');
     expect(asm).toContain('Setting');
   });
 });
@@ -155,7 +159,8 @@ describe('IC10 Bindings - Complex Examples', () => {
   test('hash load with arithmetic', () => {
     const source = `
       let d0 = 0
-      let hashTemp = lb(12345, "Temperature")
+      let deviceHash = hash("StructuresTank")
+      let hashTemp = lb(deviceHash, "Temperature", Average)
       let delta = hashTemp - 100
       s(d0, "Setting", delta)
     `;
@@ -263,12 +268,16 @@ describe('IC10 Bindings - Real-world Scenarios', () => {
   test('network-based average temperature monitoring', () => {
     const source = `
       let d0 = 0
-      let avgTemp = lbn("Sensor", "TemperatureSensors", "Temperature", "Average")
+      let sensorType = hash("Sensor")
+      let sensorName = hash("TemperatureSensors")
+      let avgTemp = lbn(sensorType, sensorName, "Temperature", Average)
 
+      let coolerType = hash("Cooler")
+      let coolerName = hash("RoomCoolers")
       if avgTemp > 400 {
-        sbn("Cooler", "RoomCoolers", "On", 1)
+        sbn(coolerType, coolerName, "On", 1)
       } else {
-        sbn("Cooler", "RoomCoolers", "On", 0)
+        sbn(coolerType, coolerName, "On", 0)
       }
     `;
     const result = Compiler.compile(source, { includeComments: false });
@@ -276,10 +285,10 @@ describe('IC10 Bindings - Real-world Scenarios', () => {
 
     const asm = result._0;
     expect(asm).toContain('lbn');
-    expect(asm).toContain('HASH("Sensor")');
+    expect(asm).toContain('sensorType');
     expect(asm).toContain('Average');
     expect(asm).toContain('sbn');
-    expect(asm).toContain('HASH("Cooler")');
+    expect(asm).toContain('coolerType');
   });
 
   test('pressure and temperature monitoring', () => {

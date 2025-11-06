@@ -62,7 +62,7 @@ let sb = (_hash: int, _property: string, _value: int, _mode: Mode.t): unit => {
 }
 
 // sbn HASH("Type") HASH("Name") Property Value
-let sbn = (_deviceType: string, _deviceName: string, _property: string, _value: int): unit => {
+let sbn = (_typeHash: int, _nameHash: int, _property: string, _value: int): unit => {
   ()
 }
 

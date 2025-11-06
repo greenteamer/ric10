@@ -180,142 +180,70 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
     let parsedFuncName = funcName->String.split("")->List.fromArray
     Console.log2("[ExprGen] Function call parsedFuncName: ", parsedFuncName)
     switch parsedFuncName {
-    | list{"l"} =>
-      // l resultReg device property
-      // args: [ArgDevice(device), ArgString(property)]
-      if Array.length(args) != 2 {
-        Error("l() expects 2 arguments: device and property")
-      } else {
-        switch (args[0], args[1]) {
-        | (Some(AST.ArgDevice(deviceName)), Some(AST.ArgString(property))) =>
-          // Allocate result register
-          switch RegisterAlloc.allocateTempRegister(state.allocator) {
-          | Error(msg) => Error(msg)
-          | Ok((allocator, resultReg)) =>
-            let state1 = {...state, allocator}
-            // Use device name directly (d0, d1, etc.)
-            let instr = "l " ++ Register.toString(resultReg) ++ " " ++ deviceName ++ " " ++ property
-            let comment = "load " ++ property
-            Ok((addInstructionWithComment(state1, instr, comment), resultReg))
-          }
-        | _ => Error("l() expects arguments: (device_identifier, \"property\")")
-        }
-      }
+    // Load functions must be used in direct variable assignments only
+    | list{"l"}
+    | list{"l", "b"}
+    | list{"l", "b", "n"} =>
+      Error(
+        "IC10 load functions (l/lb/lbn) must be used in direct variable assignments, not in complex expressions. " ++
+        "Example: let temp = " ++
+        funcName ++
+        "(...) instead of using it in an expression.",
+      )
 
-    | list{"l", "b"} =>
-      // lb resultReg hash property
-      // args: [ArgExpr(hash), ArgString(property), ArgMode(mode)]
+    // Store functions can be used as standalone statements
+    | list{"s"} =>
+      // s device property value
       let input = (args[0], args[1], args[2])
 
       switch input {
       | (
-          Some(AST.ArgExpr(AST.Identifier(hashName))),
+          Some(AST.ArgDevice(deviceName)),
           Some(AST.ArgString(property)),
-          Some(AST.ArgMode(modeExpr)),
+          Some(AST.ArgExpr(valueExpr)),
         ) =>
-        // Verify hash is a define constant
-        switch Belt.Map.String.get(state.defines, hashName) {
-        | None => Error(hashName ++ " is not a HASH constant - use hash() to define it")
-        | Some(_) =>
-          // Get value - check if it's a define constant or a register variable
-          let instruction = "lb" ++ hashName ++ " " ++ property ++ " " ++ Mode.toString(modeExpr)
-          let x = addInstruction(state, instruction)
-
-          switch RegisterAlloc.allocateTempRegister(x.allocator) {
+        switch valueExpr {
+        | AST.Literal(value) =>
+          let inst = `s ${deviceName} ${property} ${Int.toString(value)}`
+          let state1 = addInstruction(state, inst)
+          // Return dummy register for statement context
+          switch RegisterAlloc.allocateTempRegister(state1.allocator) {
           | Error(msg) => Error(msg)
-          | Ok((allocator, dummyReg)) => Ok(({...x, allocator}, dummyReg))
+          | Ok((allocator, dummyReg)) => Ok(({...state1, allocator}, dummyReg))
           }
-        }
-      | _ =>
-        Error(
-          "lb() expects arguments: (hash_constant, \"property\", variable, mode) - hash must be a define constant, value must be a variable",
-        )
-      }
-
-    | list{"l", "b", "n"} =>
-      // lbn resultReg HASH("type") HASH("name") property mode
-      // args: [ArgString(type), ArgString(name), ArgString(property), ArgString(mode)]
-      if Array.length(args) != 4 {
-        Error("lbn() expects 4 arguments: deviceType, deviceName, property, mode")
-      } else {
-        switch (args[0], args[1], args[2], args[3]) {
-        | (
-            Some(AST.ArgString(deviceType)),
-            Some(AST.ArgString(deviceName)),
-            Some(AST.ArgString(property)),
-            Some(AST.ArgString(mode)),
-          ) =>
-          switch RegisterAlloc.allocateTempRegister(state.allocator) {
-          | Error(msg) => Error(msg)
-          | Ok((allocator, resultReg)) =>
-            let state1 = {...state, allocator}
-            let instr =
-              "lbn " ++
-              Register.toString(resultReg) ++
-              " HASH(\"" ++
-              deviceType ++
-              "\") HASH(\"" ++
-              deviceName ++
-              "\") " ++
-              property ++
-              " " ++
-              mode
-            let comment = "load " ++ property ++ " from network"
-            Ok((addInstructionWithComment(state1, instr, comment), resultReg))
-          }
-        | _ =>
-          Error("lbn() expects 4 string arguments: (\"type\", \"name\", \"property\", \"mode\")")
-        }
-      }
-
-    | list{"s"} =>
-      // s device property value
-      // args: [ArgDevice(device), ArgString(property), ArgExpr(value)]
-      if Array.length(args) != 3 {
-        Error("s() expects 3 arguments: device, property, value")
-      } else {
-        switch (args[0], args[1], args[2]) {
-        | (
-            Some(AST.ArgDevice(deviceName)),
-            Some(AST.ArgString(property)),
-            Some(AST.ArgExpr(valueExpr)),
-          ) =>
-          let stateAfterS = switch valueExpr {
-          | AST.Literal(value) =>
-            let instr = "s " ++ deviceName ++ " " ++ property ++ " " ++ Int.toString(value)
-            let comment = "store " ++ property
-            Ok(addInstructionWithComment(state, instr, comment))
-          | _ =>
-            switch generate(state, valueExpr) {
-            | Error(msg) => Error(msg)
-            | Ok((state1, valueReg)) =>
-              let instr =
-                "s " ++ deviceName ++ " " ++ property ++ " " ++ Register.toString(valueReg)
-              let comment = "store " ++ property
-              let state2 = addInstructionWithComment(state1, instr, comment)
-              let allocator = RegisterAlloc.freeTempIfTemp(state2.allocator, valueReg)
-              Ok({...state2, allocator})
-            }
-          }
-
-          switch stateAfterS {
-          | Error(msg) => Error(msg)
-          | Ok(state1) =>
+        | AST.Identifier(valueName) =>
+          Utils.getDefineOrRegister(state, valueName)
+          ->Result.map(valueStr => `s ${deviceName} ${property} ${valueStr}`)
+          ->Result.map(addInstruction(state, _))
+          ->Result.flatMap(state1 => {
+            // Return dummy register for statement context
             switch RegisterAlloc.allocateTempRegister(state1.allocator) {
             | Error(msg) => Error(msg)
             | Ok((allocator, dummyReg)) => Ok(({...state1, allocator}, dummyReg))
             }
+          })
+        | _ =>
+          // For complex expressions, generate into a temp register first
+          switch generate(state, valueExpr) {
+          | Error(msg) => Error(msg)
+          | Ok((state1, valueReg)) =>
+            let inst = `s ${deviceName} ${property} ${Register.toString(valueReg)}`
+            let allocator = RegisterAlloc.freeTempIfTemp(state1.allocator, valueReg)
+            let state2 = addInstruction({...state1, allocator}, inst)
+            // Return dummy register for statement context
+            switch RegisterAlloc.allocateTempRegister(state2.allocator) {
+            | Error(msg) => Error(msg)
+            | Ok((allocator, dummyReg)) => Ok(({...state2, allocator}, dummyReg))
+            }
           }
-        | _ => Error("s() expects arguments: (device_identifier, \"property\", value)")
         }
+      | _ => Error("s() expects arguments: (device_identifier, \"property\", value)")
       }
 
     | list{"s", "b"} =>
-      // sb hash property value - Simplified version
-      // hash must be a define constant identifier
-      // value must be a variable identifier
+      // sb hash property value mode
       let input = (args[0], args[1], args[2], args[3])
-      Console.log2("[ExprGen] sb() args: ", input)
+
       switch input {
       | (
           Some(AST.ArgExpr(AST.Identifier(hashName))),
@@ -327,25 +255,15 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
         switch Belt.Map.String.get(state.defines, hashName) {
         | None => Error(hashName ++ " is not a HASH constant - use hash() to define it")
         | Some(_) =>
-          // Get value - check if it's a define constant or a register variable
-          let computeInstruction = valueStr =>
-            "sb " ++
-            hashName ++
-            " " ++
-            property ++
-            " " ++
-            valueStr ++
-            " " ++
-            Mode.toString(modeExpr)
-
+          let modeStr = Mode.toString(modeExpr)
           Utils.getDefineOrRegister(state, valueName)
-          ->Result.map(computeInstruction)
+          ->Result.map(valueStr => `sb ${hashName} ${property} ${valueStr} ${modeStr}`)
           ->Result.map(addInstruction(state, _))
-          ->Result.flatMap(x => {
-            // Allocate dummy register for expression result
-            switch RegisterAlloc.allocateTempRegister(x.allocator) {
+          ->Result.flatMap(state1 => {
+            // Return dummy register for statement context
+            switch RegisterAlloc.allocateTempRegister(state1.allocator) {
             | Error(msg) => Error(msg)
-            | Ok((allocator, dummyReg)) => Ok(({...x, allocator}, dummyReg))
+            | Ok((allocator, dummyReg)) => Ok(({...state1, allocator}, dummyReg))
             }
           })
         }
@@ -356,60 +274,65 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
       }
 
     | list{"s", "b", "n"} =>
-      // sbn HASH("type") HASH("name") property value
-      if Array.length(args) != 4 {
-        Error("sbn() expects 4 arguments: deviceType, deviceName, property, value")
-      } else {
-        switch (args[0], args[1], args[2], args[3]) {
-        | (
-            Some(AST.ArgString(deviceType)),
-            Some(AST.ArgString(deviceName)),
-            Some(AST.ArgString(property)),
-            Some(AST.ArgExpr(valueExpr)),
-          ) =>
-          let stateAfterSbn = switch valueExpr {
-          | AST.Literal(value) =>
-            let instr =
-              "sbn HASH(\"" ++
-              deviceType ++
-              "\") HASH(\"" ++
-              deviceName ++
-              "\") " ++
-              property ++
-              " " ++
-              Int.toString(value)
-            let comment = "store " ++ property ++ " on network"
-            Ok(addInstructionWithComment(state, instr, comment))
-          | _ =>
-            switch generate(state, valueExpr) {
-            | Error(msg) => Error(msg)
-            | Ok((state1, valueReg)) =>
-              let instr =
-                "sbn HASH(\"" ++
-                deviceType ++
-                "\") HASH(\"" ++
-                deviceName ++
-                "\") " ++
-                property ++
-                " " ++
-                Register.toString(valueReg)
-              let comment = "store " ++ property ++ " on network"
-              let state2 = addInstructionWithComment(state1, instr, comment)
-              let allocator = RegisterAlloc.freeTempIfTemp(state2.allocator, valueReg)
-              Ok({...state2, allocator})
-            }
-          }
+      // sbn hash hash property value
+      let input = (args[0], args[1], args[2], args[3])
 
-          switch stateAfterSbn {
-          | Error(msg) => Error(msg)
-          | Ok(state1) =>
+      switch input {
+      | (
+          Some(AST.ArgExpr(AST.Identifier(typeHash))),
+          Some(AST.ArgExpr(AST.Identifier(nameHash))),
+          Some(AST.ArgString(property)),
+          Some(AST.ArgExpr(valueExpr)),
+        ) =>
+        // Verify hashes are define constants
+        switch (
+          Belt.Map.String.get(state.defines, typeHash),
+          Belt.Map.String.get(state.defines, nameHash),
+        ) {
+        | (None, _)
+        | (_, None) =>
+          Error(`${typeHash} or ${nameHash} is not a HASH constant - use hash() to define it"`)
+        | _ =>
+          switch valueExpr {
+          | AST.Literal(value) =>
+            let inst = `sbn ${typeHash} ${nameHash} ${property} ${Int.toString(value)}`
+            let state1 = addInstruction(state, inst)
+            // Return dummy register for statement context
             switch RegisterAlloc.allocateTempRegister(state1.allocator) {
             | Error(msg) => Error(msg)
             | Ok((allocator, dummyReg)) => Ok(({...state1, allocator}, dummyReg))
             }
+          | AST.Identifier(valueName) =>
+            Utils.getDefineOrRegister(state, valueName)
+            ->Result.map(valueStr => `sbn ${typeHash} ${nameHash} ${property} ${valueStr}`)
+            ->Result.map(addInstruction(state, _))
+            ->Result.flatMap(state1 => {
+              // Return dummy register for statement context
+              switch RegisterAlloc.allocateTempRegister(state1.allocator) {
+              | Error(msg) => Error(msg)
+              | Ok((allocator, dummyReg)) => Ok(({...state1, allocator}, dummyReg))
+              }
+            })
+          | _ =>
+            // For complex expressions, generate into a temp register first
+            switch generate(state, valueExpr) {
+            | Error(msg) => Error(msg)
+            | Ok((state1, valueReg)) =>
+              let inst = `sbn ${typeHash} ${nameHash} ${property} ${Register.toString(valueReg)}`
+              let allocator = RegisterAlloc.freeTempIfTemp(state1.allocator, valueReg)
+              let state2 = addInstruction({...state1, allocator}, inst)
+              // Return dummy register for statement context
+              switch RegisterAlloc.allocateTempRegister(state2.allocator) {
+              | Error(msg) => Error(msg)
+              | Ok((allocator, dummyReg)) => Ok(({...state2, allocator}, dummyReg))
+              }
+            }
           }
-        | _ => Error("sbn() expects arguments: (\"type\", \"name\", \"property\", value)")
         }
+      | _ =>
+        Error(
+          "sbn() expects arguments: (hash_constant, hash_constant, \"property\", value) - both hashes must be define constants",
+        )
       }
 
     | _ => Error("Unknown IC10 function: " ++ funcName)
@@ -931,9 +854,112 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
         }
       | _ =>
         Error(
-          "lb() expects arguments: (hash_constant, \"property\", variable, mode) - hash must be a define constant, value must be a variable",
+          "lbn() expects arguments: (hash_constant, hash_constant, \"property\", mode) - both hashes must be define constants",
         )
       }
+
+    | list{"s"} =>
+      // s device property value
+      let input = (args[0], args[1], args[2])
+
+      switch input {
+      | (
+          Some(AST.ArgDevice(deviceName)),
+          Some(AST.ArgString(property)),
+          Some(AST.ArgExpr(valueExpr)),
+        ) =>
+        switch valueExpr {
+        | AST.Literal(value) =>
+          let inst = `s ${deviceName} ${property} ${Int.toString(value)}`
+          Ok(addInstruction(state, inst))
+        | AST.Identifier(valueName) =>
+          Utils.getDefineOrRegister(state, valueName)
+          ->Result.map(valueStr => `s ${deviceName} ${property} ${valueStr}`)
+          ->Result.map(addInstruction(state, _))
+        | _ =>
+          // For complex expressions, generate into a temp register first
+          switch generate(state, valueExpr) {
+          | Error(msg) => Error(msg)
+          | Ok((state1, valueReg)) =>
+            let inst = `s ${deviceName} ${property} ${Register.toString(valueReg)}`
+            let allocator = RegisterAlloc.freeTempIfTemp(state1.allocator, valueReg)
+            Ok(addInstruction({...state1, allocator}, inst))
+          }
+        }
+      | _ => Error("s() expects arguments: (device_identifier, \"property\", value)")
+      }
+
+    | list{"s", "b"} =>
+      // sb hash property value mode
+      let input = (args[0], args[1], args[2], args[3])
+
+      switch input {
+      | (
+          Some(AST.ArgExpr(AST.Identifier(hashName))),
+          Some(AST.ArgString(property)),
+          Some(AST.ArgExpr(AST.Identifier(valueName))),
+          Some(AST.ArgMode(modeExpr)),
+        ) =>
+        // Verify hash is a define constant
+        switch Belt.Map.String.get(state.defines, hashName) {
+        | None => Error(hashName ++ " is not a HASH constant - use hash() to define it")
+        | Some(_) =>
+          let modeStr = Mode.toString(modeExpr)
+          Utils.getDefineOrRegister(state, valueName)
+          ->Result.map(valueStr => `sb ${hashName} ${property} ${valueStr} ${modeStr}`)
+          ->Result.map(addInstruction(state, _))
+        }
+      | _ =>
+        Error(
+          "sb() expects arguments: (hash_constant, \"property\", variable, mode) - hash must be a define constant, value must be a variable",
+        )
+      }
+
+    | list{"s", "b", "n"} =>
+      // sbn HASH("type") HASH("name") property value
+      let input = (args[0], args[1], args[2], args[3])
+
+      switch input {
+      | (
+          Some(AST.ArgExpr(AST.Identifier(typeHash))),
+          Some(AST.ArgExpr(AST.Identifier(nameHash))),
+          Some(AST.ArgString(property)),
+          Some(AST.ArgExpr(valueExpr)),
+        ) =>
+        // Verify hashes are define constants
+        switch (
+          Belt.Map.String.get(state.defines, typeHash),
+          Belt.Map.String.get(state.defines, nameHash),
+        ) {
+        | (None, _)
+        | (_, None) =>
+          Error(`${typeHash} or ${nameHash} is not a HASH constant - use hash() to define it"`)
+        | _ =>
+          switch valueExpr {
+          | AST.Literal(value) =>
+            let inst = `sbn ${typeHash} ${nameHash} ${property} ${Int.toString(value)}`
+            Ok(addInstruction(state, inst))
+          | AST.Identifier(valueName) =>
+            Utils.getDefineOrRegister(state, valueName)
+            ->Result.map(valueStr => `sbn ${typeHash} ${nameHash} ${property} ${valueStr}`)
+            ->Result.map(addInstruction(state, _))
+          | _ =>
+            // For complex expressions, generate into a temp register first
+            switch generate(state, valueExpr) {
+            | Error(msg) => Error(msg)
+            | Ok((state1, valueReg)) =>
+              let inst = `sbn ${typeHash} ${nameHash} ${property} ${Register.toString(valueReg)}`
+              let allocator = RegisterAlloc.freeTempIfTemp(state1.allocator, valueReg)
+              Ok(addInstruction({...state1, allocator}, inst))
+            }
+          }
+        }
+      | _ =>
+        Error(
+          "sbn() expects arguments: (hash_constant, hash_constant, \"property\", value) - both hashes must be define constants",
+        )
+      }
+
     | _ =>
       // Fallback for other functions
       switch generate(state, expr) {
