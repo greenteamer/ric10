@@ -509,7 +509,7 @@ and parseSwitchExpression = (parser: parser): result<(parser, AST.expr), string>
               switch expect(parser, Lexer.Arrow) {
               | Error(msg) => Error(msg)
               | Ok(parser) =>
-                // Parse case body (either a block or a single expression)
+                // Parse case body (either a block statement, a single statement, or a single expression)
                 switch peek(parser) {
                 | Some(Lexer.LeftBrace) =>
                   // Block statement - will call parseBlockStatement defined later
@@ -524,16 +524,28 @@ and parseSwitchExpression = (parser: parser): result<(parser, AST.expr), string>
                     parseMatchCases(parser, list{matchCase, ...cases})
                   }
                 | _ =>
-                  // Single expression - wrap it in a "block"
-                  switch parseExpression(parser) {
-                  | Error(msg) => Error(msg)
-                  | Ok((parser, expr)) =>
+                  // Try to parse as a statement first (for ref assignments, if statements, etc.)
+                  // If that fails, fall back to parsing as an expression
+                  switch parseStatement(parser) {
+                  | Ok((parser, stmt)) =>
                     let matchCase: AST.matchCase = {
                       constructorName,
                       argumentBinding,
-                      body: [expr], // Wrap single expression in array
+                      body: [stmt], // Wrap single statement in array
                     }
                     parseMatchCases(parser, list{matchCase, ...cases})
+                  | Error(_) =>
+                    // Statement parsing failed, try expression
+                    switch parseExpression(parser) {
+                    | Error(msg) => Error(msg)
+                    | Ok((parser, expr)) =>
+                      let matchCase: AST.matchCase = {
+                        constructorName,
+                        argumentBinding,
+                        body: [expr], // Wrap single expression in array
+                      }
+                      parseMatchCases(parser, list{matchCase, ...cases})
+                    }
                   }
                 }
               }

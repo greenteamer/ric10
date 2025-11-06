@@ -99,6 +99,36 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
         "Cannot assign identifier to variable. Use 'let x = ref(y)' for mutable copy, or use constants (let x = 500 or let x = HASH(\"...\")).",
       )
 
+    | AST.SwitchExpression(scrutinee, cases) =>
+      // Switch expression in variable declaration
+      switch RegisterAlloc.allocateNormal(state.allocator, name) {
+      | Error(msg) => Error(msg)
+      | Ok((allocator, varReg)) =>
+        let state1 = {...state, allocator}
+        // Generate switch with body callback, then move result to variable register
+        switch ExprGen.generateSwitchWithBody(state1, scrutinee, cases, generateBlock) {
+        | Error(msg) => Error(msg)
+        | Ok((state2, resultReg)) =>
+          if resultReg == varReg {
+            Ok(state2)
+          } else {
+            // Move result to variable register
+            let instr = "move " ++ Register.toString(varReg) ++ " " ++ Register.toString(resultReg)
+            let allocator = RegisterAlloc.freeTempIfTemp(state2.allocator, resultReg)
+            let len = Array.length(state2.instructions)
+            let newInstructions = Array.make(~length=len + 1, "")
+            for i in 0 to len - 1 {
+              switch state2.instructions[i] {
+              | Some(v) => newInstructions[i] = v
+              | None => ()
+              }
+            }
+            newInstructions[len] = instr
+            Ok({...state2, allocator, instructions: newInstructions})
+          }
+        }
+      }
+
     | _ =>
       // Normal variable (not a constant or ref) - allocate register
       switch RegisterAlloc.allocateNormal(state.allocator, name) {
@@ -195,9 +225,9 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
     | Ok((newState, _reg)) => Ok(newState)
     }
 
-  | AST.SwitchExpression(_, _) =>
-    // Standalone switch expression - generate it
-    switch ExprGen.generate(state, stmt) {
+  | AST.SwitchExpression(scrutinee, cases) =>
+    // Standalone switch expression - generate it with body callback
+    switch ExprGen.generateSwitchWithBody(state, scrutinee, cases, generateBlock) {
     | Error(msg) => Error(msg)
     | Ok((newState, _reg)) => Ok(newState)
     }

@@ -1,20 +1,36 @@
-let tanks = hash("StructuresTankSmall")
+let tanks = hash("StructureTankBigInsulated")
 let atmTank = hash("AtmTank")
-let maxPressure = 5000
+let gasSensors = hash("StructureGasSensor")
+let atmSensor = hash("AtmSensor")
+let maxTemp = 403
 
-type state = Idle | Purge(int) | Fill(int)
+type state = Idle | Purge | Fill
 let state = ref(Idle)
 
 while true {
-  let tempValue = lbn(tanks, atmTank, "Temperature", Maximum)
+  let tankPressure = lbn(tanks, atmTank, "Pressure", Maximum)
+  let atmTemp = lbn(gasSensors, atmSensor, "Temperature", Maximum)
   switch state.contents {
-  | Idle => state := Purge(tempValue)
-  | Purge(x) => sbn(tanks, atmTank, "Temperature", x)
-  | Fill(x) => if x < maxPressure {
-      let newTemp = lbn(tanks, atmTank, "Temperature", Maximum)
-      state := Fill(newTemp)
+  | Idle =>
+    if tankPressure < 3500 {
+      if atmTemp < maxTemp {
+        state := Fill
+      }
     } else {
+      state := Purge
+    }
+  | Purge =>
+    if tankPressure < 500 {
       state := Idle
+    } else {
+      state := Purge
+    }
+  | Fill =>
+    if tankPressure > 4000 {
+      state := Idle
+    } else {
+      state := Fill
+    }
   }
   %raw("yield")
 }

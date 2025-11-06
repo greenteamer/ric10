@@ -439,9 +439,32 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
       }
     }
 
-  | AST.SwitchExpression(scrutinee, cases) =>
-    // Generate code for scrutinee - get register pointing to variant's stack base
-    switch generate(state, scrutinee) {
+  | AST.SwitchExpression(_scrutinee, _cases) =>
+    // For switch expressions, we need case body generation
+    // This creates a dependency cycle if we call StmtGen directly
+    // Instead, generateSwitch is called from StmtGen with a callback
+    Error("Switch expressions must be generated via generateSwitchWithBody")
+
+  | AST.VariableDeclaration(_, _) => Error("VariableDeclaration in expression context")
+  | AST.TypeDeclaration(_, _) => Error("TypeDeclaration in expression context")
+  | AST.IfStatement(_, _, _) => Error("IfStatement in expression context")
+  | AST.WhileLoop(_, _) => Error("WhileLoop in expression context")
+  | AST.BlockStatement(_) => Error("BlockStatement in expression context")
+  | AST.RefAssignment(_, _) => Error("RefAssignment in expression context")
+  | AST.RawInstruction(_) => Error("RawInstruction in expression context")
+  }
+}
+
+// Generate switch expression with callback for body generation
+// This breaks the circular dependency between ExprGen and StmtGen
+let generateSwitchWithBody = (
+  state: codegenState,
+  scrutinee: AST.expr,
+  cases: array<AST.matchCase>,
+  generateCaseBody: (codegenState, AST.blockStatement) => result<codegenState, string>,
+): result<(codegenState, Register.t), string> => {
+  // Generate code for scrutinee - get register pointing to variant's stack base
+  switch generate(state, scrutinee) {
     | Error(msg) => Error(msg)
     | Ok((state1, scrutineeReg)) =>
       // Allocate temp register to read the tag
@@ -456,9 +479,8 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
         let state2 = addInstructionWithComment({...state1, allocator}, instr1, comment1)
         let state3 = addInstructionWithComment(state2, instr2, comment2)
 
-        // Free scrutinee register if temp
-        let allocator2 = RegisterAlloc.freeTempIfTemp(state3.allocator, scrutineeReg)
-        let state4 = {...state3, allocator: allocator2}
+        // Keep scrutinee register for payload extraction in case bodies
+        let state4 = state3
 
         // Allocate result register for match expression result
         switch RegisterAlloc.allocateTempRegister(state4.allocator) {
@@ -512,30 +534,40 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
             | Some(argName) =>
               // Allocate register for argument (not a ref)
               switch RegisterAlloc.allocateNormal(state1.allocator, argName) {
-              | Error(_) => state1 // Fallback
-              | Ok((allocator, _argReg)) =>
-                // Generate: add sp scrutineeReg 1; peek argReg
-                // Note: scrutineeReg may have been freed, we need to recalculate
-                // For now, we'll use a simplified approach
-                let state2 = {...state1, allocator}
+              | Error(_) => state1 // Fallback - allocation failed
+              | Ok((allocator, argReg)) =>
+                // Set stack pointer to payload position (base + 1)
+                let instr1 = "add sp " ++ Register.toString(scrutineeReg) ++ " 1"
+                let comment1 = "position to payload"
+                let state2 = addInstructionWithComment({...state1, allocator}, instr1, comment1)
 
-                // TODO: This needs scrutinee register - for now skip
-                state2
+                // Extract payload into bound variable
+                let instr2 = "peek " ++ Register.toString(argReg)
+                let comment2 = "extract " ++ argName
+                addInstructionWithComment(state2, instr2, comment2)
               }
             }
 
-            // Generate case body
-            // TODO: Implement proper body generation to avoid dependency cycle
-            // For now, skip body generation
-            let state3 = state2
+            // Generate case body using the provided callback
+            let state3 = switch generateCaseBody(state2, matchCase.body) {
+            | Error(_) => state2 // Fallback - keep state if body fails
+            | Ok(newState) => newState
+            }
 
             // Jump to match end
             addInstructionWithComment(state3, "j " ++ matchEndLabel, "end case")
           })
 
+          // Free scrutinee register after all cases processed
+          let allocatorAfterScrutinee = RegisterAlloc.freeTempIfTemp(
+            stateAfterCases.allocator,
+            scrutineeReg,
+          )
+          let stateAfterScrutinee = {...stateAfterCases, allocator: allocatorAfterScrutinee}
+
           // Add match end label
           let stateFinal = addInstructionWithComment(
-            stateAfterCases,
+            stateAfterScrutinee,
             matchEndLabel ++ ":",
             "end match",
           )
@@ -544,15 +576,6 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
         }
       }
     }
-
-  | AST.VariableDeclaration(_, _) => Error("VariableDeclaration in expression context")
-  | AST.TypeDeclaration(_, _) => Error("TypeDeclaration in expression context")
-  | AST.IfStatement(_, _, _) => Error("IfStatement in expression context")
-  | AST.WhileLoop(_, _) => Error("WhileLoop in expression context")
-  | AST.BlockStatement(_) => Error("BlockStatement in expression context")
-  | AST.RefAssignment(_, _) => Error("RefAssignment in expression context")
-  | AST.RawInstruction(_) => Error("RawInstruction in expression context")
-  }
 }
 
 // Generate expression directly into a target register
@@ -594,19 +617,28 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
   | AST.Identifier(name) =>
     // Check if this is a variant constructor (tag-only)
     switch Belt.Map.String.get(state.variantTags, name) {
-    | Some(_) =>
-      // This is a tag-only variant constructor, use generate then move
-      switch generate(state, AST.Identifier(name)) {
-      | Error(msg) => Error(msg)
-      | Ok((state1, resultReg)) =>
-        if resultReg == targetReg {
-          Ok(state1)
-        } else {
-          let instr = "move " ++ Register.toString(targetReg) ++ " " ++ Register.toString(resultReg)
-          let allocator = RegisterAlloc.freeTempIfTemp(state1.allocator, resultReg)
-          Ok(addInstruction({...state1, allocator}, instr))
-        }
-      }
+    | Some(tag) =>
+      // This is a tag-only variant constructor - generate directly into target (optimization)
+      // Push tag onto stack
+      let instr1 = "push " ++ Int.toString(tag)
+      let comment1 = name ++ " variant tag"
+      let state1 = addInstructionWithComment(state, instr1, comment1)
+
+      // Generate directly into target register: move targetReg sp; sub targetReg targetReg 1
+      let instr2 = "move " ++ Register.toString(targetReg) ++ " sp"
+      let comment2 = "get stack pointer"
+      let instr3 =
+        "sub " ++
+        Register.toString(targetReg) ++
+        " " ++
+        Register.toString(targetReg) ++
+        " 1"
+      let comment3 = "adjust to variant address"
+
+      let state2 = addInstructionWithComment(state1, instr2, comment2)
+      let state3 = addInstructionWithComment(state2, instr3, comment3)
+
+      Ok(state3)
 
     | None =>
       // Check if this is a constant
@@ -751,18 +783,57 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
       }
     }
 
-  | AST.VariantConstructor(_, _) =>
-    // For variant constructors in generateInto, use generate then move result
-    switch generate(state, expr) {
-    | Error(msg) => Error(msg)
-    | Ok((state1, resultReg)) =>
-      if resultReg == targetReg {
-        Ok(state1)
-      } else {
-        let instr = "move " ++ Register.toString(targetReg) ++ " " ++ Register.toString(resultReg)
-        let allocator = RegisterAlloc.freeTempIfTemp(state1.allocator, resultReg)
-        Ok(addInstruction({...state1, allocator}, instr))
+  | AST.VariantConstructor(constructorName, argumentOpt) =>
+    // Generate variant directly into target register (optimization)
+    // Look up constructor tag
+    switch Belt.Map.String.get(state.variantTags, constructorName) {
+    | None => Error("Unknown variant constructor: " ++ constructorName)
+    | Some(tag) =>
+      // Push tag onto stack
+      let instr1 = "push " ++ Int.toString(tag)
+      let comment1 = constructorName ++ " variant tag"
+      let state1 = addInstructionWithComment(state, instr1, comment1)
+
+      // If has argument, generate and push it
+      let state2 = switch argumentOpt {
+      | None => state1
+      | Some(argExpr) =>
+        // Generate argument into a temporary register
+        switch generate(state1, argExpr) {
+        | Error(_msg) => state1 // fallback - shouldn't happen
+        | Ok((state2, argReg)) =>
+          let instr2 = "push " ++ Register.toString(argReg)
+          let comment2 = constructorName ++ " payload"
+          let state3 = addInstructionWithComment(state2, instr2, comment2)
+
+          // Free temp register if it was temporary
+          let allocator = RegisterAlloc.freeTempIfTemp(state3.allocator, argReg)
+          {...state3, allocator}
+        }
       }
+
+      // Calculate slots used
+      let slotsUsed = switch argumentOpt {
+      | None => 1
+      | Some(_) => 2
+      }
+
+      // Generate directly into target register: move targetReg sp; sub targetReg targetReg slots
+      let instr3 = "move " ++ Register.toString(targetReg) ++ " sp"
+      let comment3 = "get stack pointer"
+      let instr4 =
+        "sub " ++
+        Register.toString(targetReg) ++
+        " " ++
+        Register.toString(targetReg) ++
+        " " ++
+        Int.toString(slotsUsed)
+      let comment4 = "adjust to variant address"
+
+      let state3 = addInstructionWithComment(state2, instr3, comment3)
+      let state4 = addInstructionWithComment(state3, instr4, comment4)
+
+      Ok(state4)
     }
 
   | AST.SwitchExpression(_, _) =>
