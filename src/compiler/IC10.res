@@ -15,40 +15,38 @@ let db: device = -1 // Database device
 
 // Load operations - read from devices
 // l r0 d0 Temperature
-@genType
 let l = (_device: device, _property: string): int => {
-  0 // Stub - never executed, replaced by compiler
+  0
 }
 
 // lb r0 HASH Temperature
-@genType
-let lb = (_hash: int, _property: string): int => {
+let lb = (_typeHash: int, _property: string): int => {
   0
 }
 
 // lbn r0 HASH("Type") HASH("Name") Property Mode
-@genType
-let lbn = (_deviceType: string, _deviceName: string, _property: string, _mode: string): int => {
+let lbn = (_typeHash: int, _nameHash: int, _property: string, _mode: string): int => {
   0
 }
 
 // Store operations - write to devices
 // s d0 Setting 1
-@genType
 let s = (_device: device, _property: string, _value: int): unit => {
   () // Stub - never executed
 }
 
 // sb HASH Setting 1
-@genType
 let sb = (_hash: int, _property: string, _value: int): unit => {
   ()
 }
 
 // sbn HASH("Type") HASH("Name") Property Value
-@genType
 let sbn = (_deviceType: string, _deviceName: string, _property: string, _value: int): unit => {
   ()
+}
+
+let hash = (string): int => {
+  0
 }
 
 // Common IC10 properties for convenience and documentation

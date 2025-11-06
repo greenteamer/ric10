@@ -16,6 +16,7 @@ let compile = (source: string, ~options: option<CodegenTypes.compilerOptions>=?,
   | Error(msg) => Error("Lexer error: " ++ msg)
   | Ok(tokens) =>
     // Step 2: Parse - build AST from tokens
+    Console.log2("[Lexer] Tokens: ", tokens->Array.map(token => Lexer.tokenToString(token)))
     switch Parser.parse(tokens) {
     | Error(msg) => Error("Parser error: " ++ msg)
     | Ok(_ast) =>

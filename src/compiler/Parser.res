@@ -27,7 +27,7 @@ let peek = (parser: parser): option<Lexer.token> => {
   if isEOF(parser) {
     None
   } else {
-    Array.get(parser.tokens, parser.position)
+    parser.tokens[parser.position]
   }
 }
 
@@ -77,12 +77,12 @@ let tokensMatch = (token1: Lexer.token, token2: Lexer.token): bool => {
 // Expect a specific token and advance, or return error
 let expect = (parser: parser, expected: Lexer.token): result<parser, string> => {
   switch peek(parser) {
-  | Some(token) if tokensMatch(token, expected) =>
-    Ok(advance(parser))
+  | Some(token) if tokensMatch(token, expected) => Ok(advance(parser))
   | Some(token) =>
-    Error("Expected " ++ Lexer.tokenToString(expected) ++ " but found " ++ Lexer.tokenToString(token))
-  | None =>
-    Error("Expected " ++ Lexer.tokenToString(expected) ++ " but reached end of file")
+    Error(
+      "Expected " ++ Lexer.tokenToString(expected) ++ " but found " ++ Lexer.tokenToString(token),
+    )
+  | None => Error("Expected " ++ Lexer.tokenToString(expected) ++ " but reached end of file")
   }
 }
 
@@ -95,12 +95,14 @@ let rec parseExpression = (parser: parser): result<(parser, AST.expr), string> =
 and parseAdditiveExpression = (parser: parser): result<(parser, AST.expr), string> => {
   switch parseMultiplicativeExpression(parser) {
   | Error(msg) => Error(msg)
-  | Ok((parser, left)) =>
-    parseAdditiveExpressionRest(parser, left)
+  | Ok((parser, left)) => parseAdditiveExpressionRest(parser, left)
   }
 }
 
-and parseAdditiveExpressionRest = (parser: parser, left: AST.expr): result<(parser, AST.expr), string> => {
+and parseAdditiveExpressionRest = (parser: parser, left: AST.expr): result<
+  (parser, AST.expr),
+  string,
+> => {
   switch peek(parser) {
   | Some(Lexer.Plus) =>
     let parser = advance(parser)
@@ -124,12 +126,14 @@ and parseAdditiveExpressionRest = (parser: parser, left: AST.expr): result<(pars
 and parseMultiplicativeExpression = (parser: parser): result<(parser, AST.expr), string> => {
   switch parseComparisonExpression(parser) {
   | Error(msg) => Error(msg)
-  | Ok((parser, left)) =>
-    parseMultiplicativeExpressionRest(parser, left)
+  | Ok((parser, left)) => parseMultiplicativeExpressionRest(parser, left)
   }
 }
 
-and parseMultiplicativeExpressionRest = (parser: parser, left: AST.expr): result<(parser, AST.expr), string> => {
+and parseMultiplicativeExpressionRest = (parser: parser, left: AST.expr): result<
+  (parser, AST.expr),
+  string,
+> => {
   switch peek(parser) {
   | Some(Lexer.Multiply) =>
     let parser = advance(parser)
@@ -151,7 +155,10 @@ and parseMultiplicativeExpressionRest = (parser: parser, left: AST.expr): result
 
 // Parse comparison expressions (>, <, ==)
 // Parse postfix expressions like .contents
-and parsePostfixExpression = (parser: parser, base: AST.expr): result<(parser, AST.expr), string> => {
+and parsePostfixExpression = (parser: parser, base: AST.expr): result<
+  (parser, AST.expr),
+  string,
+> => {
   switch peek(parser) {
   | Some(Lexer.Dot) =>
     // Consume dot
@@ -159,6 +166,7 @@ and parsePostfixExpression = (parser: parser, base: AST.expr): result<(parser, A
     // Expect identifier for field name
     switch peek(parser) {
     | Some(Lexer.Identifier(fieldName)) =>
+      Console.log2("[peek(parser)] identifier: ", (parser, fieldName))
       let parser = advance(parser)
       if fieldName == "contents" {
         // Base must be a simple identifier
@@ -166,14 +174,12 @@ and parsePostfixExpression = (parser: parser, base: AST.expr): result<(parser, A
         | AST.Identifier(refName) =>
           // Return RefAccess node
           Ok((parser, AST.createRefAccess(refName)))
-        | _ =>
-          Error("Only simple identifiers can be dereferenced with .contents")
+        | _ => Error("Only simple identifiers can be dereferenced with .contents")
         }
       } else {
         Error("Only .contents field is supported for refs")
       }
-    | _ =>
-      Error("Expected field name after '.'")
+    | _ => Error("Expected field name after '.'")
     }
   | _ =>
     // No postfix operator, return base as-is
@@ -188,13 +194,15 @@ and parseComparisonExpression = (parser: parser): result<(parser, AST.expr), str
     // Check for postfix operators like .contents
     switch parsePostfixExpression(parser, expr) {
     | Error(msg) => Error(msg)
-    | Ok((parser, postfixExpr)) =>
-      parseComparisonExpressionRest(parser, postfixExpr)
+    | Ok((parser, postfixExpr)) => parseComparisonExpressionRest(parser, postfixExpr)
     }
   }
 }
 
-and parseComparisonExpressionRest = (parser: parser, left: AST.expr): result<(parser, AST.expr), string> => {
+and parseComparisonExpressionRest = (parser: parser, left: AST.expr): result<
+  (parser, AST.expr),
+  string,
+> => {
   switch peek(parser) {
   | Some(Lexer.GreaterThan) =>
     let parser = advance(parser)
@@ -205,7 +213,10 @@ and parseComparisonExpressionRest = (parser: parser, left: AST.expr): result<(pa
       switch parsePostfixExpression(parser, right) {
       | Error(msg) => Error(msg)
       | Ok((parser, rightPostfix)) =>
-        parseComparisonExpressionRest(parser, AST.createBinaryExpression(AST.Gt, left, rightPostfix))
+        parseComparisonExpressionRest(
+          parser,
+          AST.createBinaryExpression(AST.Gt, left, rightPostfix),
+        )
       }
     }
   | Some(Lexer.LessThan) =>
@@ -217,7 +228,10 @@ and parseComparisonExpressionRest = (parser: parser, left: AST.expr): result<(pa
       switch parsePostfixExpression(parser, right) {
       | Error(msg) => Error(msg)
       | Ok((parser, rightPostfix)) =>
-        parseComparisonExpressionRest(parser, AST.createBinaryExpression(AST.Lt, left, rightPostfix))
+        parseComparisonExpressionRest(
+          parser,
+          AST.createBinaryExpression(AST.Lt, left, rightPostfix),
+        )
       }
     }
   | Some(Lexer.EqualEqual) =>
@@ -229,7 +243,10 @@ and parseComparisonExpressionRest = (parser: parser, left: AST.expr): result<(pa
       switch parsePostfixExpression(parser, right) {
       | Error(msg) => Error(msg)
       | Ok((parser, rightPostfix)) =>
-        parseComparisonExpressionRest(parser, AST.createBinaryExpression(AST.Eq, left, rightPostfix))
+        parseComparisonExpressionRest(
+          parser,
+          AST.createBinaryExpression(AST.Eq, left, rightPostfix),
+        )
       }
     }
   | _ => Ok((parser, left))
@@ -251,8 +268,7 @@ and parseRefCreation = (parser: parser): result<(parser, AST.expr), string> => {
       // Expect ")"
       switch expect(parser, Lexer.RightParen) {
       | Error(e) => Error(e)
-      | Ok(parser) =>
-        Ok((parser, AST.createRefCreation(expr)))
+      | Ok(parser) => Ok((parser, AST.createRefCreation(expr)))
       }
     }
   }
@@ -261,7 +277,10 @@ and parseRefCreation = (parser: parser): result<(parser, AST.expr), string> => {
 // Parse function call arguments: (arg1, arg2, ...)
 // Arguments can be expressions, string literals, or device identifiers
 and parseFunctionArguments = (parser: parser): result<(parser, array<AST.argument>), string> => {
-  let rec parseArgs = (parser: parser, args: list<AST.argument>): result<(parser, list<AST.argument>), string> => {
+  let rec parseArgs = (parser: parser, args: list<AST.argument>): result<
+    (parser, list<AST.argument>),
+    string,
+  > => {
     switch peek(parser) {
     | Some(Lexer.RightParen) =>
       // End of arguments
@@ -272,19 +291,23 @@ and parseFunctionArguments = (parser: parser): result<(parser, array<AST.argumen
       let arg = AST.ArgString(str)
       // Check for comma (more arguments) or closing paren
       switch peek(parser) {
-      | Some(Lexer.RightParen) =>
-        Ok((advance(parser), list{arg, ...args}))
+      | Some(Lexer.RightParen) => Ok((advance(parser), list{arg, ...args}))
       | Some(Lexer.Comma) =>
         // Consume comma and parse next argument
         let parser = advance(parser)
         parseArgs(parser, list{arg, ...args})
-      | _ =>
-        Error("Expected ',' or ')' after function argument")
+      | _ => Error("Expected ',' or ')' after function argument")
       }
     | Some(Lexer.Identifier(name)) =>
       // Check if this is a device identifier (d0-d5, db)
-      let isDeviceId = name == "d0" || name == "d1" || name == "d2" ||
-                       name == "d3" || name == "d4" || name == "d5" || name == "db"
+      let isDeviceId =
+        name == "d0" ||
+        name == "d1" ||
+        name == "d2" ||
+        name == "d3" ||
+        name == "d4" ||
+        name == "d5" ||
+        name == "db"
 
       if isDeviceId {
         // Device identifier - treat as ArgDevice
@@ -292,14 +315,12 @@ and parseFunctionArguments = (parser: parser): result<(parser, array<AST.argumen
         let arg = AST.ArgDevice(name)
         // Check for comma or closing paren
         switch peek(parser) {
-        | Some(Lexer.RightParen) =>
-          Ok((advance(parser), list{arg, ...args}))
+        | Some(Lexer.RightParen) => Ok((advance(parser), list{arg, ...args}))
         | Some(Lexer.Comma) =>
           // Consume comma and parse next argument
           let parser = advance(parser)
           parseArgs(parser, list{arg, ...args})
-        | _ =>
-          Error("Expected ',' or ')' after function argument")
+        | _ => Error("Expected ',' or ')' after function argument")
         }
       } else {
         // Regular identifier - parse as expression
@@ -309,14 +330,12 @@ and parseFunctionArguments = (parser: parser): result<(parser, array<AST.argumen
           let arg = AST.ArgExpr(expr)
           // Check for comma or closing paren
           switch peek(parser) {
-          | Some(Lexer.RightParen) =>
-            Ok((advance(parser), list{arg, ...args}))
+          | Some(Lexer.RightParen) => Ok((advance(parser), list{arg, ...args}))
           | Some(Lexer.Comma) =>
             // Consume comma and parse next argument
             let parser = advance(parser)
             parseArgs(parser, list{arg, ...args})
-          | _ =>
-            Error("Expected ',' or ')' after function argument")
+          | _ => Error("Expected ',' or ')' after function argument")
           }
         }
       }
@@ -328,18 +347,15 @@ and parseFunctionArguments = (parser: parser): result<(parser, array<AST.argumen
         let arg = AST.ArgExpr(expr)
         // Check for comma or closing paren
         switch peek(parser) {
-        | Some(Lexer.RightParen) =>
-          Ok((advance(parser), list{arg, ...args}))
+        | Some(Lexer.RightParen) => Ok((advance(parser), list{arg, ...args}))
         | Some(Lexer.Comma) =>
           // Consume comma and parse next argument
           let parser = advance(parser)
           parseArgs(parser, list{arg, ...args})
-        | _ =>
-          Error("Expected ',' or ')' after function argument")
+        | _ => Error("Expected ',' or ')' after function argument")
         }
       }
-    | None =>
-      Error("Unexpected end of file while parsing function arguments")
+    | None => Error("Unexpected end of file while parsing function arguments")
     }
   }
 
@@ -349,13 +365,11 @@ and parseFunctionArguments = (parser: parser): result<(parser, array<AST.argumen
   | Ok(parser) =>
     // Handle empty argument list
     switch peek(parser) {
-    | Some(Lexer.RightParen) =>
-      Ok((advance(parser), []))
+    | Some(Lexer.RightParen) => Ok((advance(parser), []))
     | _ =>
       switch parseArgs(parser, list{}) {
       | Error(msg) => Error(msg)
-      | Ok((parser, args)) =>
-        Ok((parser, List.toArray(List.reverse(args))))
+      | Ok((parser, args)) => Ok((parser, List.toArray(List.reverse(args))))
       }
     }
   }
@@ -372,8 +386,7 @@ and parsePrimaryExpression = (parser: parser): result<(parser, AST.expr), string
   | Some(Lexer.Ref) =>
     let parser = advance(parser)
     parseRefCreation(parser)
-  | Some(Lexer.Switch) =>
-    parseSwitchExpression(parser)
+  | Some(Lexer.Switch) => parseSwitchExpression(parser)
   | Some(Lexer.StringLiteral(str)) =>
     let parser = advance(parser)
     Ok((parser, AST.createStringLiteral(str)))
@@ -385,16 +398,20 @@ and parsePrimaryExpression = (parser: parser): result<(parser, AST.expr), string
       // Determine if this is a function call or variant constructor
       // IC10 functions: l, lb, lbn, s, sb, sbn
       // HASH is also a function (used in constants)
-      let isIC10Function = name == "l" || name == "lb" || name == "lbn" ||
-                           name == "s" || name == "sb" || name == "sbn" ||
-                           name == "HASH"
+      let isIC10Function =
+        name == "l" ||
+        name == "lb" ||
+        name == "lbn" ||
+        name == "s" ||
+        name == "sb" ||
+        name == "sbn" ||
+        name == "hash"
 
       if isIC10Function {
         // Parse as function call with multiple arguments
         switch parseFunctionArguments(parser) {
         | Error(msg) => Error(msg)
-        | Ok((parser, args)) =>
-          Ok((parser, AST.createFunctionCall(name, args)))
+        | Ok((parser, args)) => Ok((parser, AST.createFunctionCall(name, args)))
         }
       } else {
         // Parse as variant constructor (single argument)
@@ -441,11 +458,13 @@ and parseSwitchExpression = (parser: parser): result<(parser, AST.expr), string>
       | Error(msg) => Error(msg)
       | Ok(parser) =>
         // Parse match cases
-        let rec parseMatchCases = (parser: parser, cases: list<AST.matchCase>): result<(parser, list<AST.matchCase>), string> => {
+        let rec parseMatchCases = (parser: parser, cases: list<AST.matchCase>): result<
+          (parser, list<AST.matchCase>),
+          string,
+        > => {
           // Check for closing brace
           switch peek(parser) {
-          | Some(Lexer.RightBrace) =>
-            Ok((advance(parser), cases))
+          | Some(Lexer.RightBrace) => Ok((advance(parser), cases))
           | Some(Lexer.Pipe) =>
             let parser = advance(parser) // consume |
             // Parse constructor name
@@ -481,9 +500,9 @@ and parseSwitchExpression = (parser: parser): result<(parser, AST.expr), string>
                   | Error(msg) => Error(msg)
                   | Ok((parser, body)) =>
                     let matchCase: AST.matchCase = {
-                      constructorName: constructorName,
-                      argumentBinding: argumentBinding,
-                      body: body,
+                      constructorName,
+                      argumentBinding,
+                      body,
                     }
                     parseMatchCases(parser, list{matchCase, ...cases})
                   }
@@ -493,8 +512,8 @@ and parseSwitchExpression = (parser: parser): result<(parser, AST.expr), string>
                   | Error(msg) => Error(msg)
                   | Ok((parser, expr)) =>
                     let matchCase: AST.matchCase = {
-                      constructorName: constructorName,
-                      argumentBinding: argumentBinding,
+                      constructorName,
+                      argumentBinding,
                       body: [expr], // Wrap single expression in array
                     }
                     parseMatchCases(parser, list{matchCase, ...cases})
@@ -502,10 +521,12 @@ and parseSwitchExpression = (parser: parser): result<(parser, AST.expr), string>
                 }
               }
 
-            | Some(token) => Error("Expected constructor name in match case, found " ++ Lexer.tokenToString(token))
+            | Some(token) =>
+              Error("Expected constructor name in match case, found " ++ Lexer.tokenToString(token))
             | None => Error("Expected constructor name in match case, but reached end of file")
             }
-          | Some(token) => Error("Expected '|' or '}' in match expression, found " ++ Lexer.tokenToString(token))
+          | Some(token) =>
+            Error("Expected '|' or '}' in match expression, found " ++ Lexer.tokenToString(token))
           | None => Error("Expected '|' or '}' in match expression, but reached end of file")
           }
         }
@@ -538,8 +559,7 @@ and parseVariableDeclaration = (parser: parser): result<(parser, AST.astNode), s
         // Parse expression
         switch parseExpression(parser) {
         | Error(msg) => Error(msg)
-        | Ok((parser, expr)) =>
-          Ok((parser, AST.createVariableDeclaration(name, expr)))
+        | Ok((parser, expr)) => Ok((parser, AST.createVariableDeclaration(name, expr)))
         }
       }
     | Some(token) => Error("Expected identifier after 'let', found " ++ Lexer.tokenToString(token))
@@ -564,7 +584,10 @@ and parseTypeDeclaration = (parser: parser): result<(parser, AST.astNode), strin
       | Error(msg) => Error(msg)
       | Ok(parser) =>
         // Parse variant constructors
-        let rec parseConstructors = (parser: parser, constructors: list<AST.variantConstructor>): result<(parser, list<AST.variantConstructor>), string> => {
+        let rec parseConstructors = (
+          parser: parser,
+          constructors: list<AST.variantConstructor>,
+        ): result<(parser, list<AST.variantConstructor>), string> => {
           // Optionally consume leading pipe (for consistency)
           let parser = switch peek(parser) {
           | Some(Lexer.Pipe) => advance(parser)
@@ -597,15 +620,13 @@ and parseTypeDeclaration = (parser: parser): result<(parser, AST.astNode), strin
 
             let constructor: AST.variantConstructor = {
               name: constructorName,
-              hasArgument: hasArgument,
+              hasArgument,
             }
 
             // Check for more constructors (separated by |)
             switch peek(parser) {
-            | Some(Lexer.Pipe) =>
-              parseConstructors(parser, list{constructor, ...constructors})
-            | _ =>
-              Ok((parser, list{constructor, ...constructors}))
+            | Some(Lexer.Pipe) => parseConstructors(parser, list{constructor, ...constructors})
+            | _ => Ok((parser, list{constructor, ...constructors}))
             }
 
           | Some(token) => Error("Expected constructor name, found " ++ Lexer.tokenToString(token))
@@ -616,7 +637,10 @@ and parseTypeDeclaration = (parser: parser): result<(parser, AST.astNode), strin
         switch parseConstructors(parser, list{}) {
         | Error(msg) => Error(msg)
         | Ok((parser, constructors)) =>
-          Ok((parser, AST.createTypeDeclaration(typeName, List.toArray(List.reverse(constructors)))))
+          Ok((
+            parser,
+            AST.createTypeDeclaration(typeName, List.toArray(List.reverse(constructors))),
+          ))
         }
       }
     | Some(token) => Error("Expected type name after 'type', found " ++ Lexer.tokenToString(token))
@@ -644,8 +668,7 @@ and parseIfStatement = (parser: parser): result<(parser, AST.astNode), string> =
         | Ok((parser, elseBlock)) =>
           Ok((parser, AST.createIfStatement(condition, thenBlock, Some(elseBlock))))
         }
-      | _ =>
-        Ok((parser, AST.createIfStatement(condition, thenBlock, None)))
+      | _ => Ok((parser, AST.createIfStatement(condition, thenBlock, None)))
       }
     }
   }
@@ -660,8 +683,7 @@ and parseWhileLoop = (parser: parser): result<(parser, AST.astNode), string> => 
   | Ok((parser, condition)) =>
     switch parseBlockStatement(parser) {
     | Error(msg) => Error(msg)
-    | Ok((parser, body)) =>
-      Ok((parser, AST.createWhileLoop(condition, body)))
+    | Ok((parser, body)) => Ok((parser, AST.createWhileLoop(condition, body)))
     }
   }
 }
@@ -676,8 +698,7 @@ and parseRefAssignment = (parser: parser, name: string): result<(parser, AST.stm
     // Parse right-hand side expression
     switch parseExpression(parser) {
     | Error(e) => Error(e)
-    | Ok((parser, expr)) =>
-      Ok((parser, AST.createRefAssignment(name, expr)))
+    | Ok((parser, expr)) => Ok((parser, AST.createRefAssignment(name, expr)))
     }
   }
 }
@@ -705,7 +726,8 @@ and parseRawInstruction = (parser: parser): result<(parser, AST.astNode), string
           | Error(msg) => Error(msg)
           | Ok(parser) => Ok((parser, AST.createRawInstruction(instruction)))
           }
-        | Some(token) => Error("Expected string literal in %raw() but found " ++ Lexer.tokenToString(token))
+        | Some(token) =>
+          Error("Expected string literal in %raw() but found " ++ Lexer.tokenToString(token))
         | None => Error("Expected string literal in %raw() but reached end of file")
         }
       }
@@ -760,15 +782,16 @@ and parseBlockStatement = (parser: parser): result<(parser, AST.blockStatement),
   switch expect(parser, Lexer.LeftBrace) {
   | Error(msg) => Error(msg)
   | Ok(parser) =>
-    let rec parseStatements = (parser: parser, statements: list<AST.astNode>): result<(parser, list<AST.astNode>), string> => {
+    let rec parseStatements = (parser: parser, statements: list<AST.astNode>): result<
+      (parser, list<AST.astNode>),
+      string,
+    > => {
       switch peek(parser) {
-      | Some(Lexer.RightBrace) =>
-        Ok((advance(parser), statements))
+      | Some(Lexer.RightBrace) => Ok((advance(parser), statements))
       | Some(_) =>
         switch parseStatement(parser) {
         | Error(msg) => Error(msg)
-        | Ok((parser, stmt)) =>
-          parseStatements(parser, list{stmt, ...statements}) // O(1) cons
+        | Ok((parser, stmt)) => parseStatements(parser, list{stmt, ...statements}) // O(1) cons
         }
       | None => Error("Expected '}' but reached end of file")
       }
@@ -784,7 +807,10 @@ and parseBlockStatement = (parser: parser): result<(parser, AST.blockStatement),
 // Uses List for O(1) cons operations, then converts to array
 let parse = (tokens: array<Lexer.token>): result<AST.program, string> => {
   let parser = create(tokens)
-  let rec parseStatements = (parser: parser, statements: list<AST.stmt>): result<(parser, list<AST.stmt>), string> => {
+  let rec parseStatements = (parser: parser, statements: list<AST.stmt>): result<
+    (parser, list<AST.stmt>),
+    string,
+  > => {
     if isEOF(parser) {
       Ok((parser, statements))
     } else {
@@ -793,8 +819,7 @@ let parse = (tokens: array<Lexer.token>): result<AST.program, string> => {
       | Some(_) =>
         switch parseStatement(parser) {
         | Error(msg) => Error(msg)
-        | Ok((parser, stmt)) =>
-          parseStatements(parser, list{stmt, ...statements}) // O(1) cons
+        | Ok((parser, stmt)) => parseStatements(parser, list{stmt, ...statements}) // O(1) cons
         }
       | None => Ok((parser, statements))
       }

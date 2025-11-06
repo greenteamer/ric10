@@ -1,6 +1,6 @@
-let avgTemp = lbn("Furnace", "MainFurnace", "Temperature", "Average")
+let avgTemp = lbn(hash("Furnace"), hash("MainFurnace"), "Temperature", "Average")
 
-let maxPressure = lbn("GasSensor", "Reactor", "Pressure", "Maximum")
+let maxPressure = lbn(hash("GasSensor"), hash("Reactor"), "Pressure", "Maximum")
 
 sbn("LEDDisplay", "StatusDisplay", "Setting", 100)
 

@@ -64,10 +64,10 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
       let newDefineOrder = Array.concat(state.defineOrder, [(name, defineValue)])
       Ok({...state, defines: newDefines, defineOrder: newDefineOrder})
 
-    | AST.FunctionCall("HASH", args) =>
+    | AST.FunctionCall("hash", args) =>
       // HASH constant - add to defines
       if Array.length(args) != 1 {
-        Error("HASH() expects 1 argument: string")
+        Error("hash() expects 1 argument: string")
       } else {
         switch args[0] {
         | Some(AST.ArgString(str)) =>
@@ -75,7 +75,7 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
           let newDefines = Belt.Map.String.set(state.defines, name, defineValue)
           let newDefineOrder = Array.concat(state.defineOrder, [(name, defineValue)])
           Ok({...state, defines: newDefines, defineOrder: newDefineOrder})
-        | _ => Error("HASH() expects a string argument")
+        | _ => Error("hash() expects a string argument")
         }
       }
 
@@ -94,7 +94,9 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
 
     | AST.Identifier(_) =>
       // Disallow let x = y pattern (too confusing - use ref or constants)
-      Error("Cannot assign identifier to variable. Use 'let x = ref(y)' for mutable copy, or use constants (let x = 500 or let x = HASH(\"...\")).")
+      Error(
+        "Cannot assign identifier to variable. Use 'let x = ref(y)' for mutable copy, or use constants (let x = 500 or let x = HASH(\"...\")).",
+      )
 
     | _ =>
       // Normal variable (not a constant or ref) - allocate register
