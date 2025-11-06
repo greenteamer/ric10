@@ -4,8 +4,6 @@ type state =
   | Purge(int)
   | Work
 
-let d0 = IC10.d0
-
 let maxPressure = 5000
 let maxTemp = 403
 

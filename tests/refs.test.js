@@ -102,7 +102,7 @@ x := 20`;
 
       const result = Compiler.compile(code);
       expect(result.TAG).toBe('Error');
-      expect(result._0).toContain('not a ref');
+      expect(result._0).toContain('Undefined variable: x');
     });
 
     test('contents on non-ref', () => {
@@ -111,7 +111,7 @@ let y = x.contents`;
 
       const result = Compiler.compile(code);
       expect(result.TAG).toBe('Error');
-      expect(result._0).toContain('not a ref');
+      expect(result._0).toContain('Undefined variable: x');
     });
 
     test('undefined variable in ref assignment', () => {

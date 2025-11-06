@@ -36,7 +36,7 @@ if x > 3 {
 
     test('register exhaustion - too many variables', () => {
         // Create code that tries to allocate more than 16 registers
-        const variables = Array.from({length: 20}, (_, i) => `let var${i} = ${i}`).join('\n');
+        const variables = Array.from({length: 20}, (_, i) => `let var${i} = ref(${i})`).join('\n');
 
         const result = Compiler.compile(variables);
         expect(result.TAG).toBe('Error');
@@ -66,9 +66,9 @@ if x > 3 {
 if zero == 0 {
   let flag = 1
 }`;
-        const expected = `move r0 0
-bne r0 0 label0
-move r1 1
+        const expected = `define zero 0
+define flag 1
+bne zero 0 label0
 label0:`;
 
         const result = Compiler.compile(code);
@@ -85,7 +85,12 @@ let sum = neg + pos`;
         // If not, it will fail and we'll know we need to implement it
         const result = Compiler.compile(code);
         if (result.TAG === 'Ok') {
-            expect(result._0).toContain('move r0 -5');
+            const expected = `define neg -5
+define pos 10
+move r15 neg
+move r14 pos
+add r0 r15 r14`;
+            expect(result._0).toBe(expected);
         } else {
             // Expected to fail since we haven't implemented negative number parsing
             expect(result.TAG).toBe('Error');
@@ -96,9 +101,11 @@ let sum = neg + pos`;
         const code = `let a = 1
 let b = 2
 let c = a + b`;
-        const expected = `move r0 1
-move r1 2
-add r2 r0 r1`;
+        const expected = `define a 1
+define b 2
+move r15 a
+move r14 b
+add r0 r15 r14`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Ok');

@@ -10,14 +10,17 @@ if c < 5 {
   let a = 100
 }`;
 
-const expected = `move r0 2
-move r1 1
-add r2 r0 r1
-blt r2 5 label1
-move r0 100
+const expected = `define a 2
+define b 1
+define a 100
+move r15 a
+move r14 b
+add r0 r15 r14
+blt r0 5 label1
 j label0
 label1:
-add r0 r0 1
+move r14 a
+add r1 r14 1
 label0:`;
 
 test(testCode, () => {

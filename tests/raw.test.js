@@ -3,7 +3,7 @@ const Compiler = require('../out/compiler/Compiler.res.js');
 describe('Raw Instructions and True Literal', () => {
     test('true literal compiles to 1', () => {
         const code = `let x = true`;
-        const expected = `move r0 1`;
+        const expected = `define x 1`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Ok');
@@ -77,9 +77,10 @@ j label0`;
         const code = `let x = 5
 %raw("yield")
 let y = x + 3`;
-        const expected = `move r0 5
+        const expected = `define x 5
 yield
-add r1 r0 3`;
+move r15 x
+add r0 r15 3`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Ok');
@@ -115,7 +116,7 @@ label1:`;
         const code = `if true {
   let x = 1
 }`;
-        const expected = `move r0 1`;
+        const expected = `define x 1`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Ok');
@@ -124,7 +125,7 @@ label1:`;
 
     test('true in comparison', () => {
         const code = `let x = true == 1`;
-        const expected = `move r0 1`;
+        const expected = `define x 1`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Ok');
@@ -157,7 +158,8 @@ while true {
   let temp = 100
   %raw("yield")
 }`;
-        const expected = `push 0
+        const expected = `define temp 100
+push 0
 move r15 sp
 sub r15 r15 1
 move r0 r15
@@ -166,7 +168,6 @@ push 1
 move r15 sp
 sub r15 r15 1
 move r0 r15
-move r1 100
 yield
 j label0`;
 

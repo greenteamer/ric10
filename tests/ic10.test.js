@@ -14,8 +14,8 @@ describe('IC10 Bindings - Basic Operations', () => {
     expect(result.TAG).toBe("Ok");
 
     const asm = result._0;
-    expect(asm).toContain('move r0 0');
-    expect(asm).toMatch(/l r\d+ d.* Temperature/);
+    expect(asm).toContain('define d0 0');
+    expect(asm).toMatch(/l r\d+ d0 Temperature/);
   });
 
   test('s (store to device) - basic', () => {
@@ -27,9 +27,9 @@ describe('IC10 Bindings - Basic Operations', () => {
     expect(result.TAG).toBe("Ok");
 
     const asm = result._0;
-    expect(asm).toContain('move r0 1');
+    expect(asm).toContain('define d1 1');
     expect(asm).toContain('100');
-    expect(asm).toMatch(/s d.* Setting (r\d+|\d+)/);
+    expect(asm).toMatch(/s d1 Setting 100/);
   });
 
   test('multiple operations in sequence', () => {

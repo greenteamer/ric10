@@ -35,7 +35,7 @@ describe('Variant Types', () => {
     test('should compile tag-only constructor assignment', () => {
       const input = `
         type state = Idle | Active
-        let currentState = Idle
+        let currentState = ref(Idle)
       `;
       const result = compile(input);
       expect(result.TAG).toBe('Ok');
@@ -49,7 +49,7 @@ describe('Variant Types', () => {
     test('should compile constructor with argument', () => {
       const input = `
         type result = Ok(int) | Error(int)
-        let x = Ok(42)
+        let x = ref(Ok(42))
       `;
       const result = compile(input);
       expect(result.TAG).toBe('Ok');
@@ -63,8 +63,8 @@ describe('Variant Types', () => {
     test('should compile multiple variant values', () => {
       const input = `
         type state = Idle | Active
-        let state1 = Idle
-        let state2 = Active
+        let state1 = ref(Idle)
+        let state2 = ref(Active)
       `;
       const result = compile(input);
       expect(result.TAG).toBe('Ok');
@@ -78,8 +78,8 @@ describe('Variant Types', () => {
     test('should compile simple switch with tag-only variants', () => {
       const input = `
         type state = Idle | Active
-        let currentState = Idle
-        let result = switch currentState {
+        let currentState = ref(Idle)
+        let result = switch currentState.contents {
           | Idle => 0
           | Active => 1
         }
@@ -104,7 +104,7 @@ describe('Variant Types', () => {
     test('should compile basic FSM state transition', () => {
       const input = `
         type state = Idle | FillSystem(int) | PurgeSystem(int) | Cooling
-        let currentState = Idle
+        let currentState = ref(Idle)
       `;
       const result = compile(input);
       if (result.TAG === 'Error') {
