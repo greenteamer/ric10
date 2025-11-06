@@ -15,13 +15,17 @@ let create = (options: CodegenTypes.compilerOptions): codegenState => {
     variantTags: Belt.Map.String.empty,
     defines: Belt.Map.String.empty,
     defineOrder: [],
-    options: options,
+    options,
   }
 }
 
 // Generate IC10 code for a program
-let generate = (program: AST.program, options: CodegenTypes.compilerOptions): result<string, string> => {
+let generate = (program: AST.program, options: CodegenTypes.compilerOptions): result<
+  string,
+  string,
+> => {
   // First, optimize the AST
+  Console.log2(">>> Original Program: ", program)
   let optimizedProgram = Optimizer.optimizeProgram(program)
 
   // Generate code for each statement
@@ -44,6 +48,7 @@ let generate = (program: AST.program, options: CodegenTypes.compilerOptions): re
   switch loop(state, 0) {
   | Error(msg) => Error("Code generation error: " ++ msg)
   | Ok(finalState) =>
+    Console.log2(">>> finalState : ", finalState)
     let defineInstructions = Array.map(finalState.defineOrder, ((name, value)) => {
       let valueStr = switch value {
       | CodegenTypes.HashExpr(str) => "HASH(\"" ++ str ++ "\")"

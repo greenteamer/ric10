@@ -4,6 +4,20 @@
 // Type alias for codegen state (shared with other modules)
 type codegenState = CodegenTypes.codegenState
 
+module Utils = {
+  let getDefineOrRegister = (state: codegenState, name) =>
+    switch Belt.Map.String.get(state.defines, name) {
+    | Some(CodegenTypes.NumberValue(numValue)) => Ok(Int.toString(numValue)) // Numeric define
+    | Some(CodegenTypes.HashExpr(_)) => Error("Variable '" ++ name ++ "can not be a hash")
+    | None =>
+      // Try to get it as a register variable
+      switch RegisterAlloc.getRegister(state.allocator, name) {
+      | None => Error("Variable '" ++ name ++ "' not found")
+      | Some(valueReg) => Ok(Register.toString(valueReg))
+      }
+    }
+}
+
 // Add an instruction to the state
 let addInstruction = (state: codegenState, instruction: string): codegenState => {
   let len = Array.length(state.instructions)
@@ -190,46 +204,32 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
 
     | list{"l", "b"} =>
       // lb resultReg hash property
-      // args: [ArgExpr(hash), ArgString(property)]
-      if Array.length(args) != 2 {
-        Error("lb() expects 2 arguments: hash and property")
-      } else {
-        switch (args[0], args[1]) {
-        | (Some(AST.ArgExpr(hashExpr)), Some(AST.ArgString(property))) =>
-          // Check if hashExpr is an identifier that's a define
-          let (hashValue, state1) = switch hashExpr {
-          | AST.Identifier(name) =>
-            switch Belt.Map.String.get(state.defines, name) {
-            | Some(_) => (name, state)
-            | None =>
-              switch generate(state, hashExpr) {
-              | Error(_) => ("", state)
-              | Ok((s, reg)) => (Register.toString(reg), s)
-              }
-            }
-          | _ =>
-            switch generate(state, hashExpr) {
-            | Error(_) => ("", state)
-            | Ok((s, reg)) => (Register.toString(reg), s)
-            }
-          }
+      // args: [ArgExpr(hash), ArgString(property), ArgMode(mode)]
+      let input = (args[0], args[1], args[2])
 
-          if hashValue == "" {
-            Error("Failed to evaluate hash expression")
-          } else {
-            switch RegisterAlloc.allocateTempRegister(state1.allocator) {
-            | Error(msg) => Error(msg)
-            | Ok((allocator, resultReg)) =>
-              let state2 = {...state1, allocator}
-              let instr =
-                "lb " ++ Register.toString(resultReg) ++ " " ++ hashValue ++ " " ++ property
-              let comment = "load " ++ property ++ " by hash"
-              let state3 = addInstructionWithComment(state2, instr, comment)
-              Ok((state3, resultReg))
-            }
+      switch input {
+      | (
+          Some(AST.ArgExpr(AST.Identifier(hashName))),
+          Some(AST.ArgString(property)),
+          Some(AST.ArgMode(modeExpr)),
+        ) =>
+        // Verify hash is a define constant
+        switch Belt.Map.String.get(state.defines, hashName) {
+        | None => Error(hashName ++ " is not a HASH constant - use hash() to define it")
+        | Some(_) =>
+          // Get value - check if it's a define constant or a register variable
+          let instruction = "lb" ++ hashName ++ " " ++ property ++ " " ++ Mode.toString(modeExpr)
+          let x = addInstruction(state, instruction)
+
+          switch RegisterAlloc.allocateTempRegister(x.allocator) {
+          | Error(msg) => Error(msg)
+          | Ok((allocator, dummyReg)) => Ok(({...x, allocator}, dummyReg))
           }
-        | _ => Error("lb() expects arguments: (hash, \"property\")")
         }
+      | _ =>
+        Error(
+          "lb() expects arguments: (hash_constant, \"property\", variable, mode) - hash must be a define constant, value must be a variable",
+        )
       }
 
     | list{"l", "b", "n"} =>
@@ -311,79 +311,48 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
       }
 
     | list{"s", "b"} =>
-      // sb hash property value
-      Console.log2("[ExprGen] sb args: ", args)
-      if Array.length(args) != 4 {
-        Error("sb() expects 4 arguments: hash, property, value")
-      } else {
-        switch (args[0], args[1], args[2], args[3]) {
-        | (
-            Some(AST.ArgExpr(hashExpr)),
-            Some(AST.ArgString(property)),
-            Some(AST.ArgExpr(valueExpr)),
-            Some(AST.ArgExpr(modeExpr)),
-          ) =>
-          // Check if hashExpr is an identifier that's a define
-          let (hashValue, state1, needsHashFree) = switch hashExpr {
-          | AST.Identifier(name) =>
-            switch Belt.Map.String.get(state.defines, name) {
-            | Some(_) => (name, state, false)
-            | None =>
-              switch generate(state, hashExpr) {
-              | Error(_) => ("", state, false)
-              | Ok((s, reg)) => (Register.toString(reg), s, true)
-              }
-            }
-          | _ =>
-            switch generate(state, hashExpr) {
-            | Error(_) => ("", state, false)
-            | Ok((s, reg)) => (Register.toString(reg), s, true)
-            }
-          }
+      // sb hash property value - Simplified version
+      // hash must be a define constant identifier
+      // value must be a variable identifier
+      let input = (args[0], args[1], args[2], args[3])
+      Console.log2("[ExprGen] sb() args: ", input)
+      switch input {
+      | (
+          Some(AST.ArgExpr(AST.Identifier(hashName))),
+          Some(AST.ArgString(property)),
+          Some(AST.ArgExpr(AST.Identifier(valueName))),
+          Some(AST.ArgMode(modeExpr)),
+        ) =>
+        // Verify hash is a define constant
+        switch Belt.Map.String.get(state.defines, hashName) {
+        | None => Error(hashName ++ " is not a HASH constant - use hash() to define it")
+        | Some(_) =>
+          // Get value - check if it's a define constant or a register variable
+          let computeInstruction = valueStr =>
+            "sb " ++
+            hashName ++
+            " " ++
+            property ++
+            " " ++
+            valueStr ++
+            " " ++
+            Mode.toString(modeExpr)
 
-          if hashValue == "" {
-            Error("Failed to evaluate hash expression")
-          } else {
-            let stateAfterSb = switch valueExpr {
-            | AST.Literal(value) =>
-              let instr = "sb " ++ hashValue ++ " " ++ property ++ " " ++ Int.toString(value)
-              let comment = "store " ++ property ++ " by hash"
-              Ok(addInstructionWithComment(state1, instr, comment))
-            | _ =>
-              switch generate(state1, valueExpr) {
-              | Error(msg) => Error(msg)
-              | Ok((state2, valueReg)) =>
-                let instr =
-                  "sb " ++ hashValue ++ " " ++ property ++ " " ++ Register.toString(valueReg)
-                let comment = "store " ++ property ++ " by hash"
-                let state3 = addInstructionWithComment(state2, instr, comment)
-                let allocator = RegisterAlloc.freeTempIfTemp(state3.allocator, valueReg)
-                Ok({...state3, allocator})
-              }
-            }
-
-            switch stateAfterSb {
+          Utils.getDefineOrRegister(state, valueName)
+          ->Result.map(computeInstruction)
+          ->Result.map(addInstruction(state, _))
+          ->Result.flatMap(x => {
+            // Allocate dummy register for expression result
+            switch RegisterAlloc.allocateTempRegister(x.allocator) {
             | Error(msg) => Error(msg)
-            | Ok(state2) =>
-              // Only free hash register if it was generated (not a define)
-              let state3 = if needsHashFree {
-                switch Register.fromString(hashValue) {
-                | Some(reg) =>
-                  let allocator = RegisterAlloc.freeTempIfTemp(state2.allocator, reg)
-                  {...state2, allocator}
-                | None => state2
-                }
-              } else {
-                state2
-              }
-              switch RegisterAlloc.allocateTempRegister(state3.allocator) {
-              | Error(msg) => Error(msg)
-              | Ok((allocator, dummyReg)) => Ok(({...state3, allocator}, dummyReg))
-              }
+            | Ok((allocator, dummyReg)) => Ok(({...x, allocator}, dummyReg))
             }
-          }
-        | _ => Error("sb() expects arguments: (hash, \"property\", value)")
+          })
         }
+      | _ =>
+        Error(
+          "sb() expects arguments: (hash_constant, \"property\", variable, mode) - hash must be a define constant, value must be a variable",
+        )
       }
 
     | list{"s", "b", "n"} =>
@@ -891,8 +860,10 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
   | AST.FunctionCall(funcName, args) =>
     // For function calls, use generate then move to target if needed
     // OPTIMIZATION: Handle value-returning IC10 functions directly
-    switch funcName {
-    | "l" =>
+    let parsedFuncName = funcName->String.split("")->List.fromArray
+    Console.log2("[ExprGen generateInto] Function call parsedFuncName: ", parsedFuncName)
+    switch parsedFuncName {
+    | list{"l"} =>
       if Array.length(args) != 2 {
         Error("l() expects 2 arguments: device and property")
       } else {
@@ -904,79 +875,64 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
         | _ => Error("l() expects arguments: (device_identifier, \"property\")")
         }
       }
-    | "lb" =>
-      if Array.length(args) != 2 {
-        Error("lb() expects 2 arguments: hash and property")
-      } else {
-        switch (args[0], args[1]) {
-        | (Some(AST.ArgExpr(hashExpr)), Some(AST.ArgString(property))) =>
-          // Check if hashExpr is an identifier that's a define
-          let (hashValue, state1, needsHashFree) = switch hashExpr {
-          | AST.Identifier(name) =>
-            switch Belt.Map.String.get(state.defines, name) {
-            | Some(_) => (name, state, false)
-            | None =>
-              switch generate(state, hashExpr) {
-              | Error(_) => ("", state, false)
-              | Ok((s, reg)) => (Register.toString(reg), s, true)
-              }
-            }
-          | _ =>
-            switch generate(state, hashExpr) {
-            | Error(_) => ("", state, false)
-            | Ok((s, reg)) => (Register.toString(reg), s, true)
-            }
-          }
+    | list{"l", "b"} =>
+      // lb resultReg hash property
+      // args: [ArgExpr(hash), ArgString(property), ArgMode(mode)]
+      let input = (args[0], args[1], args[2])
 
-          if hashValue == "" {
-            Error("Failed to evaluate hash expression")
-          } else {
-            let instr = "lb " ++ Register.toString(targetReg) ++ " " ++ hashValue ++ " " ++ property
-            let comment = "load " ++ property ++ " by hash"
-            let state2 = addInstructionWithComment(state1, instr, comment)
+      switch input {
+      | (
+          Some(AST.ArgExpr(AST.Identifier(hashName))),
+          Some(AST.ArgString(property)),
+          Some(AST.ArgMode(modeExpr)),
+        ) =>
+        // Verify hash is a define constant
+        switch Belt.Map.String.get(state.defines, hashName) {
+        | None => Error(hashName ++ " is not a HASH constant - use hash() to define it")
+        | Some(_) =>
+          // Get value - check if it's a define constant or a register variable
 
-            // Only free hash register if it was generated (not a define)
-            if needsHashFree {
-              switch Register.fromString(hashValue) {
-              | Some(reg) =>
-                let allocator = RegisterAlloc.freeTempIfTemp(state2.allocator, reg)
-                Ok({...state2, allocator})
-              | None => Ok(state2)
-              }
-            } else {
-              Ok(state2)
-            }
-          }
-        | _ => Error("lb() expects arguments: (hash, \"property\")")
+          let inst = `lb ${Register.toString(targetReg)} ${hashName} ${property} ${Mode.toString(
+              modeExpr,
+            )}`
+
+          Ok(addInstruction(state, inst))
         }
+      | _ =>
+        Error(
+          "lb() expects arguments: (hash_constant, \"property\", variable, mode) - hash must be a define constant, value must be a variable",
+        )
       }
-    | "lbn" =>
-      if Array.length(args) != 4 {
-        Error("lbn() expects 4 arguments: deviceType, deviceName, property, mode")
-      } else {
-        switch (args[0], args[1], args[2], args[3]) {
-        | (
-            Some(AST.ArgString(deviceType)),
-            Some(AST.ArgString(deviceName)),
-            Some(AST.ArgString(property)),
-            Some(AST.ArgString(mode)),
-          ) =>
-          let instr =
-            "lbn " ++
-            Register.toString(targetReg) ++
-            " HASH(\"" ++
-            deviceType ++
-            "\") HASH(\"" ++
-            deviceName ++
-            "\") " ++
-            property ++
-            " " ++
-            mode
-          let comment = "load " ++ property ++ " from network"
-          Ok(addInstructionWithComment(state, instr, comment))
+
+    | list{"l", "b", "n"} =>
+      let input = (args[0], args[1], args[2], args[3])
+
+      switch input {
+      | (
+          Some(AST.ArgExpr(AST.Identifier(typeHash))),
+          Some(AST.ArgExpr(AST.Identifier(nameHash))),
+          Some(AST.ArgString(property)),
+          Some(AST.ArgMode(modeExpr)),
+        ) =>
+        // Verify hash is a define constant
+        switch (
+          Belt.Map.String.get(state.defines, typeHash),
+          Belt.Map.String.get(state.defines, nameHash),
+        ) {
+        | (None, _)
+        | (_, None) =>
+          Error(`${typeHash} or ${nameHash} is not a HASH constant - use hash() to define it"`)
         | _ =>
-          Error("lbn() expects 4 string arguments: (\"type\", \"name\", \"property\", \"mode\")")
+          let regStr = Register.toString(targetReg)
+          let modeStr = Mode.toString(modeExpr)
+          let inst = `lbn ${regStr} ${typeHash} ${nameHash} ${property} ${modeStr}`
+
+          Ok(addInstruction(state, inst))
         }
+      | _ =>
+        Error(
+          "lb() expects arguments: (hash_constant, \"property\", variable, mode) - hash must be a define constant, value must be a variable",
+        )
       }
     | _ =>
       // Fallback for other functions

@@ -64,16 +64,17 @@ describe('IC10 Bindings - Hash Operations', () => {
 
   test('sb (store by hash) - basic', () => {
     const source = `
-      sb(67890, "On", 1)
+      let hashVal = hash("Device")
+      let onVal = 1
+      sb(hashVal, "On", onVal, Average)
     `;
     const result = Compiler.compile(source, { includeComments: false });
     expect(result.TAG).toBe("Ok");
 
     const asm = result._0;
-    expect(asm).toContain('67890');
+    expect(asm).toContain('hashVal');
     expect(asm).toContain('move r');
-    expect(asm).toContain('1');
-    expect(asm).toMatch(/sb r.*? On (r\d+|\d+)/);
+    expect(asm).toMatch(/sb hashVal On r\d+/);
   });
 });
 

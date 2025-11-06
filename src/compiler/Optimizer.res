@@ -14,8 +14,7 @@ let rec optimize = (node: astNode): astNode => {
   // Multiplication
   | BinaryExpression(Mul, Literal(x), Literal(y)) => Literal(x * y)
   // Division
-  | BinaryExpression(Div, Literal(x), Literal(y)) =>
-    y != 0 ? Literal(x / y) : node // Preserve division by zero for runtime error
+  | BinaryExpression(Div, Literal(x), Literal(y)) => y != 0 ? Literal(x / y) : node // Preserve division by zero for runtime error
   // Comparisons
   | BinaryExpression(Lt, Literal(x), Literal(y)) => Literal(x < y ? 1 : 0)
   | BinaryExpression(Gt, Literal(x), Literal(y)) => Literal(x > y ? 1 : 0)
@@ -45,6 +44,7 @@ let rec optimize = (node: astNode): astNode => {
   | BinaryExpression(op, left, right) =>
     let optimizedLeft = optimize(left)
     let optimizedRight = optimize(right)
+
     // Try to optimize again after simplifying children
     if optimizedLeft != left || optimizedRight != right {
       optimize(BinaryExpression(op, optimizedLeft, optimizedRight))
@@ -53,8 +53,7 @@ let rec optimize = (node: astNode): astNode => {
     }
 
   // Optimize variable declarations
-  | VariableDeclaration(name, expr) =>
-    VariableDeclaration(name, optimize(expr))
+  | VariableDeclaration(name, expr) => VariableDeclaration(name, optimize(expr))
 
   // Optimize if statements
   | IfStatement(condition, thenBlock, elseBlock) =>
@@ -88,8 +87,7 @@ let rec optimize = (node: astNode): astNode => {
     WhileLoop(optimizedCondition, optimizedBody)
 
   // Optimize block statements
-  | BlockStatement(statements) =>
-    BlockStatement(optimizeBlock(statements))
+  | BlockStatement(statements) => BlockStatement(optimizeBlock(statements))
 
   // Optimize type declarations (pass through unchanged - compile-time only)
   | TypeDeclaration(_, _) => node
@@ -113,13 +111,11 @@ let rec optimize = (node: astNode): astNode => {
     SwitchExpression(optimizedScrutinee, optimizedCases)
 
   // Ref expressions
-  | RefCreation(valueExpr) =>
-    RefCreation(optimize(valueExpr))
+  | RefCreation(valueExpr) => RefCreation(optimize(valueExpr))
 
   | RefAccess(_) => node // No optimization needed
 
-  | RefAssignment(name, valueExpr) =>
-    RefAssignment(name, optimize(valueExpr))
+  | RefAssignment(name, valueExpr) => RefAssignment(name, optimize(valueExpr))
 
   // Raw instructions - pass through unchanged (no optimization possible)
   | RawInstruction(_) => node
@@ -131,6 +127,7 @@ let rec optimize = (node: astNode): astNode => {
       | ArgExpr(expr) => ArgExpr(optimize(expr))
       | ArgString(_) => arg // String literals don't need optimization
       | ArgDevice(_) => arg // Device identifiers don't need optimization
+      | ArgMode(_) => arg // Mode identifiers don't need optimization
       }
     })
     FunctionCall(name, optimizedArgs)

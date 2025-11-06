@@ -309,20 +309,36 @@ and parseFunctionArguments = (parser: parser): result<(parser, array<AST.argumen
         name == "d5" ||
         name == "db"
 
-      if isDeviceId {
-        // Device identifier - treat as ArgDevice
-        let parser = advance(parser)
-        let arg = AST.ArgDevice(name)
-        // Check for comma or closing paren
-        switch peek(parser) {
-        | Some(Lexer.RightParen) => Ok((advance(parser), list{arg, ...args}))
-        | Some(Lexer.Comma) =>
-          // Consume comma and parse next argument
+      let isMode = name == "Maximum" || name == "Minimum" || name == "Average" || name == "Sum"
+
+      switch (isDeviceId, isMode) {
+      | (true, false) => {
+          Console.log2("[parseFunctionArguments] device id: ", (parser, name))
+          // Device identifier - treat as ArgDevice
           let parser = advance(parser)
-          parseArgs(parser, list{arg, ...args})
-        | _ => Error("Expected ',' or ')' after function argument")
+          let arg = AST.ArgDevice(name)
+          // Check for comma or closing paren
+          switch peek(parser) {
+          | Some(Lexer.RightParen) => Ok((advance(parser), list{arg, ...args}))
+          | Some(Lexer.Comma) =>
+            // Consume comma and parse next argument
+            let parser = advance(parser)
+            parseArgs(parser, list{arg, ...args})
+          | _ => Error("Expected ',' or ')' after function argument")
+          }
         }
-      } else {
+      | (false, true) => {
+          Console.log2("[parseFunctionArguments] mode id: ", (parser, name))
+          let parser = advance(parser)
+
+          let arg = AST.ArgMode(IC10.Mode.fromString(name)->Belt.Result.getExn)
+          // Check for comma or closing paren
+          switch peek(parser) {
+          | Some(Lexer.RightParen) => Ok((advance(parser), list{arg, ...args}))
+          | _ => Error("Expected ')' after mode argument")
+          }
+        }
+      | _ =>
         // Regular identifier - parse as expression
         switch parseExpression(parser) {
         | Error(msg) => Error(msg)
@@ -339,6 +355,7 @@ and parseFunctionArguments = (parser: parser): result<(parser, array<AST.argumen
           }
         }
       }
+
     | Some(_) =>
       // Expression argument (for other token types)
       switch parseExpression(parser) {
@@ -806,7 +823,6 @@ and parseBlockStatement = (parser: parser): result<(parser, AST.blockStatement),
 // Parse a program (sequence of statements)
 // Uses List for O(1) cons operations, then converts to array
 let parse = (tokens: array<Lexer.token>): result<AST.program, string> => {
-  let parser = create(tokens)
   let rec parseStatements = (parser: parser, statements: list<AST.stmt>): result<
     (parser, list<AST.stmt>),
     string,
@@ -825,8 +841,14 @@ let parse = (tokens: array<Lexer.token>): result<AST.program, string> => {
       }
     }
   }
+  let parser = create(tokens)
   switch parseStatements(parser, list{}) {
   | Error(msg) => Error("Parse error: " ++ msg)
-  | Ok((_, statements)) => Ok(List.toArray(List.reverse(statements)))
+  | Ok((_, statements)) =>
+    Ok(
+      statements
+      ->List.reverse
+      ->List.toArray,
+    )
   }
 }

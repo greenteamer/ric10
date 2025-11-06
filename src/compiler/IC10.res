@@ -8,10 +8,22 @@ type device = int
 module Mode = {
   type t = Maximum | Minimum | Average | Sum
 
-  let maximum = "Maximum"
-  let minimum = "Minimum"
-  let average = "Average"
-  let sum = "Sum"
+  let toString = (mode: t): string =>
+    switch mode {
+    | Maximum => "Maximum"
+    | Minimum => "Minimum"
+    | Average => "Average"
+    | Sum => "Sum"
+    }
+
+  let fromString = (str: string): result<t, string> =>
+    switch str {
+    | "Maximum" => Ok(Maximum)
+    | "Minimum" => Ok(Minimum)
+    | "Average" => Ok(Average)
+    | "Sum" => Ok(Sum)
+    | _ => Error("Invalid mode string")
+    }
 }
 
 let d0: device = 0
@@ -29,12 +41,12 @@ let l = (_device: device, _property: string): int => {
 }
 
 // lb r0 HASH Temperature
-let lb = (_typeHash: int, _property: string): int => {
+let lb = (_typeHash: int, _property: string, _mode: Mode.t): int => {
   0
 }
 
 // lbn r0 HASH("Type") HASH("Name") Property Mode
-let lbn = (_typeHash: int, _nameHash: int, _property: string, _mode: string): int => {
+let lbn = (_typeHash: int, _nameHash: int, _property: string, _mode: Mode.t): int => {
   0
 }
 

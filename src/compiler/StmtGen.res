@@ -29,6 +29,7 @@ let addInstructionWithComment = (
 
 // Generate IC10 code for a statement
 let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState, string> => {
+  Console.log2("[StmtGen] Generating statement: ", stmt)
   switch stmt {
   | AST.TypeDeclaration(typeName, constructors) =>
     // Type declarations are compile-time only - populate variant maps
