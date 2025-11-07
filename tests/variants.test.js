@@ -41,9 +41,7 @@ describe('Variant Types', () => {
       expect(result.TAG).toBe('Ok');
       const asm = result._0;
       expect(asm).toContain('push 0'); // Tag for Idle
-      expect(asm).toContain('move r'); // Uses temp register
-      expect(asm).toContain('sp');
-      expect(asm).toContain('sub');
+      expect(asm).toContain('move r0 0'); // Ref points to stack[0]
     });
 
     test('should compile constructor with argument', () => {
@@ -56,8 +54,7 @@ describe('Variant Types', () => {
       const asm = result._0;
       expect(asm).toContain('push 0'); // Tag for Ok
       expect(asm).toContain('push');   // Argument pushed
-      expect(asm).toContain('sp');     // Stack pointer used
-      expect(asm).toContain('sub');    // Calculate base address
+      expect(asm).toContain('move r0 0'); // Ref points to stack[0]
     });
 
     test('should compile multiple variant values', () => {
@@ -91,9 +88,8 @@ describe('Variant Types', () => {
       expect(result.TAG).toBe('Ok');
       const asm = result._0;
 
-      // Should have branch instructions
-      expect(asm).toContain('move sp');
-      expect(asm).toContain('peek');
+      // Should have branch instructions using fixed stack approach
+      expect(asm).toContain('get r15 db 0'); // Read tag from stack[0]
       expect(asm).toContain('beq');
       expect(asm).toContain('match_case_');
       expect(asm).toContain('match_end_');

@@ -18,9 +18,8 @@ describe('Switch Statement Comprehensive Tests', () => {
       expect(result.TAG).toBe('Ok');
       const asm = result._0;
 
-      // Should have switch infrastructure
-      expect(asm).toContain('move sp');
-      expect(asm).toContain('peek');
+      // Should have switch infrastructure using fixed stack approach
+      expect(asm).toContain('get r15 db 0'); // Read tag from stack[0]
       expect(asm).toContain('beq');
       expect(asm).toContain('match_case_');
       expect(asm).toContain('match_end_');
