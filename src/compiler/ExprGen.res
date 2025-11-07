@@ -383,7 +383,7 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
       }
     }
 
-  | AST.VariantConstructor(constructorName, argumentOpt) =>
+  | AST.VariantConstructor(constructorName, arguments) =>
     // Look up constructor tag
     switch Belt.Map.String.get(state.variantTags, constructorName) {
     | None => Error("Unknown variant constructor: " ++ constructorName)
@@ -393,33 +393,42 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
       let comment1 = constructorName ++ " variant tag"
       let state1 = addInstructionWithComment(state, instr1, comment1)
 
-      // If has argument, generate and push it
-      let state2 = switch argumentOpt {
-      | None => state1
-      | Some(argExpr) =>
-        // Generate argument into a temporary register
-        switch generate(state1, argExpr) {
-        | Error(_msg) => state1 // fallback - shouldn't happen
-        | Ok((state2, argReg)) =>
-          let instr2 = "push " ++ Register.toString(argReg)
-          let comment2 = constructorName ++ " payload"
-          let state3 = addInstructionWithComment(state2, instr2, comment2)
+      // Generate and push all arguments
+      let rec pushArgs = (state: codegenState, args: array<AST.expr>, index: int): codegenState => {
+        if index >= Array.length(args) {
+          state
+        } else {
+          // Get argument at index
+          switch Belt.Array.get(args, index) {
+          | None => state // shouldn't happen
+          | Some(argExpr) =>
+            // Generate argument into a temporary register
+            switch generate(state, argExpr) {
+            | Error(_msg) => state // fallback - shouldn't happen
+            | Ok((state2, argReg)) =>
+              let instr = "push " ++ Register.toString(argReg)
+              let comment = constructorName ++ " arg" ++ Int.toString(index)
+              let state3 = addInstructionWithComment(state2, instr, comment)
 
-          // Free temp register if it was temporary
-          let allocator = RegisterAlloc.freeTempIfTemp(state3.allocator, argReg)
-          {...state3, allocator}
+              // Free temp register if it was temporary
+              let allocator = RegisterAlloc.freeTempIfTemp(state3.allocator, argReg)
+              let state4 = {...state3, allocator}
+
+              // Push next argument
+              pushArgs(state4, args, index + 1)
+            }
+          }
         }
       }
+
+      let state2 = pushArgs(state1, arguments, 0)
 
       // Allocate register to hold stack base address
       switch RegisterAlloc.allocateTempRegister(state2.allocator) {
       | Error(msg) => Error(msg)
       | Ok((allocator, baseReg)) =>
         // Generate: move baseReg sp; sub baseReg baseReg slots
-        let slotsUsed = switch argumentOpt {
-        | None => 1
-        | Some(_) => 2
-        }
+        let slotsUsed = 1 + Array.length(arguments) // tag + arguments
 
         let instr3 = "move " ++ Register.toString(baseReg) ++ " sp"
         let comment3 = "get stack pointer"
@@ -528,24 +537,46 @@ let generateSwitchWithBody = (
             let comment = "case " ++ matchCase.constructorName
             let state1 = addInstructionWithComment(state, label ++ ":", comment)
 
-            // If case has argument binding, extract it from stack
-            let state2 = switch matchCase.argumentBinding {
-            | None => state1
-            | Some(argName) =>
-              // Allocate register for argument (not a ref)
-              switch RegisterAlloc.allocateNormal(state1.allocator, argName) {
-              | Error(_) => state1 // Fallback - allocation failed
-              | Ok((allocator, argReg)) =>
-                // Set stack pointer to payload position (base + 1)
-                let instr1 = "add sp " ++ Register.toString(scrutineeReg) ++ " 1"
-                let comment1 = "position to payload"
-                let state2 = addInstructionWithComment({...state1, allocator}, instr1, comment1)
+            // If case has argument bindings, extract them from stack
+            let state2 = if Array.length(matchCase.argumentBindings) == 0 {
+              state1
+            } else {
+              // Extract all argument bindings
+              let rec extractArgs = (
+                state: codegenState,
+                bindings: array<string>,
+                index: int,
+              ): codegenState => {
+                if index >= Array.length(bindings) {
+                  state
+                } else {
+                  switch Belt.Array.get(bindings, index) {
+                  | None => state
+                  | Some(argName) =>
+                    // Allocate register for argument (not a ref)
+                    switch RegisterAlloc.allocateNormal(state.allocator, argName) {
+                    | Error(_) => state // Fallback - allocation failed
+                    | Ok((allocator, argReg)) =>
+                      // Set stack pointer to payload position (base + 1 + index)
+                      let offset = 1 + index
+                      let instr1 =
+                        "add sp " ++ Register.toString(scrutineeReg) ++ " " ++ Int.toString(offset)
+                      let comment1 = "position to arg" ++ Int.toString(index)
+                      let state2 = addInstructionWithComment({...state, allocator}, instr1, comment1)
 
-                // Extract payload into bound variable
-                let instr2 = "peek " ++ Register.toString(argReg)
-                let comment2 = "extract " ++ argName
-                addInstructionWithComment(state2, instr2, comment2)
+                      // Extract payload into bound variable
+                      let instr2 = "peek " ++ Register.toString(argReg)
+                      let comment2 = "extract " ++ argName
+                      let state3 = addInstructionWithComment(state2, instr2, comment2)
+
+                      // Extract next argument
+                      extractArgs(state3, bindings, index + 1)
+                    }
+                  }
+                }
               }
+
+              extractArgs(state1, matchCase.argumentBindings, 0)
             }
 
             // Generate case body using the provided callback
@@ -783,7 +814,7 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
       }
     }
 
-  | AST.VariantConstructor(constructorName, argumentOpt) =>
+  | AST.VariantConstructor(constructorName, arguments) =>
     // Generate variant directly into target register (optimization)
     // Look up constructor tag
     switch Belt.Map.String.get(state.variantTags, constructorName) {
@@ -794,29 +825,38 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
       let comment1 = constructorName ++ " variant tag"
       let state1 = addInstructionWithComment(state, instr1, comment1)
 
-      // If has argument, generate and push it
-      let state2 = switch argumentOpt {
-      | None => state1
-      | Some(argExpr) =>
-        // Generate argument into a temporary register
-        switch generate(state1, argExpr) {
-        | Error(_msg) => state1 // fallback - shouldn't happen
-        | Ok((state2, argReg)) =>
-          let instr2 = "push " ++ Register.toString(argReg)
-          let comment2 = constructorName ++ " payload"
-          let state3 = addInstructionWithComment(state2, instr2, comment2)
+      // Generate and push all arguments
+      let rec pushArgs = (state: codegenState, args: array<AST.expr>, index: int): codegenState => {
+        if index >= Array.length(args) {
+          state
+        } else {
+          // Get argument at index
+          switch Belt.Array.get(args, index) {
+          | None => state // shouldn't happen
+          | Some(argExpr) =>
+            // Generate argument into a temporary register
+            switch generate(state, argExpr) {
+            | Error(_msg) => state // fallback - shouldn't happen
+            | Ok((state2, argReg)) =>
+              let instr = "push " ++ Register.toString(argReg)
+              let comment = constructorName ++ " arg" ++ Int.toString(index)
+              let state3 = addInstructionWithComment(state2, instr, comment)
 
-          // Free temp register if it was temporary
-          let allocator = RegisterAlloc.freeTempIfTemp(state3.allocator, argReg)
-          {...state3, allocator}
+              // Free temp register if it was temporary
+              let allocator = RegisterAlloc.freeTempIfTemp(state3.allocator, argReg)
+              let state4 = {...state3, allocator}
+
+              // Push next argument
+              pushArgs(state4, args, index + 1)
+            }
+          }
         }
       }
 
+      let state2 = pushArgs(state1, arguments, 0)
+
       // Calculate slots used
-      let slotsUsed = switch argumentOpt {
-      | None => 1
-      | Some(_) => 2
-      }
+      let slotsUsed = 1 + Array.length(arguments) // tag + arguments
 
       // Generate directly into target register: move targetReg sp; sub targetReg targetReg slots
       let instr3 = "move " ++ Register.toString(targetReg) ++ " sp"

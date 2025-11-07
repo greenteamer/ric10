@@ -274,6 +274,50 @@ and parseRefCreation = (parser: parser): result<(parser, AST.expr), string> => {
   }
 }
 
+// Parse variant constructor arguments: (expr1, expr2, expr3)
+// Returns array of expressions
+and parseVariantConstructorArguments = (parser: parser): result<(parser, array<AST.expr>), string> => {
+  // Expect opening paren
+  switch expect(parser, Lexer.LeftParen) {
+  | Error(msg) => Error(msg)
+  | Ok(parser) =>
+    let rec parseArgs = (parser: parser, args: list<AST.expr>): result<
+      (parser, list<AST.expr>),
+      string,
+    > => {
+      switch peek(parser) {
+      | Some(Lexer.RightParen) =>
+        // End of arguments
+        Ok((advance(parser), args))
+      | _ =>
+        // Parse expression
+        switch parseExpression(parser) {
+        | Error(msg) => Error(msg)
+        | Ok((parser, expr)) =>
+          // Check for comma (more args) or closing paren
+          switch peek(parser) {
+          | Some(Lexer.RightParen) => Ok((advance(parser), list{expr, ...args}))
+          | Some(Lexer.Comma) =>
+            let parser = advance(parser) // consume comma
+            parseArgs(parser, list{expr, ...args})
+          | _ => Error("Expected ',' or ')' after variant constructor argument")
+          }
+        }
+      }
+    }
+
+    // Handle empty argument list
+    switch peek(parser) {
+    | Some(Lexer.RightParen) => Ok((advance(parser), []))
+    | _ =>
+      switch parseArgs(parser, list{}) {
+      | Error(msg) => Error(msg)
+      | Ok((parser, args)) => Ok((parser, List.toArray(List.reverse(args))))
+      }
+    }
+  }
+}
+
 // Parse function call arguments: (arg1, arg2, ...)
 // Arguments can be expressions, string literals, or device identifiers
 and parseFunctionArguments = (parser: parser): result<(parser, array<AST.argument>), string> => {
@@ -431,15 +475,10 @@ and parsePrimaryExpression = (parser: parser): result<(parser, AST.expr), string
         | Ok((parser, args)) => Ok((parser, AST.createFunctionCall(name, args)))
         }
       } else {
-        // Parse as variant constructor (single argument)
-        let parser = advance(parser) // consume (
-        switch parseExpression(parser) {
+        // Parse as variant constructor with multiple arguments: Constructor(arg1, arg2, ...)
+        switch parseVariantConstructorArguments(parser) {
         | Error(msg) => Error(msg)
-        | Ok((parser, arg)) =>
-          switch expect(parser, Lexer.RightParen) {
-          | Error(msg) => Error(msg)
-          | Ok(parser) => Ok((parser, AST.createVariantConstructor(name, Some(arg))))
-          }
+        | Ok((parser, args)) => Ok((parser, AST.createVariantConstructor(name, args)))
         }
       }
     | _ => Ok((parser, AST.createIdentifier(name)))
@@ -489,20 +528,36 @@ and parseSwitchExpression = (parser: parser): result<(parser, AST.expr), string>
             | Some(Lexer.Identifier(constructorName)) =>
               let parser = advance(parser)
 
-              // Check for argument binding: | Constructor(argName) =>
-              let (parser, argumentBinding) = switch peek(parser) {
+              // Check for argument bindings: | Constructor(arg1, arg2, arg3) =>
+              let (parser, argumentBindings) = switch peek(parser) {
               | Some(Lexer.LeftParen) =>
                 let parser = advance(parser) // consume (
-                switch peek(parser) {
-                | Some(Lexer.Identifier(argName)) =>
-                  let parser = advance(parser)
-                  switch expect(parser, Lexer.RightParen) {
-                  | Error(_) => (parser, None) // fallback
-                  | Ok(parser) => (parser, Some(argName))
+
+                // Parse comma-separated argument names
+                let rec parseBindings = (parser: parser, bindings: list<string>): (
+                  parser,
+                  list<string>,
+                ) => {
+                  switch peek(parser) {
+                  | Some(Lexer.Identifier(argName)) =>
+                    let parser = advance(parser)
+                    // Check for comma (more args) or closing paren
+                    switch peek(parser) {
+                    | Some(Lexer.Comma) =>
+                      let parser = advance(parser) // consume comma
+                      parseBindings(parser, list{argName, ...bindings})
+                    | Some(Lexer.RightParen) =>
+                      (advance(parser), list{argName, ...bindings})
+                    | _ => (parser, bindings) // error case, fallback
+                    }
+                  | Some(Lexer.RightParen) => (advance(parser), bindings) // empty parens
+                  | _ => (parser, bindings) // error case, fallback
                   }
-                | _ => (parser, None)
                 }
-              | _ => (parser, None)
+
+                let (parser, bindings) = parseBindings(parser, list{})
+                (parser, List.toArray(List.reverse(bindings)))
+              | _ => (parser, [])
               }
 
               // Expect arrow
@@ -518,7 +573,7 @@ and parseSwitchExpression = (parser: parser): result<(parser, AST.expr), string>
                   | Ok((parser, body)) =>
                     let matchCase: AST.matchCase = {
                       constructorName,
-                      argumentBinding,
+                      argumentBindings,
                       body,
                     }
                     parseMatchCases(parser, list{matchCase, ...cases})
@@ -530,7 +585,7 @@ and parseSwitchExpression = (parser: parser): result<(parser, AST.expr), string>
                   | Ok((parser, stmt)) =>
                     let matchCase: AST.matchCase = {
                       constructorName,
-                      argumentBinding,
+                      argumentBindings,
                       body: [stmt], // Wrap single statement in array
                     }
                     parseMatchCases(parser, list{matchCase, ...cases})
@@ -541,7 +596,7 @@ and parseSwitchExpression = (parser: parser): result<(parser, AST.expr), string>
                     | Ok((parser, expr)) =>
                       let matchCase: AST.matchCase = {
                         constructorName,
-                        argumentBinding,
+                        argumentBindings,
                         body: [expr], // Wrap single expression in array
                       }
                       parseMatchCases(parser, list{matchCase, ...cases})
@@ -628,28 +683,36 @@ and parseTypeDeclaration = (parser: parser): result<(parser, AST.astNode), strin
           | Some(Lexer.Identifier(constructorName)) =>
             let parser = advance(parser)
 
-            // Check for argument: Constructor(int)
-            let (parser, hasArgument) = switch peek(parser) {
+            // Check for arguments: Constructor(int, int, int)
+            let (parser, argCount) = switch peek(parser) {
             | Some(Lexer.LeftParen) =>
               let parser = advance(parser) // consume (
-              // For now, we just check for the presence of an argument
-              // We expect an identifier (type name like "int") inside
-              switch peek(parser) {
-              | Some(Lexer.Identifier(_)) =>
-                let parser = advance(parser) // consume type identifier
-                // Expect closing paren
-                switch expect(parser, Lexer.RightParen) {
-                | Error(_msg) => (parser, false) // fallback
-                | Ok(parser) => (parser, true)
+
+              // Parse comma-separated type names to count arguments
+              let rec countArgs = (parser: parser, count: int): (parser, int) => {
+                switch peek(parser) {
+                | Some(Lexer.Identifier(_)) =>
+                  let parser = advance(parser) // consume type identifier
+                  // Check for comma (more args) or closing paren
+                  switch peek(parser) {
+                  | Some(Lexer.Comma) =>
+                    let parser = advance(parser) // consume comma
+                    countArgs(parser, count + 1)
+                  | Some(Lexer.RightParen) => (advance(parser), count + 1)
+                  | _ => (parser, count) // error case, fallback
+                  }
+                | Some(Lexer.RightParen) => (advance(parser), count) // empty parens
+                | _ => (parser, count) // error case, fallback
                 }
-              | _ => (parser, false)
               }
-            | _ => (parser, false)
+
+              countArgs(parser, 0)
+            | _ => (parser, 0)
             }
 
             let constructor: AST.variantConstructor = {
               name: constructorName,
-              hasArgument,
+              argCount,
             }
 
             // Check for more constructors (separated by |)

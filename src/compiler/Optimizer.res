@@ -93,11 +93,8 @@ let rec optimize = (node: astNode): astNode => {
   | TypeDeclaration(_, _) => node
 
   // Optimize variant constructors
-  | VariantConstructor(name, argumentOpt) =>
-    switch argumentOpt {
-    | None => node
-    | Some(arg) => VariantConstructor(name, Some(optimize(arg)))
-    }
+  | VariantConstructor(name, arguments) =>
+    VariantConstructor(name, Array.map(arguments, optimize))
 
   // Optimize switch expressions
   | SwitchExpression(scrutinee, cases) =>

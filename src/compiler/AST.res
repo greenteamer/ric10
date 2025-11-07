@@ -14,7 +14,7 @@ type binaryOp =
 // Variant constructor definition (in type declarations)
 type variantConstructor = {
   name: string,
-  hasArgument: bool, // true if constructor takes a single argument
+  argCount: int, // number of arguments (0, 1, 2, ...)
 }
 
 // AST node types (mutually recursive)
@@ -28,8 +28,8 @@ type rec astNode =
   | IfStatement(expr, blockStatement, option<blockStatement>) // if (expr) { stmts } else { stmts }
   | WhileLoop(expr, blockStatement) // while expr { stmts }
   | BlockStatement(blockStatement) // { stmt1; stmt2; ... }
-  | TypeDeclaration(string, array<variantConstructor>) // type name = Constructor1 | Constructor2(arg)
-  | VariantConstructor(string, option<expr>) // Constructor or Constructor(expr)
+  | TypeDeclaration(string, array<variantConstructor>) // type name = Constructor1 | Constructor2(arg1, arg2, ...)
+  | VariantConstructor(string, array<expr>) // Constructor(expr1, expr2, ...) or Constructor
   | SwitchExpression(expr, array<matchCase>) // switch expr { | Pattern1 => body1 | Pattern2 => body2 }
   | RefCreation(expr) // ref(expr)
   | RefAccess(string) // identifier.contents
@@ -52,7 +52,7 @@ and argument =
 // Match case for pattern matching (must be after blockStatement is defined)
 and matchCase = {
   constructorName: string,
-  argumentBinding: option<string>, // variable name for argument (if constructor has one)
+  argumentBindings: array<string>, // variable names for arguments (empty array if no args)
   body: blockStatement, // code to execute for this case
 }
 
@@ -96,8 +96,8 @@ let createTypeDeclaration = (name: string, constructors: array<variantConstructo
   TypeDeclaration(name, constructors)
 }
 
-let createVariantConstructor = (name: string, argument: option<expr>): astNode => {
-  VariantConstructor(name, argument)
+let createVariantConstructor = (name: string, arguments: array<expr>): astNode => {
+  VariantConstructor(name, arguments)
 }
 
 let createSwitchExpression = (scrutinee: expr, cases: array<matchCase>): astNode => {
