@@ -77,14 +77,14 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
 
     Ok({...state, variantTags: newVariantTags, variantTypes: newVariantTypes})
 
-  | AST.VariableDeclaration(name, expr) =>
+  | AST.VariableDeclaration(varName, expr) =>
     // Check if this is a constant (literal or HASH)
     switch expr {
     | AST.Literal(value) =>
       // Integer constant - add to defines
       let defineValue = CodegenTypes.NumberValue(value)
-      let newDefines = Belt.Map.String.set(state.defines, name, defineValue)
-      let newDefineOrder = Array.concat(state.defineOrder, [(name, defineValue)])
+      let newDefines = Belt.Map.String.set(state.defines, varName, defineValue)
+      let newDefineOrder = Array.concat(state.defineOrder, [(varName, defineValue)])
       Ok({...state, defines: newDefines, defineOrder: newDefineOrder})
 
     | AST.FunctionCall("hash", args) =>
@@ -95,8 +95,8 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
         switch args[0] {
         | Some(AST.ArgString(str)) =>
           let defineValue = CodegenTypes.HashExpr(str)
-          let newDefines = Belt.Map.String.set(state.defines, name, defineValue)
-          let newDefineOrder = Array.concat(state.defineOrder, [(name, defineValue)])
+          let newDefines = Belt.Map.String.set(state.defines, varName, defineValue)
+          let newDefineOrder = Array.concat(state.defineOrder, [(varName, defineValue)])
           Ok({...state, defines: newDefines, defineOrder: newDefineOrder})
         | _ => Error("hash() expects a string argument")
         }
@@ -104,13 +104,85 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
 
     | AST.RefCreation(valueExpr) =>
       // Mutable ref variable - allocate register
-      switch RegisterAlloc.allocateRef(state.allocator, name) {
+      switch RegisterAlloc.allocateRef(state.allocator, varName) {
       | Error(msg) => Error(msg)
       | Ok((allocator, refReg)) =>
         let state1 = {...state, allocator}
 
         // Check if this is a variant constructor - use fixed stack layout
         switch valueExpr {
+        | AST.Identifier(name) =>
+          // Check if this identifier is a zero-arg variant constructor
+          switch getVariantTypeName(state1, name) {
+          | Some(typeName) =>
+            // This is a zero-arg variant constructor - treat like VariantConstructor with no args
+            let constructorName = name
+            let arguments = []
+
+            // Continue with variant ref creation logic
+            switch Belt.Map.String.get(state1.variantTypes, typeName) {
+            | None => Error("Variant type not found: " ++ typeName)
+            | Some(constructors) =>
+              let maxArgs = getMaxArgsForVariantType(constructors)
+              let numConstructors = Array.length(constructors)
+
+              // Get the tag for this constructor
+              switch Belt.Map.String.get(state1.variantTags, constructorName) {
+              | None => Error("Constructor tag not found: " ++ constructorName)
+              | Some(tag) =>
+                // Step 1: Push tag
+                let state2 = addInstructionWithComment(
+                  state1,
+                  "push " ++ Int.toString(tag),
+                  "variant tag (" ++ constructorName ++ ")",
+                )
+
+                // Step 2: Push all slots (all placeholders for zero-arg constructor)
+                let rec pushSlots = (
+                  state: codegenState,
+                  slotIndex: int,
+                ): result<codegenState, string> => {
+                  if slotIndex >= numConstructors * maxArgs {
+                    Ok(state)
+                  } else {
+                    let state3 = addInstructionWithComment(
+                      state,
+                      "push 0",
+                      "placeholder slot " ++ Int.toString(slotIndex),
+                    )
+                    pushSlots(state3, slotIndex + 1)
+                  }
+                }
+
+                switch pushSlots(state2, 0) {
+                | Error(msg) => Error(msg)
+                | Ok(state3) =>
+                  // Step 3: Set ref register to point to stack[0]
+                  let state4 = addInstructionWithComment(
+                    state3,
+                    "move " ++ Register.toString(refReg) ++ " 0",
+                    "ref points to stack[0]",
+                  )
+
+                  // Track that this ref holds this variant type
+                  let newVariantRefTypes = Belt.Map.String.set(
+                    state4.variantRefTypes,
+                    varName,
+                    typeName,
+                  )
+
+                  Ok({...state4, variantRefTypes: newVariantRefTypes})
+                }
+              }
+            }
+
+          | None =>
+            // Not a variant constructor - error
+            Error(
+              "Cannot assign identifier to variable. Use 'let x = ref(y)' for mutable copy, or use constants (let x = 500 or let x = HASH(\"...\")).",
+            )
+          }
+
         | AST.VariantConstructor(constructorName, arguments) =>
           // This is a variant ref - use fixed stack layout
           switch getVariantTypeName(state1, constructorName) {
@@ -192,7 +264,7 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
                   // Track that this ref holds this variant type
                   let newVariantRefTypes = Belt.Map.String.set(
                     state4.variantRefTypes,
-                    name,
+                    varName,
                     typeName,
                   )
 
@@ -219,7 +291,7 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
 
     | AST.SwitchExpression(scrutinee, cases) =>
       // Switch expression in variable declaration
-      switch RegisterAlloc.allocateNormal(state.allocator, name) {
+      switch RegisterAlloc.allocateNormal(state.allocator, varName) {
       | Error(msg) => Error(msg)
       | Ok((allocator, varReg)) =>
         let state1 = {...state, allocator}
@@ -249,7 +321,7 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
 
     | _ =>
       // Normal variable (not a constant or ref) - allocate register
-      switch RegisterAlloc.allocateNormal(state.allocator, name) {
+      switch RegisterAlloc.allocateNormal(state.allocator, varName) {
       | Error(msg) => Error(msg)
       | Ok((allocator, varReg)) =>
         let state1 = {...state, allocator}
@@ -371,10 +443,91 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
     | Some({register: _, isRef: false}) =>
       Error(refName ++ " is not a ref - cannot use := operator")
     | Some({register: refReg, isRef: true}) =>
-      // Generate the new value directly into the ref register
-      switch ExprGen.generateInto(state, valueExpr, refReg) {
-      | Error(msg) => Error(msg)
-      | Ok(newState) => Ok(newState)
+      // Check if this is a variant ref
+      switch Belt.Map.String.get(state.variantRefTypes, refName) {
+      | Some(typeName) =>
+        // This is a variant ref - use poke instructions
+        switch valueExpr {
+        | AST.Identifier(name) =>
+          // Check if this is a zero-arg variant constructor
+          switch Belt.Map.String.get(state.variantTags, name) {
+          | Some(tag) =>
+            // Zero-arg variant constructor - just poke the tag
+            let state1 = addInstructionWithComment(
+              state,
+              "poke 0 " ++ Int.toString(tag),
+              "set tag to " ++ name,
+            )
+            Ok(state1)
+
+          | None => Error("Unknown variant constructor: " ++ name)
+          }
+
+        | AST.VariantConstructor(constructorName, arguments) =>
+          // Get variant type info
+          switch Belt.Map.String.get(state.variantTypes, typeName) {
+          | None => Error("Variant type not found: " ++ typeName)
+          | Some(constructors) =>
+            let maxArgs = getMaxArgsForVariantType(constructors)
+
+            // Get the tag for this constructor
+            switch Belt.Map.String.get(state.variantTags, constructorName) {
+            | None => Error("Constructor tag not found: " ++ constructorName)
+            | Some(tag) =>
+              // Step 1: Poke the tag to stack[0]
+              let state1 = addInstructionWithComment(
+                state,
+                "poke 0 " ++ Int.toString(tag),
+                "set tag to " ++ constructorName,
+              )
+
+              // Step 2: Poke all arguments to their slots
+              let rec pokeArgs = (
+                state: codegenState,
+                argIndex: int,
+              ): result<codegenState, string> => {
+                if argIndex >= Array.length(arguments) {
+                  Ok(state)
+                } else {
+                  switch Belt.Array.get(arguments, argIndex) {
+                  | None => pokeArgs(state, argIndex + 1)
+                  | Some(argExpr) =>
+                    // Generate the argument value into a temp register
+                    switch ExprGen.generate(state, argExpr) {
+                    | Error(msg) => Error(msg)
+                    | Ok((state2, argReg)) =>
+                      // Calculate the address: tag * maxArgs + 1 + argIndex
+                      let address = tag * maxArgs + 1 + argIndex
+                      let state3 = addInstructionWithComment(
+                        state2,
+                        "poke " ++
+                        Int.toString(address) ++
+                        " " ++
+                        Register.toString(argReg),
+                        constructorName ++ " arg" ++ Int.toString(argIndex),
+                      )
+
+                      // Free temp register
+                      let allocator = RegisterAlloc.freeTempIfTemp(state3.allocator, argReg)
+                      pokeArgs({...state3, allocator}, argIndex + 1)
+                    }
+                  }
+                }
+              }
+
+              pokeArgs(state1, 0)
+            }
+          }
+
+        | _ => Error("Variant ref can only be assigned variant constructors")
+        }
+
+      | None =>
+        // Not a variant ref - use old approach
+        switch ExprGen.generateInto(state, valueExpr, refReg) {
+        | Error(msg) => Error(msg)
+        | Ok(newState) => Ok(newState)
+        }
       }
     }
 
