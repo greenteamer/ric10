@@ -13,6 +13,7 @@ let create = (options: CodegenTypes.compilerOptions): codegenState => {
     labelCounter: 0,
     variantTypes: Belt.Map.String.empty,
     variantTags: Belt.Map.String.empty,
+    variantRefTypes: Belt.Map.String.empty,
     defines: Belt.Map.String.empty,
     defineOrder: [],
     options,

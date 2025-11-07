@@ -14,8 +14,9 @@ type codegenState = {
   stackAllocator: StackAlloc.stackAllocator,
   instructions: array<string>,
   labelCounter: int,
-  variantTypes: Belt.Map.String.t<array<AST.variantConstructor>>,
-  variantTags: Belt.Map.String.t<int>,
+  variantTypes: Belt.Map.String.t<array<AST.variantConstructor>>, // typeName -> constructors
+  variantTags: Belt.Map.String.t<int>, // constructorName -> tag
+  variantRefTypes: Belt.Map.String.t<string>, // refName -> typeName (tracks which refs hold which variant types)
   defines: Belt.Map.String.t<defineValue>,
   defineOrder: array<(string, defineValue)>,
   options: compilerOptions,

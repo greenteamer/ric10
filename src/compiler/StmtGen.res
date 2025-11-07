@@ -27,6 +27,28 @@ let addInstructionWithComment = (
   {...state, instructions: newInstructions}
 }
 
+// Helper: Calculate maximum arguments across all constructors in a variant type
+let getMaxArgsForVariantType = (constructors: array<AST.variantConstructor>): int => {
+  Array.reduce(constructors, 0, (maxArgs, constructor) => {
+    if constructor.argCount > maxArgs {
+      constructor.argCount
+    } else {
+      maxArgs
+    }
+  })
+}
+
+// Helper: Get variant type name from constructor name
+let getVariantTypeName = (
+  state: codegenState,
+  constructorName: string,
+): option<string> => {
+  // Search through variantTypes to find which type contains this constructor
+  Belt.Map.String.findFirstBy(state.variantTypes, (_typeName, constructors) => {
+    Array.some(constructors, constructor => constructor.name == constructorName)
+  })->Option.map(((typeName, _)) => typeName)
+}
+
 // Generate IC10 code for a statement
 let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState, string> => {
   Console.log2("[StmtGen] Generating statement: ", stmt)
@@ -86,10 +108,106 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
       | Error(msg) => Error(msg)
       | Ok((allocator, refReg)) =>
         let state1 = {...state, allocator}
-        // Generate the initial value directly into the ref register
-        switch ExprGen.generateInto(state1, valueExpr, refReg) {
-        | Error(msg) => Error(msg)
-        | Ok(newState) => Ok(newState)
+
+        // Check if this is a variant constructor - use fixed stack layout
+        switch valueExpr {
+        | AST.VariantConstructor(constructorName, arguments) =>
+          // This is a variant ref - use fixed stack layout
+          switch getVariantTypeName(state1, constructorName) {
+          | None => Error("Unknown variant constructor: " ++ constructorName)
+          | Some(typeName) =>
+            // Look up the full type definition
+            switch Belt.Map.String.get(state1.variantTypes, typeName) {
+            | None => Error("Variant type not found: " ++ typeName)
+            | Some(constructors) =>
+              let maxArgs = getMaxArgsForVariantType(constructors)
+              let numConstructors = Array.length(constructors)
+              let totalSlots = 1 + numConstructors * maxArgs // tag + (N * M)
+
+              // Get the tag for this constructor
+              switch Belt.Map.String.get(state1.variantTags, constructorName) {
+              | None => Error("Constructor tag not found: " ++ constructorName)
+              | Some(tag) =>
+                // Step 1: Push tag
+                let state2 = addInstructionWithComment(
+                  state1,
+                  "push " ++ Int.toString(tag),
+                  "variant tag (" ++ constructorName ++ ")",
+                )
+
+                // Step 2: Push all slots (initialized or placeholder)
+                let rec pushSlots = (
+                  state: codegenState,
+                  slotIndex: int,
+                ): result<codegenState, string> => {
+                  if slotIndex >= numConstructors * maxArgs {
+                    Ok(state)
+                  } else {
+                    // Calculate which constructor and arg this slot belongs to
+                    let constructorIndex = slotIndex / maxArgs
+                    let argIndex = mod(slotIndex, maxArgs)
+
+                    // Check if this is the active constructor's argument
+                    if constructorIndex == tag && argIndex < Array.length(arguments) {
+                      // Generate the actual argument value
+                      switch Belt.Array.get(arguments, argIndex) {
+                      | None => pushSlots(state, slotIndex + 1) // shouldn't happen
+                      | Some(argExpr) =>
+                        // Generate argument value into temp register
+                        switch ExprGen.generate(state, argExpr) {
+                        | Error(msg) => Error(msg)
+                        | Ok((state3, argReg)) =>
+                          let state4 = addInstructionWithComment(
+                            state3,
+                            "push " ++ Register.toString(argReg),
+                            constructorName ++ " arg" ++ Int.toString(argIndex),
+                          )
+                          // Free temp register
+                          let allocator = RegisterAlloc.freeTempIfTemp(state4.allocator, argReg)
+                          pushSlots({...state4, allocator}, slotIndex + 1)
+                        }
+                      }
+                    } else {
+                      // Placeholder slot (not used by active constructor)
+                      let state3 = addInstructionWithComment(
+                        state,
+                        "push 0",
+                        "placeholder slot " ++ Int.toString(slotIndex),
+                      )
+                      pushSlots(state3, slotIndex + 1)
+                    }
+                  }
+                }
+
+                switch pushSlots(state2, 0) {
+                | Error(msg) => Error(msg)
+                | Ok(state3) =>
+                  // Step 3: Set ref register to point to stack[0] (always 0)
+                  let state4 = addInstructionWithComment(
+                    state3,
+                    "move " ++ Register.toString(refReg) ++ " 0",
+                    "ref points to stack[0]",
+                  )
+
+                  // Track that this ref holds this variant type
+                  let newVariantRefTypes = Belt.Map.String.set(
+                    state4.variantRefTypes,
+                    name,
+                    typeName,
+                  )
+
+                  Ok({...state4, variantRefTypes: newVariantRefTypes})
+                }
+              }
+            }
+          }
+
+        | _ =>
+          // Not a variant - use old approach
+          switch ExprGen.generateInto(state1, valueExpr, refReg) {
+          | Error(msg) => Error(msg)
+          | Ok(newState) => Ok(newState)
+          }
         }
       }
 
