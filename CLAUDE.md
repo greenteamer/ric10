@@ -151,6 +151,7 @@ All tests pass and validate the compiler's correctness across different scenario
 ## Recent Changes
 
 ### Inverted Branch Logic Fix (Latest)
+
 - **Fixed critical bug**: If-only statements were executing then blocks regardless of condition
 - Added `generateInvertedBranch` function for correct if-only code generation
 - **If-only**: Uses inverted branches (`bge`, `ble`, `bne`) to jump to end when condition is FALSE
@@ -159,6 +160,7 @@ All tests pass and validate the compiler's correctness across different scenario
 - Example: `if a < b { c }` now generates `bge r0 r1 label0; [then]; label0:` (was incorrectly `blt r0 r1 label0; label0: [then]`)
 
 ### If Statement Implementation
+
 - Added `If` and `Else` tokens to lexer
 - Implemented recursive descent parsing for if/else statements with mutual recursion
 - Added variable scoping and shadowing support in register allocator
@@ -167,6 +169,7 @@ All tests pass and validate the compiler's correctness across different scenario
 - Created comprehensive test coverage for all language features
 
 ### Key Optimizations
+
 - **Inverted Branches for If-Only**: `if x < 5 { a }` generates `bge r0 5 label0; [then]; label0:` (skip then block when false)
 - **Direct Branch Instructions**: Single instruction branches instead of `slt`/`beqz` patterns
 - **Variable Shadowing**: Reuses registers when variables are shadowed in inner scopes
@@ -184,4 +187,7 @@ When working on this project, Claude should:
 6. **Consider register allocation constraints** in all code generation changes
 7. **Run tests after changes** to ensure correctness (`npm test`)
 8. **Update test expectations** when modifying compiler behavior
+
 - You can use npm run res:build to check correctness
+- Don't touch IR related code if I'm not asking about it explicitly
+

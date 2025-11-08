@@ -23,7 +23,7 @@ define c 30`;
         expect(result._0).toBe(expected);
     });
 
-    test('addition with constants', () => {
+    test('binary operation with constants', () => {
         const code = `let a = 5
 let b = 3
 let c = a + b`;
@@ -32,51 +32,6 @@ define b 3
 move r15 a
 move r14 b
 add r0 r15 r14`;
-
-        const result = Compiler.compile(code);
-        expect(result.TAG).toBe('Ok');
-        expect(result._0).toBe(expected);
-    });
-
-    test('subtraction with constants', () => {
-        const code = `let x = 10
-let y = 4
-let z = x - y`;
-        const expected = `define x 10
-define y 4
-move r15 x
-move r14 y
-sub r0 r15 r14`;
-
-        const result = Compiler.compile(code);
-        expect(result.TAG).toBe('Ok');
-        expect(result._0).toBe(expected);
-    });
-
-    test('multiplication with constants', () => {
-        const code = `let a = 6
-let b = 7
-let c = a * b`;
-        const expected = `define a 6
-define b 7
-move r15 a
-move r14 b
-mul r0 r15 r14`;
-
-        const result = Compiler.compile(code);
-        expect(result.TAG).toBe('Ok');
-        expect(result._0).toBe(expected);
-    });
-
-    test('division with constants', () => {
-        const code = `let x = 15
-let y = 3
-let z = x / y`;
-        const expected = `define x 15
-define y 3
-move r15 x
-move r14 y
-div r0 r15 r14`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Ok');

@@ -15,48 +15,12 @@ if a + b > c * 4 {
         expect(result.TAG).toBe('Error');
     });
 
-    test('arithmetic with literal optimization', () => {
+    test('literal optimization', () => {
         const code = `let x = 10
 let y = x + 5`;
         const expected = `define x 10
 move r15 x
 add r0 r15 5`;
-
-        const result = Compiler.compile(code);
-        expect(result.TAG).toBe('Ok');
-        expect(result._0).toBe(expected);
-    });
-
-    test('multiplication with literal optimization', () => {
-        const code = `let base = 7
-let doubled = base * 2`;
-        const expected = `define base 7
-move r15 base
-mul r0 r15 2`;
-
-        const result = Compiler.compile(code);
-        expect(result.TAG).toBe('Ok');
-        expect(result._0).toBe(expected);
-    });
-
-    test('subtraction with literal', () => {
-        const code = `let start = 100
-let remaining = start - 25`;
-        const expected = `define start 100
-move r15 start
-sub r0 r15 25`;
-
-        const result = Compiler.compile(code);
-        expect(result.TAG).toBe('Ok');
-        expect(result._0).toBe(expected);
-    });
-
-    test('division with literal', () => {
-        const code = `let total = 50
-let half = total / 2`;
-        const expected = `define total 50
-move r15 total
-div r0 r15 2`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Ok');

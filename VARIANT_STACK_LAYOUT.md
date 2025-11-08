@@ -32,15 +32,19 @@ stack[6]     = Variant 2, Argument 1
 Given a variant type with `N` constructors, each supporting up to `M` arguments:
 
 **Total stack slots needed:** `1 + (N * M)`
+
 - 1 slot for the variant tag
 - N × M slots for all possible arguments
+  https://excalidraw.com/#json=eoEP3WZFL6GMkwmUvAAgG,sELPVBW5f9Ik2IF9lDjx3A
 
 **Argument address calculation:**
+
 ```
 stack[variantTag * M + 1 + argIndex]
 ```
 
 Where:
+
 - `variantTag` = 0, 1, 2, ... (the current variant)
 - `M` = maximum arguments per constructor (fixed at compile time)
 - `argIndex` = 0, 1, ... (which argument)
@@ -176,6 +180,7 @@ push 1          # Writes to stack[0]! (because sp was 0)
 ```
 
 In loops, this caused:
+
 - Stack pointer corruption
 - Variants being overwritten at stack[0]
 - Switch always matching the last-written value
@@ -191,6 +196,7 @@ poke 0 1        # Write to stack[0] without touching sp
 ```
 
 Benefits:
+
 - `sp` never changes after initialization
 - No stack corruption in loops
 - Stack layout is predictable and fixed
@@ -201,11 +207,13 @@ Benefits:
 ### Determining Maximum Arguments
 
 When parsing a type declaration:
+
 ```rescript
 type state = Idle | Fill(int, int) | Waiting(int)
 ```
 
 The compiler calculates:
+
 - Number of variants: 3
 - Maximum arguments: 2 (from `Fill`)
 - **Normalize to 2 arguments per variant**
@@ -235,6 +243,7 @@ Fill(100, 200)
 ```
 
 Addresses:
+
 - Tag: `stack[0]` = 1
 - Arg0: `stack[1 * 2 + 1]` = `stack[3]` = 100
 - Arg1: `stack[1 * 2 + 2]` = `stack[4]` = 200
@@ -245,6 +254,7 @@ Waiting(42)
 ```
 
 Addresses:
+
 - Tag: `stack[0]` = 2
 - Arg0: `stack[2 * 2 + 1]` = `stack[5]` = 42
 - Arg1: `stack[2 * 2 + 2]` = `stack[6]` = unused
@@ -319,12 +329,14 @@ Addresses:
 IC10 provides 16 registers (r0-r15). We use a split allocation strategy:
 
 **Variable Registers** (r0-r13):
+
 - User-declared variables (`let x = 5`)
 - Persistent across statements
 - Tracked in symbol table
 - Allocated from low to high
 
 **Temp Registers** (r15-r14-r13...):
+
 - Pattern match bindings (variant arguments)
 - Intermediate computation results
 - Short-lived (within single expression/case)
@@ -341,11 +353,13 @@ switch state.contents {
 ```
 
 The bindings `p` and `t` are:
+
 - ✅ **Only live within each case** - not needed after the case completes
 - ✅ **Reusable across cases** - different cases can reuse the same temp registers
 - ✅ **Don't pollute variable space** - leaves r0-r13 for actual program variables
 
 **Assembly with temp registers:**
+
 ```asm
 case_idle:
     get r15 db 1        # p (temp)

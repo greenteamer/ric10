@@ -160,12 +160,9 @@ while true {
 }`;
         const expected = `define temp 100
 push 0
-move r0 sp
-sub r0 r0 1
+move r0 0
 label0:
-push 1
-move r0 sp
-sub r0 r0 1
+poke 0 1
 yield
 j label0`;
 

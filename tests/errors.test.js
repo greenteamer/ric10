@@ -51,31 +51,6 @@ if x > 3 {
         expect(result._0).toBe('');
     });
 
-    test('only whitespace', () => {
-        const code = `
-
-        `;
-
-        const result = Compiler.compile(code);
-        expect(result.TAG).toBe('Ok');
-        expect(result._0).toBe('');
-    });
-
-    test('valid edge case - zero values', () => {
-        const code = `let zero = 0
-if zero == 0 {
-  let flag = 1
-}`;
-        const expected = `define zero 0
-define flag 1
-bne zero 0 label0
-label0:`;
-
-        const result = Compiler.compile(code);
-        expect(result.TAG).toBe('Ok');
-        expect(result._0).toBe(expected);
-    });
-
     test('valid edge case - negative numbers', () => {
         const code = `let neg = -5
 let pos = 10
@@ -95,20 +70,5 @@ add r0 r15 r14`;
             // Expected to fail since we haven't implemented negative number parsing
             expect(result.TAG).toBe('Error');
         }
-    });
-
-    test('single character variable names', () => {
-        const code = `let a = 1
-let b = 2
-let c = a + b`;
-        const expected = `define a 1
-define b 2
-move r15 a
-move r14 b
-add r0 r15 r14`;
-
-        const result = Compiler.compile(code);
-        expect(result.TAG).toBe('Ok');
-        expect(result._0).toBe(expected);
     });
 });

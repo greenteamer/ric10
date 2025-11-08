@@ -68,9 +68,9 @@ describe('Switch Statement Comprehensive Tests', () => {
       expect(result.TAG).toBe('Ok');
       const asm = result._0;
 
-      // Should have payload extraction
-      expect(asm).toContain('add sp');
-      expect(asm).toContain('peek');
+      // Should have payload extraction using get db
+      expect(asm).toContain('get r');
+      expect(asm).toContain('db');
 
       // Should have case labels
       expect(asm).toContain('match_case_');
@@ -89,10 +89,10 @@ describe('Switch Statement Comprehensive Tests', () => {
       expect(result.TAG).toBe('Ok');
       const asm = result._0;
 
-      // Should extract payload and use it
-      expect(asm).toContain('add sp');
-      expect(asm).toContain('peek');
-      expect(asm).toContain('move r');
+      // Should extract payload using get db and use it
+      expect(asm).toContain('get r');
+      expect(asm).toContain('db');
+      expect(asm).toContain('move');
     });
   });
 
@@ -171,9 +171,9 @@ describe('Switch Statement Comprehensive Tests', () => {
       expect(result.TAG).toBe('Ok');
       const asm = result._0;
 
-      // Should have payload extraction
-      expect(asm).toContain('add sp');
-      expect(asm).toContain('peek');
+      // Should have payload extraction using get db
+      expect(asm).toContain('get r');
+      expect(asm).toContain('db');
 
       // Should call IC10 function
       expect(asm).toContain('sbn');
@@ -205,7 +205,8 @@ describe('Switch Statement Comprehensive Tests', () => {
 
       // Should have switch and payload extraction
       expect(asm).toContain('match_case_');
-      expect(asm).toContain('add sp');
+      expect(asm).toContain('get r');
+      expect(asm).toContain('db');
 
       // Should have if check and load
       expect(asm).toContain('label'); // if statement creates labels
@@ -242,9 +243,9 @@ describe('Switch Statement Comprehensive Tests', () => {
       expect(result.TAG).toBe('Ok');
       const asm = result._0;
 
-      // Should have all switch infrastructure
-      expect(asm).toContain('move sp');
-      expect(asm).toContain('peek');
+      // Should have all switch infrastructure using get db
+      expect(asm).toContain('get r');
+      expect(asm).toContain('db');
       expect(asm).toContain('beq');
 
       // Should have all three cases
@@ -257,8 +258,9 @@ describe('Switch Statement Comprehensive Tests', () => {
       // Should have if statement in Fill case
       expect(asm).toContain('blt');
 
-      // Should have variant construction
+      // Should have variant construction and poke for assignments
       expect(asm).toContain('push');
+      expect(asm).toContain('poke');
 
       // Should end properly
       expect(asm).toContain('match_end_');
@@ -320,9 +322,9 @@ describe('Switch Statement Comprehensive Tests', () => {
       // Should have all four cases
       expect((asm.match(/match_case_/g) || []).length).toBeGreaterThanOrEqual(4);
 
-      // Should have payload extraction for some cases
-      expect(asm).toContain('add sp');
-      expect(asm).toContain('peek');
+      // Should have payload extraction using get db for some cases
+      expect(asm).toContain('get r');
+      expect(asm).toContain('db');
     });
   });
 });
