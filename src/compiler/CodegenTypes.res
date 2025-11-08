@@ -4,6 +4,7 @@
 type compilerOptions = {
   debugAST: bool,
   includeComments: bool,
+  useIR: bool,
 }
 
 type defineValue =

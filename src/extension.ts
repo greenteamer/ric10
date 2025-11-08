@@ -35,8 +35,9 @@ async function compileReScriptToIC10() {
 
   // Use the ReScript compiler (now using Lexer)
   const compileResult = Compiler.compile(sourceCode, {
-    includeComments: true,
-    debugAST: true,
+    includeComments: false,
+    debugAST: false,
+    useIR: true,
   });
   switch (compileResult.TAG) {
     case "Ok":
@@ -50,7 +51,7 @@ async function compileReScriptToIC10() {
       });
       await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
     case "Error":
-      // vscode.window.showErrorMessage(compileResult._0);
+      vscode.window.showErrorMessage(compileResult._0);
       return;
   }
 }

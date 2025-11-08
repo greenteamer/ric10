@@ -29,6 +29,7 @@ type branchOp =
   | BEQ
   | BLE
   | BGE
+  | BNE
 
 type instr =
   | DefInt(string, int)
@@ -40,7 +41,7 @@ type instr =
   | Binary(binOp, vreg, operand, operand)
   | Goto(string)
   | Label(string)
-  | Branch
+  | Branch(branchOp, operand, operand, string)
 
 type block = {
   name: string,
