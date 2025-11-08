@@ -21,7 +21,8 @@ let compile = (source: string, ~options: option<CodegenTypes.compilerOptions>=?,
     | Error(msg) => Error("Parser error: " ++ msg)
     | Ok(_ast) =>
       // Step 3: Code generation with options
-      Codegen.generate(_ast, compilerOptions)
+      // Codegen.generate(_ast, compilerOptions)
+      IRGen.generate(_ast)
     }
   }
 }

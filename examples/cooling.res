@@ -4,7 +4,7 @@ let gasSensors = hash("StructureGasSensor")
 let atmSensor = hash("AtmSensor")
 let maxTemp = 403
 
-type state = Idle | Purge | Fill
+type state = Idle | Purge(int) | Fill(int)
 let state = ref(Idle)
 
 while true {
@@ -14,22 +14,22 @@ while true {
   | Idle =>
     if tankPressure < 3500 {
       if atmTemp < maxTemp {
-        state := Fill
+        state := Fill(tankPressure)
       }
     } else {
-      state := Purge
+      state := Purge(tankPressure)
     }
-  | Purge =>
+  | Purge(pressure) =>
     if tankPressure < 500 {
       state := Idle
     } else {
-      state := Purge
+      state := Purge(pressure)
     }
-  | Fill =>
+  | Fill(pressure) =>
     if tankPressure > 4000 {
       state := Idle
     } else {
-      state := Fill
+      state := Fill(pressure)
     }
   }
   %raw("yield")
