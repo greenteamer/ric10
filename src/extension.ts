@@ -11,7 +11,7 @@ export function activate(context: vscode.ExtensionContext) {
     "rescript-ic10.compile",
     async () => {
       await compileReScriptToIC10();
-    },
+    }
   );
 
   context.subscriptions.push(compileCommand);
@@ -25,7 +25,7 @@ async function compileReScriptToIC10() {
 
   if (!editor) {
     vscode.window.showErrorMessage(
-      "No active editor found. Please open a ReScript file.",
+      "No active editor found. Please open a ReScript file."
     );
     return;
   }
@@ -34,16 +34,23 @@ async function compileReScriptToIC10() {
   const sourceCode = document.getText();
 
   // Use the ReScript compiler (now using Lexer)
-  const compileResult = Compiler.compile(sourceCode, { includeComments: true });
+  const compileResult = Compiler.compile(sourceCode, {
+    includeComments: true,
+    debugAST: true,
+  });
   switch (compileResult.TAG) {
     case "Ok":
+      const content =
+        compileResult._0.TAG === "Program"
+          ? compileResult._0._0
+          : JSON.stringify(compileResult._0._0);
       const doc = await vscode.workspace.openTextDocument({
-        content: compileResult._0,
-        language: "ic10", // You may need to configure IC10 language support later
+        content,
+        language: compileResult._0.TAG === "Program" ? "ic10" : "json", // You may need to configure IC10 language support later
       });
       await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
     case "Error":
-      vscode.window.showErrorMessage(compileResult._0);
+      // vscode.window.showErrorMessage(compileResult._0);
       return;
   }
 }

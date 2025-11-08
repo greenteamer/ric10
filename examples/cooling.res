@@ -2,9 +2,11 @@ let tanks = hash("StructureTankBigInsulated")
 let atmTank = hash("AtmTank")
 let gasSensors = hash("StructureGasSensor")
 let atmSensor = hash("AtmSensor")
-let maxTemp = 403
+let nightTemp = 403
+let stormTemp = 373
 
-type state = Idle | Purge(int) | Fill(int)
+type state = Idle | Purge | Fill
+
 let state = ref(Idle)
 
 while true {
@@ -13,23 +15,23 @@ while true {
   switch state.contents {
   | Idle =>
     if tankPressure < 3500 {
-      if atmTemp < maxTemp {
-        state := Fill(tankPressure)
+      if atmTemp < nightTemp {
+        state := Fill
       }
     } else {
-      state := Purge(tankPressure)
+      state := Purge
     }
-  | Purge(pressure) =>
+  | Purge =>
     if tankPressure < 500 {
       state := Idle
     } else {
-      state := Purge(pressure)
+      state := Purge
     }
-  | Fill(pressure) =>
-    if tankPressure > 4000 {
+  | Fill =>
+    if tankPressure > 3500 {
       state := Idle
     } else {
-      state := Fill(pressure)
+      state := Fill
     }
   }
   %raw("yield")

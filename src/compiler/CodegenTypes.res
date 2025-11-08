@@ -2,6 +2,7 @@
 // Avoids type incompatibility issues between StmtGen, ExprGen, BranchGen, etc.
 
 type compilerOptions = {
+  debugAST: bool,
   includeComments: bool,
 }
 

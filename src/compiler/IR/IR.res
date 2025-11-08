@@ -1,5 +1,3 @@
-type name = string
-type label = string
 type vreg = int
 
 type operand =
@@ -32,23 +30,20 @@ type branchOp =
   | BLE
   | BGE
 
-type defOperand =
-  | DefNum(int)
-  | DefHash(name)
-
 type instr =
-  | Def(name, defOperand)
+  | DefInt(string, int)
+  | DefHash(string, string)
   | Move(vreg, operand)
   | Load(vreg, device, deviceParam, option<bulkOption>)
   | Save(device, deviceParam, vreg)
   | Unary(unOp, vreg, operand)
   | Binary(binOp, vreg, operand, operand)
-  | Goto(label)
-  | Label(label)
+  | Goto(string)
+  | Label(string)
   | Branch
 
 type block = {
-  name: name,
+  name: string,
   instructions: list<instr>,
 }
 
