@@ -39,6 +39,7 @@ type instr =
   | Save(device, deviceParam, vreg)
   | Unary(vreg, unOp, operand)
   | Binary(vreg, binOp, operand, operand)
+  | Compare(vreg, compareOp, operand, operand)
   | Goto(string)
   | Label(string)
   | Bnez(operand, string)

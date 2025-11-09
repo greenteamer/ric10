@@ -81,6 +81,25 @@ let generateInstr = (state: state, instr: IR.instr): result<state, string> => {
       })
     }
 
+  | Compare(vreg, op, left, right) => {
+      let opStr = switch op {
+      | LtOp => "slt"
+      | GtOp => "sgt"
+      | EqOp => "seq"
+      | GeOp => "sge"
+      | LeOp => "sle"
+      | NeOp => "sne"
+      }
+
+      allocatePhysicalReg(state, vreg)->Result.flatMap(((state, resultReg)) => {
+        convertOperand(state, left)->Result.flatMap(((state, leftStr)) => {
+          convertOperand(state, right)->Result.map(((state, rightStr)) => {
+            emit(state, `${opStr} r${Int.toString(resultReg)} ${leftStr} ${rightStr}`)
+          })
+        })
+      })
+    }
+
   | Label(label) => Ok(emit(state, `${label}:`))
 
   | Goto(label) => Ok(emit(state, `j ${label}`))

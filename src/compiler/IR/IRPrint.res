@@ -23,6 +23,18 @@ let printBinOp = (op: IR.binOp): string => {
   }
 }
 
+// Format a comparison operator
+let printCompareOp = (op: IR.compareOp): string => {
+  switch op {
+  | LtOp => "slt"
+  | GtOp => "sgt"
+  | EqOp => "seq"
+  | GeOp => "sge"
+  | LeOp => "sle"
+  | NeOp => "sne"
+  }
+}
+
 // Format an instruction
 let printInstr = (instr: IR.instr): string => {
   switch instr {
@@ -62,6 +74,8 @@ let printInstr = (instr: IR.instr): string => {
     }
   | Binary(vreg, op, left, right) =>
     `${printBinOp(op)} ${printVReg(vreg)} ${printOperand(left)} ${printOperand(right)}`
+  | Compare(vreg, op, left, right) =>
+    `${printCompareOp(op)} ${printVReg(vreg)} ${printOperand(left)} ${printOperand(right)}`
   | Goto(label) => `j ${label}`
   | Label(label) => `${label}:`
   | Bnez(operand, label) => `bnez ${printOperand(operand)} ${label}`
