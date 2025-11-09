@@ -7,7 +7,8 @@ Incrementally migrate the compiler from direct AST → IC10 to AST → IR → IC
 **Key Decisions:**
 - **Approach**: Incremental migration (simple constructs first, expand gradually)
 - **Tests**: Allow temporary failures during transition, fix in Phase 4
-- **Optimizations**: Match current functionality exactly (no new optimizations yet)
+- **Branching Strategy**: Uniform `Compare` + `Bnez` pattern (simple IR, optimize later)
+- **Optimizations**: Phase 2 generates 2-instruction branches; future peephole optimization will fuse to 1
 - **Register Allocation**: Virtual registers in IR → Physical allocation as separate pass
 
 ---
@@ -170,94 +171,295 @@ Add branching logic to enable IR pipeline.
 
 ## Phase 2: Control Flow (If/Else)
 
-**Goal**: Match current branching behavior with inverted/direct branch logic
+**Goal**: Implement uniform branching with `Compare` + `Bnez` pattern
 
-### 2.1 Extend IRGen for conditionals
+**Strategy**: Generate simple 2-instruction branches (Compare → Bnez) in Phase 2. Future peephole optimization will fuse these into single IC10 branch instructions.
 
-Add support for comparison operations and if/else statements.
+### 2.1 Extend IR with comparison and branch instructions
+
+Add new instruction types to `IR.res`:
+
+**New types:**
+```rescript
+type compareOp = LtOp | GtOp | EqOp | GeOp | LeOp | NeOp
+
+type instr =
+  | Move(int, operand)
+  | Binary(binaryOp, int, operand, operand)
+  | Compare(int, compareOp, operand, operand)  // dest = (left op right) ? 1 : 0
+  | Bnez(operand, string)                       // if operand != 0, jump to label
+  | Label(string)                               // jump target
+  | Goto(string)                                // unconditional jump
+  // ... other existing instructions
+```
+
+**Note**: We use only `Bnez` (not `Beqz`) for simplicity. If-only uses inverted comparison operators.
+
+### 2.2 Add comparison operator helpers
+
+Create helper functions in `IRGen.res`:
+
+```rescript
+let invertCompareOp = (op: AST.binaryOp): IR.compareOp => {
+  switch op {
+  | Lt => GeOp  // NOT(a < b) is (a >= b)
+  | Gt => LeOp  // NOT(a > b) is (a <= b)
+  | Eq => NeOp  // NOT(a == b) is (a != b)
+  | _ => failwith("Not a comparison operator")
+  }
+}
+
+let normalCompareOp = (op: AST.binaryOp): IR.compareOp => {
+  switch op {
+  | Lt => LtOp
+  | Gt => GtOp
+  | Eq => EqOp
+  | _ => failwith("Not a comparison operator")
+  }
+}
+```
+
+### 2.3 Extend generateExpr for comparisons
 
 **Modifications to `generateExpr()`:**
-- Add comparison operations: `Lt`, `Gt`, `Eq`
-- These don't allocate registers, they're used directly in Branch instructions
 
-**New functions:**
+Handle comparison operators by emitting `Compare` instruction:
 
-1. **`generateIfOnly(state, condition, thenBlock) → state`**
-   - Generate comparison (extract left, right, op)
-   - Allocate end label: `endLabel = j$"label{nextLabel}"`
-   - Emit inverted branch: `Branch(invertedOp, leftVreg, rightVreg, endLabel)`
-     - `Lt` → `BGE` (branch if greater-or-equal, skip then block)
-     - `Gt` → `BLE` (branch if less-or-equal, skip then block)
-     - `Eq` → `BNE` (branch if not-equal, skip then block)
-   - Generate then block instructions
-   - Emit `Label(endLabel)`
+```rescript
+| BinaryExpression(left, (Lt | Gt | Eq as cmpOp), right) => {
+    // Generate left operand
+    let (state, leftVreg) = generateExpr(state, left)
+    // Generate right operand
+    let (state, rightVreg) = generateExpr(state, right)
+    // Allocate result vreg
+    let resultVreg = state.nextVReg
+    let state = {...state, nextVReg: state.nextVReg + 1}
+    // Map AST comparison to IR compareOp
+    let irOp = normalCompareOp(cmpOp)  // Use normal (not inverted) here
+    // Emit Compare instruction
+    let state = emitInstr(state, Compare(resultVreg, irOp, VReg(leftVreg), VReg(rightVreg)))
+    // Return state with result vreg
+    (state, resultVreg)
+  }
+```
 
-2. **`generateIfElse(state, condition, thenBlock, elseBlock) → state`**
-   - Generate comparison (extract left, right, op)
-   - Allocate labels: `thenLabel`, `endLabel`
-   - Emit direct branch: `Branch(op, leftVreg, rightVreg, thenLabel)`
-     - `Lt` → `BLT` (branch to then if less-than)
-     - `Gt` → `BGT` (branch to then if greater-than)
-     - `Eq` → `BEQ` (branch to then if equal)
-   - Generate else block instructions
-   - Emit `Goto(endLabel)`
-   - Emit `Label(thenLabel)`
-   - Generate then block instructions
-   - Emit `Label(endLabel)`
+### 2.4 Implement if-only statement generation
 
-3. **Update `generateStmt()` to handle `IfStatement`**
+**New function:**
 
-### 2.2 Extend IRToIC10 for branches
+```rescript
+let generateIfOnly = (state, condition, thenBlock) => {
+  // 1. Extract comparison operator and operands from condition
+  // 2. Generate left and right operands
+  let (state, leftVreg) = generateExpr(state, leftExpr)
+  let (state, rightVreg) = generateExpr(state, rightExpr)
 
-Add codegen for control flow instructions.
+  // 3. Allocate result vreg and emit INVERTED comparison
+  let resultVreg = state.nextVReg
+  let state = {...state, nextVReg: state.nextVReg + 1}
+  let invertedOp = invertCompareOp(op)  // Lt → GeOp, etc.
+  let state = emitInstr(state, Compare(resultVreg, invertedOp, VReg(leftVreg), VReg(rightVreg)))
 
-**New instruction handlers in `generateInstr()`:**
+  // 4. Allocate end label
+  let endLabel = `label${state.nextLabel}`
+  let state = {...state, nextLabel: state.nextLabel + 1}
 
-1. **`Branch(op, leftOperand, rightOperand, label)`**
-   - Convert operands to IC10 format
-   - Map IR branch ops to IC10:
-     - `BLT` → `blt`
-     - `BGT` → `bgt`
-     - `BEQ` → `beq`
-     - `BGE` → `bge`
-     - `BLE` → `ble`
-     - `BNE` → `bne`
-   - Emit: `<op> <left> <right> <label>`
+  // 5. Emit Bnez - if inverted condition is true (original is false), skip then block
+  let state = emitInstr(state, Bnez(VReg(resultVreg), endLabel))
 
-2. **`Label(name)`**
-   - Emit: `<name>:`
+  // 6. Generate then block
+  let state = generateBlock(state, thenBlock)
 
-3. **`Goto(label)`**
-   - Emit: `j <label>`
+  // 7. Emit end label
+  let state = emitInstr(state, Label(endLabel))
 
-### 2.3 Test if/else patterns
+  state
+}
+```
+
+### 2.5 Implement if-else statement generation
+
+**New function:**
+
+```rescript
+let generateIfElse = (state, condition, thenBlock, elseBlock) => {
+  // 1. Extract comparison and generate operands
+  let (state, leftVreg) = generateExpr(state, leftExpr)
+  let (state, rightVreg) = generateExpr(state, rightExpr)
+
+  // 2. Allocate result vreg and emit NORMAL comparison
+  let resultVreg = state.nextVReg
+  let state = {...state, nextVReg: state.nextVReg + 1}
+  let normalOp = normalCompareOp(op)  // Lt → LtOp, etc.
+  let state = emitInstr(state, Compare(resultVreg, normalOp, VReg(leftVreg), VReg(rightVreg)))
+
+  // 3. Allocate labels
+  let thenLabel = `label${state.nextLabel}`
+  let endLabel = `label${state.nextLabel + 1}`
+  let state = {...state, nextLabel: state.nextLabel + 2}
+
+  // 4. Emit Bnez - if condition is true, jump to then
+  let state = emitInstr(state, Bnez(VReg(resultVreg), thenLabel))
+
+  // 5. Generate else block (falls through)
+  let state = generateBlock(state, elseBlock)
+
+  // 6. Jump over then block
+  let state = emitInstr(state, Goto(endLabel))
+
+  // 7. Then block label
+  let state = emitInstr(state, Label(thenLabel))
+
+  // 8. Generate then block
+  let state = generateBlock(state, thenBlock)
+
+  // 9. End label
+  let state = emitInstr(state, Label(endLabel))
+
+  state
+}
+```
+
+### 2.6 Update generateStmt for IfStatement
+
+Add case to `generateStmt()`:
+
+```rescript
+| IfStatement(condition, thenBlock, elseBlock) => {
+    switch elseBlock {
+    | None => generateIfOnly(state, condition, thenBlock)
+    | Some(block) => generateIfElse(state, condition, thenBlock, block)
+    }
+  }
+```
+
+### 2.7 Extend IRToIC10 for new instructions
+
+Add handlers in `generateInstr()`:
+
+```rescript
+| Compare(vreg, op, left, right) => {
+    let (state, destReg) = allocatePhysicalReg(state, vreg)
+    let (state, leftStr) = convertOperand(state, left)
+    let (state, rightStr) = convertOperand(state, right)
+
+    let ic10Op = switch op {
+    | LtOp => "slt"
+    | GtOp => "sgt"
+    | EqOp => "seq"
+    | GeOp => "sge"
+    | LeOp => "sle"
+    | NeOp => "sne"
+    }
+
+    emitInstruction(state, `${ic10Op} ${destReg} ${leftStr} ${rightStr}`)
+  }
+
+| Bnez(operand, label) => {
+    let (state, opStr) = convertOperand(state, operand)
+    emitInstruction(state, `bnez ${opStr} ${label}`)
+  }
+
+| Label(name) => {
+    emitInstruction(state, `${name}:`)
+  }
+
+| Goto(label) => {
+    emitInstruction(state, `j ${label}`)
+  }
+```
+
+### 2.8 Update IRPrint for new instructions
+
+Add pretty-printing:
+
+```rescript
+| Compare(vreg, op, left, right) =>
+    `${compareOpToString(op)} v${vreg} ${operandToString(left)} ${operandToString(right)}`
+| Bnez(operand, label) =>
+    `bnez ${operandToString(operand)} ${label}`
+| Label(name) =>
+    `${name}:`
+| Goto(label) =>
+    `j ${label}`
+```
+
+### 2.9 Test if/else patterns
 
 **Test cases:**
 
-1. If-only with inverted branch:
+1. **If-only with inverted comparison:**
    ```rescript
    if a < b {
-     c = 1
+     let c = 1
    }
    ```
-   - IR: `Branch(BGE, vA, vB, label0)`, `Move(vC, Num(1))`, `Label(label0)`
-   - IC10: `bge r0 r1 label0`, `move r2 1`, `label0:`
+   - IR: `Compare(v2, GeOp, VReg(v0), VReg(v1))`, `Bnez(VReg(v2), label0)`, `Move(v3, Num(1))`, `Label(label0)`
+   - IC10 (unoptimized): `sge r2 r0 r1`, `bnez r2 label0`, `move r3 1`, `label0:`
+   - Future optimized: `bge r0 r1 label0`, `move r2 1`, `label0:`
 
-2. If-else with direct branch:
+2. **If-else with normal comparison:**
    ```rescript
    if a < b {
-     c = 1
+     let c = 1
    } else {
-     c = 2
+     let c = 2
    }
    ```
-   - IR: `Branch(BLT, vA, vB, label1)`, `Move(vC, Num(2))`, `Goto(label0)`, `Label(label1)`, `Move(vC, Num(1))`, `Label(label0)`
-   - IC10: `blt r0 r1 label1`, `move r2 2`, `j label0`, `label1:`, `move r2 1`, `label0:`
+   - IR: `Compare(v2, LtOp, VReg(v0), VReg(v1))`, `Bnez(VReg(v2), label1)`, `Move(v3, Num(2))`, `Goto(label0)`, `Label(label1)`, `Move(v4, Num(1))`, `Label(label0)`
+   - IC10 (unoptimized): `slt r2 r0 r1`, `bnez r2 label1`, `move r3 2`, `j label0`, `label1:`, `move r4 1`, `label0:`
+   - Future optimized: `blt r0 r1 label1`, `move r2 2`, `j label0`, `label1:`, `move r3 1`, `label0:`
 
 3. Nested if statements
-4. If with block scope (variable shadowing)
+4. Multiple consecutive if statements
 
-**Success criteria:** All if/else tests produce correct IC10 output with proper branch logic.
+**Success criteria:**
+- All if/else tests generate correct 2-instruction IC10 branches
+- Logic is correct (proper condition evaluation)
+- Labels are unique and correctly placed
+
+---
+
+## Phase 2.5: Peephole Optimization (Future Enhancement)
+
+**Goal**: Optimize Compare + Bnez sequences into single IC10 branch instructions
+
+**When**: After Phase 4 is complete and all tests pass
+
+**Approach**: Add peephole optimization pass in IRToIC10 or create new `IC10Optimizer.res` module
+
+### Optimization Patterns
+
+Detect and fuse these patterns:
+
+```
+slt rTemp rLeft rRight  +  bnez rTemp label  →  blt rLeft rRight label
+sgt rTemp rLeft rRight  +  bnez rTemp label  →  bgt rLeft rRight label
+seq rTemp rLeft rRight  +  bnez rTemp label  →  beq rLeft rRight label
+sge rTemp rLeft rRight  +  bnez rTemp label  →  bge rLeft rRight label
+sle rTemp rLeft rRight  +  bnez rTemp label  →  ble rLeft rRight label
+sne rTemp rLeft rRight  +  bnez rTemp label  →  bne rLeft rRight label
+```
+
+### Implementation Strategy
+
+1. **Pattern matching**: Scan consecutive IC10 instructions
+2. **Register liveness check**: Verify temp register is only used for branch
+3. **Dead code elimination**: Remove temp register allocation if only used for fused branch
+4. **Instruction fusion**: Replace 2 instructions with 1 direct branch
+
+### Benefits
+
+- **Same output as current compiler**: Matches existing codegen efficiency
+- **Zero-cost abstraction**: Simple IR, optimized output
+- **Toggleable**: Can disable for debugging
+- **Measurable**: Compare instruction counts before/after
+
+### Future Opportunities
+
+- Constant folding in comparisons
+- Branch target optimization
+- Dead code elimination after branches
 
 ---
 
@@ -413,10 +615,13 @@ Verify compiled code quality:
 - [ ] No register allocation failures for simple programs
 
 ### Phase 2 Success
-- [ ] If-only statements use inverted branches correctly
-- [ ] If-else statements use direct branches correctly
-- [ ] Label generation works properly
+- [ ] If-only statements use inverted comparisons with `Bnez` correctly
+- [ ] If-else statements use normal comparisons with `Bnez` correctly
+- [ ] Compare instructions emit correct IC10 (`slt`, `sgt`, `seq`, etc.)
+- [ ] Bnez instructions work properly
+- [ ] Label generation works properly (unique labels)
 - [ ] Nested conditionals compile correctly
+- [ ] 2-instruction branches are semantically correct (will be optimized in Phase 2.5)
 
 ### Phase 3 Success
 - [ ] All language features supported (loops, variants, refs, etc.)

@@ -21,15 +21,15 @@ type binOp =
   | MulOp
   | DivOp
 
-type unOp = Abs
+type compareOp =
+  | GtOp
+  | LtOp
+  | EqOp
+  | GeOp
+  | LeOp
+  | NeOp
 
-type branchOp =
-  | BLT
-  | BGT
-  | BEQ
-  | BLE
-  | BGE
-  | BNE
+type unOp = Abs
 
 type instr =
   | DefInt(string, int)
@@ -37,11 +37,11 @@ type instr =
   | Move(vreg, operand)
   | Load(vreg, device, deviceParam, option<bulkOption>)
   | Save(device, deviceParam, vreg)
-  | Unary(unOp, vreg, operand)
-  | Binary(binOp, vreg, operand, operand)
+  | Unary(vreg, unOp, operand)
+  | Binary(vreg, binOp, operand, operand)
   | Goto(string)
   | Label(string)
-  | Branch(branchOp, operand, operand, string)
+  | Bnez(operand, string)
 
 type block = {
   name: string,

@@ -52,29 +52,30 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
     }
 
   // Identifier: lookup variable, allocate new vreg, emit Move from source vreg
-  | Identifier(name) => {
-      switch state.varMap->Belt.Map.String.get(name) {
-      | Some(sourceVreg) => {
-          let (state, vreg) = allocVReg(state)
-          let state = emit(state, IR.Move(vreg, IR.VReg(sourceVreg)))
-          Ok(state, vreg)
-        }
-      | None => Error(`Variable '${name}' not found`)
+  | Identifier(name) => switch state.varMap->Belt.Map.String.get(name) {
+    | Some(sourceVreg) => {
+        let (state, vreg) = allocVReg(state)
+        let state = emit(state, IR.Move(vreg, IR.VReg(sourceVreg)))
+        Ok(state, vreg)
       }
+    | None => Error(`Variable '${name}' not found`)
     }
 
   // BinaryExpression: generate left and right, emit Binary instruction
-  | BinaryExpression(op, left, right) => {
-      convertBinOp(op)->Result.flatMap(irOp => {
-        generateExpr(state, left)->Result.flatMap(((state, leftVreg)) => {
-          generateExpr(state, right)->Result.flatMap(((state, rightVreg)) => {
+  | BinaryExpression(op, left, right) => convertBinOp(op)->Result.flatMap(irOp => {
+      generateExpr(state, left)->Result.flatMap(((state, leftVreg)) => {
+        generateExpr(state, right)->Result.flatMap(
+          ((state, rightVreg)) => {
             let (state, resultVreg) = allocVReg(state)
-            let state = emit(state, IR.Binary(irOp, resultVreg, IR.VReg(leftVreg), IR.VReg(rightVreg)))
+            let state = emit(
+              state,
+              IR.Binary(resultVreg, irOp, IR.VReg(leftVreg), IR.VReg(rightVreg)),
+            )
             Ok(state, resultVreg)
-          })
-        })
+          },
+        )
       })
-    }
+    })
 
   // Phase 1: Only support simple expressions
   | _ => Error("Expression type not supported in Phase 1")
@@ -85,11 +86,9 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
 let generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
   switch stmt {
   // VariableDeclaration: generate expression, store vreg in varMap
-  | VariableDeclaration(name, init) => {
-      generateExpr(state, init)->Result.map(((state, vreg)) => {
-        {...state, varMap: state.varMap->Belt.Map.String.set(name, vreg)}
-      })
-    }
+  | VariableDeclaration(name, init) => generateExpr(state, init)->Result.map(((state, vreg)) => {
+      {...state, varMap: state.varMap->Belt.Map.String.set(name, vreg)}
+    })
 
   // Phase 1: Only support variable declarations
   | _ => Error("Statement type not supported in Phase 1")
@@ -101,7 +100,10 @@ let generate = (ast: AST.program): result<IR.t, string> => {
   let initialState = createState()
 
   // Process all statements
-  let rec processStmts = (state: state, stmts: array<AST.stmt>, index: int): result<state, string> => {
+  let rec processStmts = (state: state, stmts: array<AST.stmt>, index: int): result<
+    state,
+    string,
+  > => {
     if index >= Array.length(stmts) {
       Ok(state)
     } else {
@@ -120,7 +122,7 @@ let generate = (ast: AST.program): result<IR.t, string> => {
     let instructions = finalState.instructions->List.reverse
     let block: IR.block = {
       name: "main",
-      instructions: instructions,
+      instructions,
     }
     list{block}
   })

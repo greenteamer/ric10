@@ -23,18 +23,6 @@ let printBinOp = (op: IR.binOp): string => {
   }
 }
 
-// Format a branch operator
-let printBranchOp = (op: IR.branchOp): string => {
-  switch op {
-  | BLT => "blt"
-  | BGT => "bgt"
-  | BEQ => "beq"
-  | BLE => "ble"
-  | BGE => "bge"
-  | BNE => "bne"
-  }
-}
-
 // Format an instruction
 let printInstr = (instr: IR.instr): string => {
   switch instr {
@@ -66,25 +54,25 @@ let printInstr = (instr: IR.instr): string => {
       }
       `save ${deviceStr} ${paramStr} ${printVReg(vreg)}`
     }
-  | Unary(op, vreg, operand) => {
+  | Unary(vreg, op, operand) => {
       let opStr = switch op {
       | Abs => "abs"
       }
       `${opStr} ${printVReg(vreg)} ${printOperand(operand)}`
     }
-  | Binary(op, vreg, left, right) =>
+  | Binary(vreg, op, left, right) =>
     `${printBinOp(op)} ${printVReg(vreg)} ${printOperand(left)} ${printOperand(right)}`
   | Goto(label) => `j ${label}`
   | Label(label) => `${label}:`
-  | Branch(op, left, right, label) =>
-    `${printBranchOp(op)} ${printOperand(left)} ${printOperand(right)} ${label}`
+  | Bnez(operand, label) => `bnez ${printOperand(operand)} ${label}`
   }
 }
 
 // Format a block
 let printBlock = (block: IR.block): string => {
   let header = `# Block: ${block.name}\n`
-  let instrs = block.instructions
+  let instrs =
+    block.instructions
     ->List.toArray
     ->Array.map(printInstr)
     ->Array.join("\n")
@@ -94,7 +82,7 @@ let printBlock = (block: IR.block): string => {
 // Format the entire IR program
 let print = (ir: IR.t): string => {
   ir
-    ->List.toArray
-    ->Array.map(printBlock)
-    ->Array.join("\n\n")
+  ->List.toArray
+  ->Array.map(printBlock)
+  ->Array.join("\n\n")
 }

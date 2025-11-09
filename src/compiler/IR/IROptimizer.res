@@ -16,10 +16,7 @@ let rec findUsedVRegs = (instrs: list<IR.instr>, used: VRegSet.t): VRegSet.t => 
       | Binary(_, _, VReg(left), Num(_)) => used->VRegSet.add(left)
       | Binary(_, _, Num(_), VReg(right)) => used->VRegSet.add(right)
       | Binary(_, _, Num(_), Num(_)) => used
-      | Branch(_, VReg(left), VReg(right), _) => used->VRegSet.add(left)->VRegSet.add(right)
-      | Branch(_, VReg(left), Num(_), _) => used->VRegSet.add(left)
-      | Branch(_, Num(_), VReg(right), _) => used->VRegSet.add(right)
-      | Branch(_, Num(_), Num(_), _) => used
+      | Bnez(_, _) => used
       | Save(_, _, vreg) => used->VRegSet.add(vreg)
       | Unary(_, _, VReg(vreg)) => used->VRegSet.add(vreg)
       | Unary(_, _, Num(_)) => used
@@ -84,19 +81,13 @@ let propagateCopies = (instrs: list<IR.instr>): list<IR.instr> => {
         let newCopies = copies->Belt.Map.Int.remove(dst)
         list{Move(dst, newOperand), ...process(rest, newCopies)}
       }
-    | list{Binary(op, dst, left, right), ...rest} => {
+    | list{Binary(dst, op, left, right), ...rest} => {
         // Apply substitution to operands
         let newLeft = substituteOperand(left, copies)
         let newRight = substituteOperand(right, copies)
         // This invalidates any copies involving dst
         let newCopies = copies->Belt.Map.Int.remove(dst)
-        list{Binary(op, dst, newLeft, newRight), ...process(rest, newCopies)}
-      }
-    | list{Branch(op, left, right, label), ...rest} => {
-        // Apply substitution to operands
-        let newLeft = substituteOperand(left, copies)
-        let newRight = substituteOperand(right, copies)
-        list{Branch(op, newLeft, newRight, label), ...process(rest, copies)}
+        list{Binary(dst, op, newLeft, newRight), ...process(rest, newCopies)}
       }
     | list{instr, ...rest} => list{instr, ...process(rest, copies)}
     }

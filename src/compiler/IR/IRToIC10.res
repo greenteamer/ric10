@@ -20,30 +20,24 @@ let allocatePhysicalReg = (state: state, vreg: IR.vreg): result<(state, int), st
   // Check if vreg already has a physical register
   switch state.vregMap->Belt.Map.Int.get(vreg) {
   | Some(physicalReg) => Ok((state, physicalReg))
-  | None => {
-      // Allocate new physical register
-      if state.nextPhysical > 15 {
-        Error(
-          `Register allocation failed: exceeded 16 physical registers`,
-        )
-      } else {
-        let physicalReg = state.nextPhysical
-        let newState = {
-          ...state,
-          vregMap: state.vregMap->Belt.Map.Int.set(vreg, physicalReg),
-          nextPhysical: state.nextPhysical + 1,
-        }
-        Ok((newState, physicalReg))
+  | None =>
+    // Allocate new physical register
+    if state.nextPhysical > 15 {
+      Error(`Register allocation failed: exceeded 16 physical registers`)
+    } else {
+      let physicalReg = state.nextPhysical
+      let newState = {
+        ...state,
+        vregMap: state.vregMap->Belt.Map.Int.set(vreg, physicalReg),
+        nextPhysical: state.nextPhysical + 1,
       }
+      Ok((newState, physicalReg))
     }
   }
 }
 
 // Convert an operand to IC10 format
-let convertOperand = (
-  state: state,
-  operand: IR.operand,
-): result<(state, string), string> => {
+let convertOperand = (state: state, operand: IR.operand): result<(state, string), string> => {
   switch operand {
   | VReg(vreg) =>
     allocatePhysicalReg(state, vreg)->Result.map(((state, physicalReg)) => {
@@ -61,15 +55,14 @@ let emit = (state: state, instr: string): state => {
 // Generate IC10 code for a single instruction
 let generateInstr = (state: state, instr: IR.instr): result<state, string> => {
   switch instr {
-  | Move(vreg, operand) => {
-      allocatePhysicalReg(state, vreg)->Result.flatMap(((state, physicalReg)) => {
-        convertOperand(state, operand)->Result.map(((state, operandStr)) => {
-          emit(state, `move r${Int.toString(physicalReg)} ${operandStr}`)
-        })
+  | Move(vreg, operand) =>
+    allocatePhysicalReg(state, vreg)->Result.flatMap(((state, physicalReg)) => {
+      convertOperand(state, operand)->Result.map(((state, operandStr)) => {
+        emit(state, `move r${Int.toString(physicalReg)} ${operandStr}`)
       })
-    }
+    })
 
-  | Binary(op, vreg, left, right) => {
+  | Binary(vreg, op, left, right) => {
       let opStr = switch op {
       | AddOp => "add"
       | SubOp => "sub"
@@ -79,9 +72,11 @@ let generateInstr = (state: state, instr: IR.instr): result<state, string> => {
 
       allocatePhysicalReg(state, vreg)->Result.flatMap(((state, resultReg)) => {
         convertOperand(state, left)->Result.flatMap(((state, leftStr)) => {
-          convertOperand(state, right)->Result.map(((state, rightStr)) => {
-            emit(state, `${opStr} r${Int.toString(resultReg)} ${leftStr} ${rightStr}`)
-          })
+          convertOperand(state, right)->Result.map(
+            ((state, rightStr)) => {
+              emit(state, `${opStr} r${Int.toString(resultReg)} ${leftStr} ${rightStr}`)
+            },
+          )
         })
       })
     }
@@ -90,22 +85,10 @@ let generateInstr = (state: state, instr: IR.instr): result<state, string> => {
 
   | Goto(label) => Ok(emit(state, `j ${label}`))
 
-  | Branch(op, left, right, label) => {
-      let opStr = switch op {
-      | BLT => "blt"
-      | BGT => "bgt"
-      | BEQ => "beq"
-      | BLE => "ble"
-      | BGE => "bge"
-      | BNE => "bne"
-      }
-
-      convertOperand(state, left)->Result.flatMap(((state, leftStr)) => {
-        convertOperand(state, right)->Result.map(((state, rightStr)) => {
-          emit(state, `${opStr} ${leftStr} ${rightStr} ${label}`)
-        })
-      })
-    }
+  | Bnez(operand, label) =>
+    convertOperand(state, operand)->Result.map(((state, regStr)) => {
+      emit(state, `bnez ${regStr} ${label}`)
+    })
 
   | DefInt(name, value) => Ok(emit(state, `define ${name} ${Int.toString(value)}`))
 
@@ -121,10 +104,7 @@ let generateInstr = (state: state, instr: IR.instr): result<state, string> => {
 // Generate IC10 code for a block
 let generateBlock = (state: state, block: IR.block): result<state, string> => {
   // Process all instructions in the block
-  let rec processInstrs = (
-    state: state,
-    instrs: list<IR.instr>,
-  ): result<state, string> => {
+  let rec processInstrs = (state: state, instrs: list<IR.instr>): result<state, string> => {
     switch instrs {
     | list{} => Ok(state)
     | list{instr, ...rest} =>
