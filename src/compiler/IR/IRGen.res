@@ -1,12 +1,18 @@
 // IR Generation - Convert AST to IR
 // Phase 1: Simple expressions and variables only
 
+// Variable info: vreg and whether it's a ref
+type varInfo = {
+  vreg: int,
+  isRef: bool,
+}
+
 // State for IR generation
 type state = {
   nextVReg: int, // Counter for virtual register allocation
   instructions: list<IR.instr>, // Accumulated IR instructions
   nextLabel: int, // Counter for label generation
-  varMap: Belt.Map.String.t<int>, // Variable name → virtual register mapping
+  varMap: Belt.Map.String.t<varInfo>, // Variable name → variable info mapping
 }
 
 // Create initial state
@@ -74,9 +80,9 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
 
   // Identifier: lookup variable, allocate new vreg, emit Move from source vreg
   | Identifier(name) => switch state.varMap->Belt.Map.String.get(name) {
-    | Some(sourceVreg) => {
+    | Some(varInfo) => {
         let (state, vreg) = allocVReg(state)
-        let state = emit(state, IR.Move(vreg, IR.VReg(sourceVreg)))
+        let state = emit(state, IR.Move(vreg, IR.VReg(varInfo.vreg)))
         Ok(state, vreg)
       }
     | None => Error(`Variable '${name}' not found`)
@@ -114,6 +120,24 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
           })
         })
       })
+    }
+
+  // RefCreation: ref(expr) - same as regular variable, just generates the value
+  | RefCreation(valueExpr) => generateExpr(state, valueExpr)
+
+  // RefAccess: identifier.contents - lookup ref variable and return its vreg
+  | RefAccess(name) => switch state.varMap->Belt.Map.String.get(name) {
+    | Some(varInfo) =>
+      if !varInfo.isRef {
+        Error(`Variable '${name}' is not a ref, cannot use .contents`)
+      } else {
+        // For simple refs, just return the vreg (no instruction needed)
+        // Allocate new vreg and move the ref's value
+        let (state, vreg) = allocVReg(state)
+        let state = emit(state, IR.Move(vreg, IR.VReg(varInfo.vreg)))
+        Ok(state, vreg)
+      }
+    | None => Error(`Variable '${name}' not found`)
     }
 
   // Phase 1: Only support simple expressions
@@ -241,13 +265,87 @@ and generateIfElse = (
   }
 }
 
+// Generate while loop
+// Uses INVERTED comparison + Bnez to exit loop when condition is FALSE (same as if-only)
+and generateWhileLoop = (
+  state: state,
+  condition: AST.expr,
+  body: AST.blockStatement,
+): result<state, string> => {
+  // Allocate loop start and exit labels
+  let loopLabel = `label${Belt.Int.toString(state.nextLabel)}`
+  let exitLabel = `label${Belt.Int.toString(state.nextLabel + 1)}`
+  let state = {...state, nextLabel: state.nextLabel + 2}
+
+  // Emit loop start label
+  let state = emit(state, IR.Label(loopLabel))
+
+  // Handle different condition types
+  switch condition {
+  // Comparison expression: use inverted comparison (like if-only)
+  | BinaryExpression(op, left, right) =>
+    switch op {
+    | Lt | Gt | Eq =>
+      // Generate left and right operands
+      generateExpr(state, left)->Result.flatMap(((state, leftVreg)) => {
+        generateExpr(state, right)->Result.flatMap(((state, rightVreg)) => {
+          // Use INVERTED comparison (exit when condition is false)
+          invertCompareOp(op)->Result.flatMap(invertedOp => {
+            let (state, resultVreg) = allocVReg(state)
+            let state = emit(
+              state,
+              IR.Compare(resultVreg, invertedOp, IR.VReg(leftVreg), IR.VReg(rightVreg)),
+            )
+
+            // Emit Bnez - if inverted condition is true (original is false), exit loop
+            let state = emit(state, IR.Bnez(IR.VReg(resultVreg), exitLabel))
+
+            // Generate loop body
+            generateBlock(state, body)->Result.flatMap(state => {
+              // Jump back to loop start
+              let state = emit(state, IR.Goto(loopLabel))
+
+              // Emit exit label
+              let state = emit(state, IR.Label(exitLabel))
+              Ok(state)
+            })
+          })
+        })
+      })
+    | _ => Error("While condition must be a comparison expression")
+    }
+
+  // Literal 0: infinite loop with no condition check
+  | Literal(0) =>
+    // Generate loop body
+    generateBlock(state, body)->Result.flatMap(state => {
+      // Jump back to loop start (infinite loop)
+      let state = emit(state, IR.Goto(loopLabel))
+      Ok(state)
+    })
+
+  // Other literals: not supported yet
+  | Literal(_) => Error("Only 'while 0' literal condition is supported (for infinite loops)")
+
+  // Other expression types: not supported
+  | _ => Error("While condition must be a comparison expression or literal 0")
+  }
+}
+
 // Generate IR for a statement
 and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
   switch stmt {
   // VariableDeclaration: generate expression, store vreg in varMap
-  | VariableDeclaration(name, init) => generateExpr(state, init)->Result.map(((state, vreg)) => {
-      {...state, varMap: state.varMap->Belt.Map.String.set(name, vreg)}
-    })
+  | VariableDeclaration(name, init) => {
+      // Check if this is a ref creation
+      let isRef = switch init {
+      | RefCreation(_) => true
+      | _ => false
+      }
+      generateExpr(state, init)->Result.map(((state, vreg)) => {
+        {...state, varMap: state.varMap->Belt.Map.String.set(name, {vreg, isRef})}
+      })
+    }
 
   // IfStatement: handle if-only and if-else
   | IfStatement(condition, thenBlock, elseBlock) =>
@@ -255,6 +353,24 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
     | None => generateIfOnly(state, condition, thenBlock)
     | Some(block) => generateIfElse(state, condition, thenBlock, block)
     }
+
+  // RefAssignment: identifier := expr
+  | RefAssignment(name, valueExpr) => switch state.varMap->Belt.Map.String.get(name) {
+    | Some(varInfo) =>
+      if !varInfo.isRef {
+        Error(`Variable '${name}' is not a ref, cannot use := assignment`)
+      } else {
+        // Generate the value expression, then move it to the ref's vreg
+        generateExpr(state, valueExpr)->Result.map(((state, valueVreg)) => {
+          // Emit Move to overwrite the ref's vreg
+          emit(state, IR.Move(varInfo.vreg, IR.VReg(valueVreg)))
+        })
+      }
+    | None => Error(`Variable '${name}' not found`)
+    }
+
+  // WhileLoop: while condition { body }
+  | WhileLoop(condition, body) => generateWhileLoop(state, condition, body)
 
   // Phase 2: Support variable declarations and if statements
   | _ => Error("Statement type not supported in Phase 2")
