@@ -20,8 +20,12 @@ let resToIC10File = (src: string, dest: string) => {
   }
 }
 
-switch (argv[0], argv[1]) {
-| (Some(src), Some(dest)) => resToIC10File(src, dest)
+switch (argv[2], argv[3]) {
+| (Some(src), Some(dest)) => {
+    Console.log(`src arg: ${src}`)
+    Console.log(`dest arg: ${dest}`)
+    resToIC10File(src, dest)
+  }
 | (None, Some(_)) => Console.log("Missing src file arg: (src: string, dest: string) => unit")
 | (Some(_), None) => Console.log("Missing dest file arg: (src: string, dest: string) => unit")
 | _ => Console.log("Missing src and dest file args: (src: string, dest: string) => unit")

@@ -1,0 +1,16 @@
+move r0 1
+move r1 2
+move r2 0
+label0:
+move r3 r0
+move r4 r1
+sge r5 r3 r4
+bnez r5 label2
+move r6 r0
+move r7 r1
+add r8 r6 r7
+move r9 200
+add r10 r8 r9
+move r2 r10
+label2:
+j label0

@@ -1,8 +1,10 @@
 let a = 1
 let b = 2
 
+let c = ref(0)
+
 while true {
   if a < b {
-    let c = a + b + 200
+    c := a + b + 200
   }
 }

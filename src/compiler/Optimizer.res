@@ -93,8 +93,7 @@ let rec optimize = (node: astNode): astNode => {
   | TypeDeclaration(_, _) => node
 
   // Optimize variant constructors
-  | VariantConstructor(name, arguments) =>
-    VariantConstructor(name, Array.map(arguments, optimize))
+  | VariantConstructor(name, arguments) => VariantConstructor(name, Array.map(arguments, optimize))
 
   // Optimize switch expressions
   | SwitchExpression(scrutinee, cases) =>
@@ -131,7 +130,8 @@ let rec optimize = (node: astNode): astNode => {
 
   // Leaf nodes - no optimization needed
   | Literal(_) => node
-  | StringLiteral(_) => node // String literals pass through unchanged
+  | LiteralBool(_) => node // Boolean literals pass through unchanged (used for while true)
+  | LiteralStr(_) => node // String literals pass through unchanged
   | Identifier(_) => node
   }
 }

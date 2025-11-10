@@ -78,8 +78,12 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
       Ok(state, vreg)
     }
 
+  // LiteralBool: only used for while true, error in expression context
+  | LiteralBool(_) => Error("Boolean literals can only be used in 'while true' loops")
+
   // Identifier: lookup variable, allocate new vreg, emit Move from source vreg
-  | Identifier(name) => switch state.varMap->Belt.Map.String.get(name) {
+  | Identifier(name) =>
+    switch state.varMap->Belt.Map.String.get(name) {
     | Some(varInfo) => {
         let (state, vreg) = allocVReg(state)
         let state = emit(state, IR.Move(vreg, IR.VReg(varInfo.vreg)))
@@ -96,28 +100,32 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
       // Comparison: emit Compare instruction
       normalCompareOp(op)->Result.flatMap(cmpOp => {
         generateExpr(state, left)->Result.flatMap(((state, leftVreg)) => {
-          generateExpr(state, right)->Result.flatMap(((state, rightVreg)) => {
-            let (state, resultVreg) = allocVReg(state)
-            let state = emit(
-              state,
-              IR.Compare(resultVreg, cmpOp, IR.VReg(leftVreg), IR.VReg(rightVreg)),
-            )
-            Ok(state, resultVreg)
-          })
+          generateExpr(state, right)->Result.flatMap(
+            ((state, rightVreg)) => {
+              let (state, resultVreg) = allocVReg(state)
+              let state = emit(
+                state,
+                IR.Compare(resultVreg, cmpOp, IR.VReg(leftVreg), IR.VReg(rightVreg)),
+              )
+              Ok(state, resultVreg)
+            },
+          )
         })
       })
     | Add | Sub | Mul | Div =>
       // Arithmetic: emit Binary instruction
       convertBinOp(op)->Result.flatMap(irOp => {
         generateExpr(state, left)->Result.flatMap(((state, leftVreg)) => {
-          generateExpr(state, right)->Result.flatMap(((state, rightVreg)) => {
-            let (state, resultVreg) = allocVReg(state)
-            let state = emit(
-              state,
-              IR.Binary(resultVreg, irOp, IR.VReg(leftVreg), IR.VReg(rightVreg)),
-            )
-            Ok(state, resultVreg)
-          })
+          generateExpr(state, right)->Result.flatMap(
+            ((state, rightVreg)) => {
+              let (state, resultVreg) = allocVReg(state)
+              let state = emit(
+                state,
+                IR.Binary(resultVreg, irOp, IR.VReg(leftVreg), IR.VReg(rightVreg)),
+              )
+              Ok(state, resultVreg)
+            },
+          )
         })
       })
     }
@@ -126,7 +134,8 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
   | RefCreation(valueExpr) => generateExpr(state, valueExpr)
 
   // RefAccess: identifier.contents - lookup ref variable and return its vreg
-  | RefAccess(name) => switch state.varMap->Belt.Map.String.get(name) {
+  | RefAccess(name) =>
+    switch state.varMap->Belt.Map.String.get(name) {
     | Some(varInfo) =>
       if !varInfo.isRef {
         Error(`Variable '${name}' is not a ref, cannot use .contents`)
@@ -166,11 +175,10 @@ let rec generateBlock = (state: state, block: AST.blockStatement): result<state,
 
 // Generate if-only statement (no else block)
 // Uses INVERTED comparison + Bnez to skip then-block when condition is FALSE
-and generateIfOnly = (
-  state: state,
-  condition: AST.expr,
-  thenBlock: AST.blockStatement,
-): result<state, string> => {
+and generateIfOnly = (state: state, condition: AST.expr, thenBlock: AST.blockStatement): result<
+  state,
+  string,
+> => {
   // Extract comparison from condition
   switch condition {
   | BinaryExpression(op, left, right) =>
@@ -180,27 +188,31 @@ and generateIfOnly = (
       generateExpr(state, left)->Result.flatMap(((state, leftVreg)) => {
         generateExpr(state, right)->Result.flatMap(((state, rightVreg)) => {
           // Use INVERTED comparison
-          invertCompareOp(op)->Result.flatMap(invertedOp => {
-            let (state, resultVreg) = allocVReg(state)
-            let state = emit(
-              state,
-              IR.Compare(resultVreg, invertedOp, IR.VReg(leftVreg), IR.VReg(rightVreg)),
-            )
+          invertCompareOp(op)->Result.flatMap(
+            invertedOp => {
+              let (state, resultVreg) = allocVReg(state)
+              let state = emit(
+                state,
+                IR.Compare(resultVreg, invertedOp, IR.VReg(leftVreg), IR.VReg(rightVreg)),
+              )
 
-            // Allocate end label
-            let endLabel = `label${Belt.Int.toString(state.nextLabel)}`
-            let state = {...state, nextLabel: state.nextLabel + 1}
+              // Allocate end label
+              let endLabel = `label${Belt.Int.toString(state.nextLabel)}`
+              let state = {...state, nextLabel: state.nextLabel + 1}
 
-            // Emit Bnez - if inverted condition is true (original is false), skip then block
-            let state = emit(state, IR.Bnez(IR.VReg(resultVreg), endLabel))
+              // Emit Bnez - if inverted condition is true (original is false), skip then block
+              let state = emit(state, IR.Bnez(IR.VReg(resultVreg), endLabel))
 
-            // Generate then block
-            generateBlock(state, thenBlock)->Result.flatMap(state => {
-              // Emit end label
-              let state = emit(state, IR.Label(endLabel))
-              Ok(state)
-            })
-          })
+              // Generate then block
+              generateBlock(state, thenBlock)->Result.flatMap(
+                state => {
+                  // Emit end label
+                  let state = emit(state, IR.Label(endLabel))
+                  Ok(state)
+                },
+              )
+            },
+          )
         })
       })
     | _ => Error("If condition must be a comparison expression")
@@ -226,37 +238,43 @@ and generateIfElse = (
       generateExpr(state, left)->Result.flatMap(((state, leftVreg)) => {
         generateExpr(state, right)->Result.flatMap(((state, rightVreg)) => {
           // Use NORMAL comparison
-          normalCompareOp(op)->Result.flatMap(normalOp => {
-            let (state, resultVreg) = allocVReg(state)
-            let state = emit(
-              state,
-              IR.Compare(resultVreg, normalOp, IR.VReg(leftVreg), IR.VReg(rightVreg)),
-            )
+          normalCompareOp(op)->Result.flatMap(
+            normalOp => {
+              let (state, resultVreg) = allocVReg(state)
+              let state = emit(
+                state,
+                IR.Compare(resultVreg, normalOp, IR.VReg(leftVreg), IR.VReg(rightVreg)),
+              )
 
-            // Allocate labels
-            let thenLabel = `label${Belt.Int.toString(state.nextLabel)}`
-            let endLabel = `label${Belt.Int.toString(state.nextLabel + 1)}`
-            let state = {...state, nextLabel: state.nextLabel + 2}
+              // Allocate labels
+              let thenLabel = `label${Belt.Int.toString(state.nextLabel)}`
+              let endLabel = `label${Belt.Int.toString(state.nextLabel + 1)}`
+              let state = {...state, nextLabel: state.nextLabel + 2}
 
-            // Emit Bnez - if condition is true, jump to then
-            let state = emit(state, IR.Bnez(IR.VReg(resultVreg), thenLabel))
+              // Emit Bnez - if condition is true, jump to then
+              let state = emit(state, IR.Bnez(IR.VReg(resultVreg), thenLabel))
 
-            // Generate else block (falls through)
-            generateBlock(state, elseBlock)->Result.flatMap(state => {
-              // Jump over then block
-              let state = emit(state, IR.Goto(endLabel))
+              // Generate else block (falls through)
+              generateBlock(state, elseBlock)->Result.flatMap(
+                state => {
+                  // Jump over then block
+                  let state = emit(state, IR.Goto(endLabel))
 
-              // Then block label
-              let state = emit(state, IR.Label(thenLabel))
+                  // Then block label
+                  let state = emit(state, IR.Label(thenLabel))
 
-              // Generate then block
-              generateBlock(state, thenBlock)->Result.flatMap(state => {
-                // End label
-                let state = emit(state, IR.Label(endLabel))
-                Ok(state)
-              })
-            })
-          })
+                  // Generate then block
+                  generateBlock(state, thenBlock)->Result.flatMap(
+                    state => {
+                      // End label
+                      let state = emit(state, IR.Label(endLabel))
+                      Ok(state)
+                    },
+                  )
+                },
+              )
+            },
+          )
         })
       })
     | _ => Error("If condition must be a comparison expression")
@@ -267,11 +285,10 @@ and generateIfElse = (
 
 // Generate while loop
 // Uses INVERTED comparison + Bnez to exit loop when condition is FALSE (same as if-only)
-and generateWhileLoop = (
-  state: state,
-  condition: AST.expr,
-  body: AST.blockStatement,
-): result<state, string> => {
+and generateWhileLoop = (state: state, condition: AST.expr, body: AST.blockStatement): result<
+  state,
+  string,
+> => {
   // Allocate loop start and exit labels
   let loopLabel = `label${Belt.Int.toString(state.nextLabel)}`
   let exitLabel = `label${Belt.Int.toString(state.nextLabel + 1)}`
@@ -290,33 +307,37 @@ and generateWhileLoop = (
       generateExpr(state, left)->Result.flatMap(((state, leftVreg)) => {
         generateExpr(state, right)->Result.flatMap(((state, rightVreg)) => {
           // Use INVERTED comparison (exit when condition is false)
-          invertCompareOp(op)->Result.flatMap(invertedOp => {
-            let (state, resultVreg) = allocVReg(state)
-            let state = emit(
-              state,
-              IR.Compare(resultVreg, invertedOp, IR.VReg(leftVreg), IR.VReg(rightVreg)),
-            )
+          invertCompareOp(op)->Result.flatMap(
+            invertedOp => {
+              let (state, resultVreg) = allocVReg(state)
+              let state = emit(
+                state,
+                IR.Compare(resultVreg, invertedOp, IR.VReg(leftVreg), IR.VReg(rightVreg)),
+              )
 
-            // Emit Bnez - if inverted condition is true (original is false), exit loop
-            let state = emit(state, IR.Bnez(IR.VReg(resultVreg), exitLabel))
+              // Emit Bnez - if inverted condition is true (original is false), exit loop
+              let state = emit(state, IR.Bnez(IR.VReg(resultVreg), exitLabel))
 
-            // Generate loop body
-            generateBlock(state, body)->Result.flatMap(state => {
-              // Jump back to loop start
-              let state = emit(state, IR.Goto(loopLabel))
+              // Generate loop body
+              generateBlock(state, body)->Result.flatMap(
+                state => {
+                  // Jump back to loop start
+                  let state = emit(state, IR.Goto(loopLabel))
 
-              // Emit exit label
-              let state = emit(state, IR.Label(exitLabel))
-              Ok(state)
-            })
-          })
+                  // Emit exit label
+                  let state = emit(state, IR.Label(exitLabel))
+                  Ok(state)
+                },
+              )
+            },
+          )
         })
       })
     | _ => Error("While condition must be a comparison expression")
     }
 
-  // Literal 0: infinite loop with no condition check
-  | Literal(0) =>
+  // LiteralBool(true): infinite loop with no condition check
+  | LiteralBool(true) =>
     // Generate loop body
     generateBlock(state, body)->Result.flatMap(state => {
       // Jump back to loop start (infinite loop)
@@ -324,11 +345,20 @@ and generateWhileLoop = (
       Ok(state)
     })
 
-  // Other literals: not supported yet
-  | Literal(_) => Error("Only 'while 0' literal condition is supported (for infinite loops)")
+  // LiteralBool(false): loop that never executes (skip to exit)
+  | LiteralBool(false) =>
+    // Skip loop body entirely, just emit exit label
+    let state = emit(state, IR.Label(exitLabel))
+    Ok(state)
+
+  // Integer literals: not supported - use 'while true' instead
+  | Literal(_) =>
+    Error(
+      "Integer literals are not supported in while conditions - use 'while true' for infinite loops",
+    )
 
   // Other expression types: not supported
-  | _ => Error("While condition must be a comparison expression or literal 0")
+  | _ => Error("While condition must be a comparison expression or 'while true'")
   }
 }
 
@@ -355,7 +385,8 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
     }
 
   // RefAssignment: identifier := expr
-  | RefAssignment(name, valueExpr) => switch state.varMap->Belt.Map.String.get(name) {
+  | RefAssignment(name, valueExpr) =>
+    switch state.varMap->Belt.Map.String.get(name) {
     | Some(varInfo) =>
       if !varInfo.isRef {
         Error(`Variable '${name}' is not a ref, cannot use := assignment`)

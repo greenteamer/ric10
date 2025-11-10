@@ -276,7 +276,10 @@ and parseRefCreation = (parser: parser): result<(parser, AST.expr), string> => {
 
 // Parse variant constructor arguments: (expr1, expr2, expr3)
 // Returns array of expressions
-and parseVariantConstructorArguments = (parser: parser): result<(parser, array<AST.expr>), string> => {
+and parseVariantConstructorArguments = (parser: parser): result<
+  (parser, array<AST.expr>),
+  string,
+> => {
   // Expect opening paren
   switch expect(parser, Lexer.LeftParen) {
   | Error(msg) => Error(msg)
@@ -443,7 +446,7 @@ and parsePrimaryExpression = (parser: parser): result<(parser, AST.expr), string
     Ok((parser, AST.createLiteral(value)))
   | Some(Lexer.True) =>
     let parser = advance(parser)
-    Ok((parser, AST.createLiteral(1))) // true is represented as 1
+    Ok((parser, AST.LiteralBool(true))) // boolean true literal
   | Some(Lexer.Ref) =>
     let parser = advance(parser)
     parseRefCreation(parser)
@@ -546,8 +549,7 @@ and parseSwitchExpression = (parser: parser): result<(parser, AST.expr), string>
                     | Some(Lexer.Comma) =>
                       let parser = advance(parser) // consume comma
                       parseBindings(parser, list{argName, ...bindings})
-                    | Some(Lexer.RightParen) =>
-                      (advance(parser), list{argName, ...bindings})
+                    | Some(Lexer.RightParen) => (advance(parser), list{argName, ...bindings})
                     | _ => (parser, bindings) // error case, fallback
                     }
                   | Some(Lexer.RightParen) => (advance(parser), bindings) // empty parens

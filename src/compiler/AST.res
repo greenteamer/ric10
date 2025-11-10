@@ -22,7 +22,8 @@ type rec astNode =
   | VariableDeclaration(string, expr) // let x = expr
   | BinaryExpression(binaryOp, expr, expr) // expr op expr
   | Literal(int) // integer literal
-  | StringLiteral(string) // string literal (for IC10 property names)
+  | LiteralBool(bool) // boolean literal (for while true)
+  | LiteralStr(string) // string literal (for IC10 property names)
   | Identifier(string) // variable name
   | FunctionCall(string, array<argument>) // functionName(arg1, arg2, ...)
   | IfStatement(expr, blockStatement, option<blockStatement>) // if (expr) { stmts } else { stmts }
@@ -121,7 +122,7 @@ let createRawInstruction = (instruction: string): astNode => {
 }
 
 let createStringLiteral = (value: string): astNode => {
-  StringLiteral(value)
+  LiteralStr(value)
 }
 
 let createFunctionCall = (name: string, args: array<argument>): astNode => {

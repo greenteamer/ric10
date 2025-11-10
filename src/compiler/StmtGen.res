@@ -39,10 +39,7 @@ let getMaxArgsForVariantType = (constructors: array<AST.variantConstructor>): in
 }
 
 // Helper: Get variant type name from constructor name
-let getVariantTypeName = (
-  state: codegenState,
-  constructorName: string,
-): option<string> => {
+let getVariantTypeName = (state: codegenState, constructorName: string): option<string> => {
   // Search through variantTypes to find which type contains this constructor
   Belt.Map.String.findFirstBy(state.variantTypes, (_typeName, constructors) => {
     Array.some(constructors, constructor => constructor.name == constructorName)
@@ -138,10 +135,10 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
                 )
 
                 // Step 2: Push all slots (all placeholders for zero-arg constructor)
-                let rec pushSlots = (
-                  state: codegenState,
-                  slotIndex: int,
-                ): result<codegenState, string> => {
+                let rec pushSlots = (state: codegenState, slotIndex: int): result<
+                  codegenState,
+                  string,
+                > => {
                   if slotIndex >= numConstructors * maxArgs {
                     Ok(state)
                   } else {
@@ -208,10 +205,10 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
                 )
 
                 // Step 2: Push all slots (initialized or placeholder)
-                let rec pushSlots = (
-                  state: codegenState,
-                  slotIndex: int,
-                ): result<codegenState, string> => {
+                let rec pushSlots = (state: codegenState, slotIndex: int): result<
+                  codegenState,
+                  string,
+                > => {
                   if slotIndex >= numConstructors * maxArgs {
                     Ok(state)
                   } else {
@@ -373,8 +370,12 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
     }
 
   | AST.WhileLoop(condition, body) =>
-    // Optimize binary comparisons to use direct branch instructions
+    // Handle while true (infinite loop)
     switch condition {
+    | AST.LiteralBool(true) =>
+      // Infinite loop: while true { body }
+      BranchGen.generateWhileMainLoopReg(state, s => generateBlock(s, body))
+
     | AST.BinaryExpression(op, leftExpr, rightExpr) =>
       switch (op, leftExpr, rightExpr) {
       | (AST.Lt | AST.Gt | AST.Eq, _leftExpr, _rightExpr) =>
@@ -388,8 +389,9 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
 
     | _ =>
       // Non-binary-expression condition - use fallback
-      Console.log("[StmtGen] Non-binary-expression condition in while loop - using fallback")
-      BranchGen.generateWhileMainLoopReg(state, s => generateBlock(s, body)) // s => ExprGen.generate(s, condition),
+      Error(
+        "[StmtGen] Unsupported while loop condition - use 'while true' for infinite loops or comparison expressions",
+      )
     }
 
   | AST.BlockStatement(statements) => generateBlock(state, statements)
@@ -482,10 +484,10 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
               )
 
               // Step 2: Poke all arguments to their slots
-              let rec pokeArgs = (
-                state: codegenState,
-                argIndex: int,
-              ): result<codegenState, string> => {
+              let rec pokeArgs = (state: codegenState, argIndex: int): result<
+                codegenState,
+                string,
+              > => {
                 if argIndex >= Array.length(arguments) {
                   Ok(state)
                 } else {
@@ -500,10 +502,7 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
                       let address = tag * maxArgs + 1 + argIndex
                       let state3 = addInstructionWithComment(
                         state2,
-                        "poke " ++
-                        Int.toString(address) ++
-                        " " ++
-                        Register.toString(argReg),
+                        "poke " ++ Int.toString(address) ++ " " ++ Register.toString(argReg),
                         constructorName ++ " arg" ++ Int.toString(argIndex),
                       )
 
@@ -544,7 +543,8 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
     newInstructions[len] = instruction
     Ok({...state, instructions: newInstructions})
 
-  | AST.StringLiteral(_) => Error("String literals cannot be used as standalone statements")
+  | AST.LiteralStr(_) => Error("String literals cannot be used as standalone statements")
+  | AST.LiteralBool(_) => Error("Boolean literals cannot be used as standalone statements")
 
   | AST.FunctionCall(_, _) =>
     // Function calls as statements (e.g., IC10.s(d0, "Setting", 1))
