@@ -127,6 +127,7 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
   | LiteralBool(_) => Error("Boolean literals can only be used in 'while true' loops")
 
   // Identifier: lookup variable, allocate new vreg, emit Move from source vreg
+  // OR check if it's a zero-arg variant constructor
   | Identifier(name) =>
     switch state.varMap->Belt.Map.String.get(name) {
     | Some(varInfo) => {
@@ -134,7 +135,19 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
         let state = emit(state, IR.Move(vreg, IR.VReg(varInfo.vreg)))
         Ok(state, vreg)
       }
-    | None => Error(`Variable '${name}' not found`)
+    | None =>
+      // Check if this identifier is a zero-arg variant constructor
+      switch getTypeNameFromConstructor(state, name) {
+      | Some(_typeName) =>
+        // This is a zero-arg variant constructor - treat as VariantConstructor(name, [])
+        // Note: In expression context, this represents the constructor value itself
+        // In ref context (handled in VariableDeclaration/RefAssignment), it will be properly initialized
+        Error(
+          `Zero-arg variant constructor '${name}' cannot be used directly in expressions. ` ++
+          `Use it in ref() or assignment context: ref(${name}) or varName := ${name}`,
+        )
+      | None => Error(`Variable '${name}' not found`)
+      }
     }
 
   // BinaryExpression: check if arithmetic or comparison
@@ -674,6 +687,56 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
         }
       }
 
+    | RefCreation(Identifier(constructorName)) =>
+      // Check if this identifier is a zero-arg variant constructor
+      switch getTypeNameFromConstructor(state, constructorName) {
+      | Some(typeName) =>
+        // This is a zero-arg variant constructor - treat as VariantConstructor(name, [])
+        // Reuse the same logic as VariantConstructor case
+        switch Belt.Map.String.get(state.variantTypes, typeName) {
+        | None => Error(`Variant type not found: ${typeName}`)
+        | Some(typeInfo) =>
+          // Check if type already has a ref allocated
+          if typeInfo.allocated {
+            Error(
+              `Type '${typeName}' already has a ref allocated. ` ++
+              `IC10 compiler supports one ref per variant type. ` ++
+              `Workaround: Define a second type (e.g., 'type ${typeName}2 = ...')`,
+            )
+          } else {
+            // Get constructor tag
+            switch Belt.Map.String.get(state.variantTags, constructorName) {
+            | None => Error(`Constructor tag not found: ${constructorName}`)
+            | Some(tag) =>
+              // Mark type as allocated
+              let updatedTypeInfo = {...typeInfo, allocated: true}
+              let variantTypes = Belt.Map.String.set(state.variantTypes, typeName, updatedTypeInfo)
+
+              // Store ref → type mapping
+              let refToTypeName = Belt.Map.String.set(state.refToTypeName, name, typeName)
+
+              // Allocate vreg for ref variable
+              let (state, refVReg) = allocVReg(state)
+              let varMap = Belt.Map.String.set(state.varMap, name, {vreg: refVReg, isRef: true})
+
+              // Initialize ref to point to base address
+              let state = emit(state, IR.Move(refVReg, IR.Num(typeInfo.baseAddr)))
+
+              // Initialize variant data on stack using StackPoke
+              // Poke tag (no arguments for zero-arg constructor)
+              let state = emit(state, IR.StackPoke(typeInfo.baseAddr, IR.Num(tag)))
+
+              Ok({...state, variantTypes, refToTypeName, varMap})
+            }
+          }
+        }
+      | None =>
+        // Not a variant constructor - use simple ref approach
+        generateExpr(state, Identifier(constructorName))->Result.map(((state, vreg)) => {
+          {...state, varMap: state.varMap->Belt.Map.String.set(name, {vreg, isRef: true})}
+        })
+      }
+
     | RefCreation(valueExpr) =>
       // Non-variant ref - use simple approach
       generateExpr(state, valueExpr)->Result.map(((state, vreg)) => {
@@ -735,6 +798,28 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
                 })
               }
             }
+
+          | Identifier(constructorName) =>
+            // Check if this identifier is a zero-arg variant constructor
+            switch getTypeNameFromConstructor(state, constructorName) {
+            | Some(_identTypeName) =>
+              // This is a zero-arg variant constructor - treat as VariantConstructor(name, [])
+              // Get type metadata
+              switch Belt.Map.String.get(state.variantTypes, typeName) {
+              | None => Error(`Variant type not found: ${typeName}`)
+              | Some(typeInfo) =>
+                // Get constructor tag
+                switch Belt.Map.String.get(state.variantTags, constructorName) {
+                | None => Error(`Constructor tag not found: ${constructorName}`)
+                | Some(tag) =>
+                  // Poke tag to baseAddr (no arguments for zero-arg constructor)
+                  let state = emit(state, IR.StackPoke(typeInfo.baseAddr, IR.Num(tag)))
+                  Ok(state)
+                }
+              }
+            | None => Error("Variant ref can only be assigned variant constructors")
+            }
+
           | _ => Error("Variant ref can only be assigned variant constructors")
           }
 
