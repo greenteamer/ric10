@@ -35,6 +35,14 @@ let printCompareOp = (op: IR.compareOp): string => {
   }
 }
 
+// Format a device
+let printDevice = (device: IR.device): string => {
+  switch device {
+  | DevicePin(pin) => `d${Int.toString(pin)}`
+  | DeviceReg(vreg) => printVReg(vreg)
+  }
+}
+
 // Format an instruction
 let printInstr = (instr: IR.instr): string => {
   switch instr {
@@ -42,7 +50,7 @@ let printInstr = (instr: IR.instr): string => {
   | DefHash(name, value) => `define ${name} HASH("${value}")`
   | Move(vreg, operand) => `move ${printVReg(vreg)} ${printOperand(operand)}`
   | Load(vreg, device, param, bulkOpt) => {
-      let deviceStr = `d${Int.toString(device)}`
+      let deviceStr = printDevice(device)
       let paramStr = switch param {
       | Setting => "Setting"
       | Temperature => "Temperature"
@@ -58,7 +66,7 @@ let printInstr = (instr: IR.instr): string => {
       `load ${printVReg(vreg)} ${deviceStr} ${paramStr}${bulkStr}`
     }
   | Save(device, param, vreg) => {
-      let deviceStr = `d${Int.toString(device)}`
+      let deviceStr = printDevice(device)
       let paramStr = switch param {
       | Setting => "Setting"
       | Temperature => "Temperature"
@@ -79,6 +87,11 @@ let printInstr = (instr: IR.instr): string => {
   | Goto(label) => `j ${label}`
   | Label(label) => `${label}:`
   | Bnez(operand, label) => `bnez ${printOperand(operand)} ${label}`
+  | StackAlloc(count) => `stack_alloc ${Int.toString(count)}`
+  | StackPoke(addr, operand) => `stack_poke ${Int.toString(addr)} ${printOperand(operand)}`
+  | StackGet(vreg, addr) => `stack_get ${printVReg(vreg)} ${Int.toString(addr)}`
+  | StackPush(operand) => `stack_push ${printOperand(operand)}`
+  | RawInstruction(instruction) => instruction
   }
 }
 

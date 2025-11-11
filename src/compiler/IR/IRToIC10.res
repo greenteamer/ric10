@@ -115,8 +115,67 @@ let generateInstr = (state: state, instr: IR.instr): result<state, string> => {
 
   | DefHash(name, value) => Ok(emit(state, `define ${name} HASH("${value}")`))
 
+  // Stack operations for variants
+  | StackAlloc(slotCount) =>
+    // Emit multiple push instructions to reserve slots
+    let rec emitPushes = (state: state, remaining: int): state => {
+      if remaining <= 0 {
+        state
+      } else {
+        let state = emit(state, "push 0")
+        emitPushes(state, remaining - 1)
+      }
+    }
+    Ok(emitPushes(state, slotCount))
+
+  | StackPoke(address, operand) =>
+    // poke address value
+    convertOperand(state, operand)->Result.map(((state, valueStr)) => {
+      emit(state, `poke ${Int.toString(address)} ${valueStr}`)
+    })
+
+  | StackGet(vreg, address) =>
+    // get r? db address
+    allocatePhysicalReg(state, vreg)->Result.map(((state, physicalReg)) => {
+      emit(state, `get r${Int.toString(physicalReg)} db ${Int.toString(address)}`)
+    })
+
+  | StackPush(operand) =>
+    // push value
+    convertOperand(state, operand)->Result.map(((state, valueStr)) => {
+      emit(state, `push ${valueStr}`)
+    })
+
+  // Load: l resultReg device property
+  | Load(vreg, device, deviceParam, bulkOpt) =>
+    allocatePhysicalReg(state, vreg)->Result.map(((state, physicalReg)) => {
+      // Convert device to IC10 format
+      let deviceStr = switch device {
+      | DevicePin(pin) => `d${Int.toString(pin)}`
+      | DeviceReg(deviceVReg) =>
+        // Device stored in register - need to allocate physical reg for it
+        switch state.vregMap->Belt.Map.Int.get(deviceVReg) {
+        | Some(devicePhysReg) => `r${Int.toString(devicePhysReg)}`
+        | None => "d0" // Fallback - shouldn't happen
+        }
+      }
+
+      // Convert deviceParam to property name
+      let propertyStr = switch deviceParam {
+      | Temperature => "Temperature"
+      | Setting => "Setting"
+      | Pressure => "Pressure"
+      }
+
+      // Build instruction (ignore bulkOpt for now - Phase 1)
+      let instr = `l r${Int.toString(physicalReg)} ${deviceStr} ${propertyStr}`
+      emit(state, instr)
+    })
+
+  // RawInstruction: emit raw IC10 assembly directly
+  | RawInstruction(instruction) => Ok(emit(state, instruction))
+
   // Phase 1: Not yet implemented
-  | Load(_, _, _, _) => Error("Load instruction not yet implemented in Phase 1")
   | Save(_, _, _) => Error("Save instruction not yet implemented in Phase 1")
   | Unary(_, _, _) => Error("Unary instruction not yet implemented in Phase 1")
   }
