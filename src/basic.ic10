@@ -15,28 +15,30 @@ poke 2 r1
 poke 7 0
 poke 8 r2
 label0:
-get r3 db 7
-beq r3 0 match_case_3
-beq r3 1 match_case_4
-beq r3 2 match_case_5
+l r3 d0 Temperature
+l r4 d1 Temperature
+get r5 db 7
+beq r5 0 match_case_3
+beq r5 1 match_case_4
+beq r5 2 match_case_5
 j match_end_2
 match_case_3:
-get r4 db 8
+get r6 db 8
 poke 0 0
-poke 1 r5
-poke 2 r6
+poke 1 r7
+poke 2 r8
 j match_end_2
 match_case_4:
-get r7 db 9
+get r9 db 9
 poke 0 1
-poke 3 r8
-poke 4 r9
+poke 3 r10
+poke 4 r11
 j match_end_2
 match_case_5:
-get r10 db 10
+get r12 db 10
 poke 0 2
-poke 5 r11
-poke 6 r12
+poke 5 r13
+poke 6 r14
 j match_end_2
 match_end_2:
 yield

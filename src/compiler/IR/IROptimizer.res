@@ -131,10 +131,49 @@ let eliminateRedundantMoves = (instrs: list<IR.instr>): list<IR.instr> => {
   filter(instrs)
 }
 
+// Optimization 4: Constant Folding
+// Evaluate constant expressions at compile time
+let foldConstants = (instrs: list<IR.instr>): list<IR.instr> => {
+  let rec process = (instrs: list<IR.instr>): list<IR.instr> => {
+    switch instrs {
+    | list{} => list{}
+    | list{Binary(dst, op, Num(left), Num(right)), ...rest} =>
+      let result = switch op {
+      | AddOp => left + right
+      | SubOp => left - right
+      | MulOp => left * right
+      | DivOp =>
+        if right == 0 {
+          // Division by zero, cannot fold
+          -1 // Or some other sentinel, or don't fold
+        } else {
+          left / right
+        }
+      }
+      list{Move(dst, Num(result)), ...process(rest)}
+
+    | list{Compare(dst, op, Num(left), Num(right)), ...rest} =>
+      let result = switch op {
+      | LtOp => left < right
+      | GtOp => left > right
+      | EqOp => left == right
+      | GeOp => left >= right
+      | LeOp => left <= right
+      | NeOp => left != right
+      }
+      list{Move(dst, Num(result ? 1 : 0)), ...process(rest)}
+
+    | list{instr, ...rest} => list{instr, ...process(rest)}
+    }
+  }
+  process(instrs)
+}
+
 // Apply all optimizations to a block
 let optimizeBlock = (block: IR.block): IR.block => {
   let optimized =
     block.instructions
+    ->foldConstants
     ->propagateCopies
     ->eliminateRedundantMoves
     ->eliminateDeadCode

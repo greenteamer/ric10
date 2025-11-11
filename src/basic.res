@@ -5,8 +5,8 @@ let state = ref(Idle(0, 0))
 let atmState = ref(Day(0))
 
 while true {
-  let tankTemp = 100
-  let atmTemp = 200
+  let tankTemp = l(0, "Temperature")
+  let atmTemp = l(1, "Temperature")
 
   switch atmState.contents {
   | Day(temp) => state := Idle(tankTemp, atmTemp)
