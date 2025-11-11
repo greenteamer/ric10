@@ -38,13 +38,12 @@ let compile = (source: string, ~options: option<CodegenTypes.compilerOptions>=?,
       Console.log(IRPrint.print(ir))
       ir
     })
-    // Temporarily disable optimizer for testing
-    // ->Result.map(IROptimizer.optimize)
-    // ->Result.map(ir => {
-    //   Console.log("\n=== IR (After Optimization) ===")
-    //   Console.log(IRPrint.print(ir))
-    //   ir
-    // })
+    ->Result.map(IROptimizer.optimize)
+    ->Result.map(ir => {
+      Console.log("\n=== IR (After Optimization) ===")
+      Console.log(IRPrint.print(ir))
+      ir
+    })
     ->Result.flatMap(IRToIC10.generate)
     ->Result.map(res => Program(res))
 

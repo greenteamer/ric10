@@ -1,10 +1,12 @@
-let a = 1
-let b = 2
+let a = 2
+let b = 3
 
 let c = ref(0)
 
-while true {
-  if a < b {
-    c := a + b + 200
+while c.contents < 10 {
+  if c.contents < a {
+    c := c.contents + a
+  } else {
+    c := c.contents + b
   }
 }

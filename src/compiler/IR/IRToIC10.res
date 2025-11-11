@@ -93,9 +93,11 @@ let generateInstr = (state: state, instr: IR.instr): result<state, string> => {
 
       allocatePhysicalReg(state, vreg)->Result.flatMap(((state, resultReg)) => {
         convertOperand(state, left)->Result.flatMap(((state, leftStr)) => {
-          convertOperand(state, right)->Result.map(((state, rightStr)) => {
-            emit(state, `${opStr} r${Int.toString(resultReg)} ${leftStr} ${rightStr}`)
-          })
+          convertOperand(state, right)->Result.map(
+            ((state, rightStr)) => {
+              emit(state, `${opStr} r${Int.toString(resultReg)} ${leftStr} ${rightStr}`)
+            },
+          )
         })
       })
     }
@@ -120,12 +122,36 @@ let generateInstr = (state: state, instr: IR.instr): result<state, string> => {
   }
 }
 
-// Generate IC10 code for a block
+// Generate IC10 code for a block with peephole optimization
 let generateBlock = (state: state, block: IR.block): result<state, string> => {
-  // Process all instructions in the block
+  // Process all instructions in the block with lookahead for peephole optimization
   let rec processInstrs = (state: state, instrs: list<IR.instr>): result<state, string> => {
     switch instrs {
     | list{} => Ok(state)
+
+    // Peephole optimization: Compare + Bnez → Direct branch instruction
+    | list{Compare(vreg, op, left, right), Bnez(VReg(condReg), label), ...rest}
+      if vreg === condReg =>
+      // Pattern detected! Emit direct branch instruction
+      let branchOp = switch op {
+      | LtOp => "blt"
+      | GtOp => "bgt"
+      | LeOp => "ble"
+      | GeOp => "bge"
+      | EqOp => "beq"
+      | NeOp => "bne"
+      }
+
+      // Convert operands to IC10 format
+      convertOperand(state, left)->Result.flatMap(((state, leftStr)) => {
+        convertOperand(state, right)->Result.flatMap(((state, rightStr)) => {
+          // Emit direct branch instruction
+          let newState = emit(state, `${branchOp} ${leftStr} ${rightStr} ${label}`)
+          processInstrs(newState, rest)
+        })
+      })
+
+    // Default case: process instruction normally
     | list{instr, ...rest} =>
       generateInstr(state, instr)->Result.flatMap(state => {
         processInstrs(state, rest)

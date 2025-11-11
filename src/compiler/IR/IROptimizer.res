@@ -16,7 +16,12 @@ let rec findUsedVRegs = (instrs: list<IR.instr>, used: VRegSet.t): VRegSet.t => 
       | Binary(_, _, VReg(left), Num(_)) => used->VRegSet.add(left)
       | Binary(_, _, Num(_), VReg(right)) => used->VRegSet.add(right)
       | Binary(_, _, Num(_), Num(_)) => used
-      | Bnez(_, _) => used
+      | Compare(_, _, VReg(left), VReg(right)) => used->VRegSet.add(left)->VRegSet.add(right)
+      | Compare(_, _, VReg(left), Num(_)) => used->VRegSet.add(left)
+      | Compare(_, _, Num(_), VReg(right)) => used->VRegSet.add(right)
+      | Compare(_, _, Num(_), Num(_)) => used
+      | Bnez(VReg(vreg), _) => used->VRegSet.add(vreg)
+      | Bnez(Num(_), _) => used
       | Save(_, _, vreg) => used->VRegSet.add(vreg)
       | Unary(_, _, VReg(vreg)) => used->VRegSet.add(vreg)
       | Unary(_, _, Num(_)) => used
@@ -58,7 +63,10 @@ let propagateCopies = (instrs: list<IR.instr>): list<IR.instr> => {
     switch op {
     | VReg(vreg) =>
       switch copies->Belt.Map.Int.get(vreg) {
-      | Some(replacement) => replacement
+      | Some(replacement) => {
+          Console.log2("[propagateCopies][sustituteOperand] replacement: ", replacement)
+          replacement
+        }
       | None => op
       }
     | Num(_) => op
@@ -88,6 +96,19 @@ let propagateCopies = (instrs: list<IR.instr>): list<IR.instr> => {
         // This invalidates any copies involving dst
         let newCopies = copies->Belt.Map.Int.remove(dst)
         list{Binary(dst, op, newLeft, newRight), ...process(rest, newCopies)}
+      }
+    | list{Compare(dst, op, left, right), ...rest} => {
+        // Apply substitution to operands
+        let newLeft = substituteOperand(left, copies)
+        let newRight = substituteOperand(right, copies)
+        // This invalidates any copies involving dst
+        let newCopies = copies->Belt.Map.Int.remove(dst)
+        list{Compare(dst, op, newLeft, newRight), ...process(rest, newCopies)}
+      }
+    | list{Bnez(operand, label), ...rest} => {
+        // Apply substitution to the condition operand
+        let newOperand = substituteOperand(operand, copies)
+        list{Bnez(newOperand, label), ...process(rest, copies)}
       }
     | list{instr, ...rest} => list{instr, ...process(rest, copies)}
     }
