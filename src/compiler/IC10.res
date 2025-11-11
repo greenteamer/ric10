@@ -34,6 +34,12 @@ let d4: device = 4
 let d5: device = 5
 let db: device = -1 // Database device
 
+// Device reference - creates a device reference from a pin number
+// let furnace = device(0) -> d0
+let device = (_pin: int): device => {
+  0
+}
+
 // Load operations - read from devices
 // l r0 d0 Temperature
 let l = (_device: device, _property: string): int => {

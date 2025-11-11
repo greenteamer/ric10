@@ -14,6 +14,10 @@ type deviceParam =
   | Setting
   | Temperature
   | Pressure
+  | On
+  | Open
+  | Mode
+  | Lock
 
 type device =
   | DevicePin(int) // d0, d1, d2, etc.
@@ -40,7 +44,7 @@ type instr =
   | DefHash(string, string)
   | Move(vreg, operand)
   | Load(vreg, device, deviceParam, option<bulkOption>)
-  | Save(device, deviceParam, vreg)
+  | Save(device, deviceParam, operand)
   | Unary(vreg, unOp, operand)
   | Binary(vreg, binOp, operand, operand)
   | Compare(vreg, compareOp, operand, operand)

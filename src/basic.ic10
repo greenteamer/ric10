@@ -1,46 +1,50 @@
-push 0
-push 0
-push 0
-push 0
-push 0
-push 0
-push 0
-push 0
+move sp 9
 poke 0 0
 poke 1 0
 poke 2 0
 poke 7 0
 label0:
 l r0 d0 Temperature
-l r1 d1 Temperature
-l r2 d2 Temperature
-get r3 db 7
-beq r3 0 match_case_3
-beq r3 1 match_case_4
-beq r3 2 match_case_5
+l r1 d0 Pressure
+l r2 d1 Temperature
+l r3 d1 Pressure
+l r4 d2 Temperature
+l r5 d3 Setting
+l r6 d4 Setting
+get r7 db 7
+beq r7 0 match_case_3
+beq r7 1 match_case_4
+beq r7 2 match_case_5
 j match_end_2
 match_case_3:
-get r4 db 0
-beq r4 0 match_case_7
+get r8 db 0
+beq r8 0 match_case_7
 j match_end_6
 match_case_7:
-get r5 db 1
-get r6 db 2
-poke 0 0
-poke 1 r1
-poke 2 r2
+get r9 db 1
+get r10 db 2
+blt r0 1000 label8
+poke 0 2
+poke 5 r2
+poke 6 r4
+j label9
+label8:
+poke 0 1
+poke 3 r2
+poke 4 r4
+label9:
 j match_end_6
 match_end_6:
 j match_end_2
 match_case_4:
 poke 0 1
-poke 3 r1
-poke 4 r2
+poke 3 r2
+poke 4 r4
 j match_end_2
 match_case_5:
 poke 0 2
-poke 5 r1
-poke 6 r2
+poke 5 r2
+poke 6 r4
 j match_end_2
 match_end_2:
 yield

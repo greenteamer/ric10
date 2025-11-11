@@ -22,7 +22,8 @@ let rec findUsedVRegs = (instrs: list<IR.instr>, used: VRegSet.t): VRegSet.t => 
       | Compare(_, _, Num(_), Num(_)) => used
       | Bnez(VReg(vreg), _) => used->VRegSet.add(vreg)
       | Bnez(Num(_), _) => used
-      | Save(_, _, vreg) => used->VRegSet.add(vreg)
+      | Save(_, _, VReg(vreg)) => used->VRegSet.add(vreg)
+      | Save(_, _, Num(_)) => used
       | Unary(_, _, VReg(vreg)) => used->VRegSet.add(vreg)
       | Unary(_, _, Num(_)) => used
       | _ => used
@@ -114,12 +115,9 @@ let propagateConstantsAndCopies = (instrs: list<IR.instr>): list<IR.instr> => {
       let newOperand = substituteOperand(operand, copies)
       list{IR.Bnez(newOperand, label), ...process(rest, copies)}
 
-    | list{IR.Save(device, field, vreg), ...rest} =>
-      let newVreg = switch substituteOperand(VReg(vreg), copies) {
-      | VReg(newV) => newV
-      | Num(_) => vreg // Cannot substitute a number into a Save instruction, so don't.
-      }
-      list{IR.Save(device, field, newVreg), ...process(rest, copies)}
+    | list{IR.Save(device, field, operand), ...rest} =>
+      let newOperand = substituteOperand(operand, copies)
+      list{IR.Save(device, field, newOperand), ...process(rest, copies)}
 
     | list{IR.StackPoke(address, operand), ...rest} =>
       let newOperand = substituteOperand(operand, copies)

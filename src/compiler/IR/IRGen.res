@@ -29,6 +29,8 @@ type state = {
   variantTags: Belt.Map.String.t<int>, // constructorName → tag
   refToTypeName: Belt.Map.String.t<string>, // refName → typeName
   stackAllocator: stackAllocator, // Stack memory allocator
+  // Device tracking
+  deviceMap: Belt.Map.String.t<int>, // variableName → device pin (e.g., "furnace" → 0)
 }
 
 // Create initial state
@@ -41,6 +43,7 @@ let createState = (): state => {
   variantTags: Belt.Map.String.empty,
   refToTypeName: Belt.Map.String.empty,
   stackAllocator: {nextFreeSlot: 0},
+  deviceMap: Belt.Map.String.empty,
 }
 
 // Allocate a new virtual register
@@ -210,6 +213,10 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
   // FunctionCall: IC10 functions like l(), s(), etc.
   | FunctionCall(funcName, args) =>
     switch funcName {
+    | "device" =>
+      // device() should only be used in variable declarations, not in expressions
+      Error("device() can only be used in variable declarations: let furnace = device(0)")
+
     | "l" =>
       // l(device, "Property") - Load instruction
       if Array.length(args) != 2 {
@@ -222,6 +229,10 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
           | "Temperature" => Ok(IR.Temperature)
           | "Setting" => Ok(IR.Setting)
           | "Pressure" => Ok(IR.Pressure)
+          | "On" => Ok(IR.On)
+          | "Open" => Ok(IR.Open)
+          | "Mode" => Ok(IR.Mode)
+          | "Lock" => Ok(IR.Lock)
           | _ => Error(`Unknown device parameter: ${property}`)
           }
 
@@ -361,7 +372,10 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
     }
 
   // Phase 1: Only support simple expressions
-  | _ => Error("Expression type not supported in Phase 1")
+  | _ => {
+      Console.log2("Unsupported expression type:", expr)
+      Error("Expression type not supported in Phase 1")
+    }
   }
 }
 
@@ -744,10 +758,23 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
       })
 
     | _ =>
-      // Not a ref - normal variable
-      generateExpr(state, init)->Result.map(((state, vreg)) => {
-        {...state, varMap: state.varMap->Belt.Map.String.set(name, {vreg, isRef: false})}
-      })
+      // Check if this is a device() call
+      switch init {
+      | FunctionCall("device", args) =>
+        // Track this as a device variable (no code generation needed)
+        switch args[0] {
+        | Some(AST.ArgExpr(AST.Literal(devicePin))) =>
+          // Just add to deviceMap, don't generate any IR or allocate vreg
+          let deviceMap = Belt.Map.String.set(state.deviceMap, name, devicePin)
+          Ok({...state, deviceMap})
+        | _ => Error("device() expects a literal device pin: device(0)")
+        }
+      | _ =>
+        // Not a ref, not a device - normal variable
+        generateExpr(state, init)->Result.map(((state, vreg)) => {
+          {...state, varMap: state.varMap->Belt.Map.String.set(name, {vreg, isRef: false})}
+        })
+      }
     }
 
   // IfStatement: handle if-only and if-else
@@ -852,6 +879,94 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
     generateExpr(state, SwitchExpression(scrutinee, cases))->Result.map(((state, _resultVreg)) =>
       state
     )
+
+  // FunctionCall as statement: s(device, property, value)
+  | FunctionCall(funcName, args) =>
+    switch funcName {
+    | "s" =>
+      // s(device, "Property", value) - Store instruction
+      if Array.length(args) != 3 {
+        Error("s() expects 3 arguments: device, property name, and value")
+      } else {
+        switch (args[0], args[1], args[2]) {
+        // Case 1: s(identifier, "Property", value) - device variable
+        | (
+            Some(AST.ArgExpr(AST.Identifier(deviceVar))),
+            Some(AST.ArgString(property)),
+            Some(AST.ArgExpr(valueExpr)),
+          ) =>
+          // Look up device variable in deviceMap
+          switch state.deviceMap->Belt.Map.String.get(deviceVar) {
+          | Some(devicePin) =>
+            // Parse property name
+            let deviceParamResult = switch property {
+            | "Temperature" => Ok(IR.Temperature)
+            | "Setting" => Ok(IR.Setting)
+            | "Pressure" => Ok(IR.Pressure)
+            | "On" => Ok(IR.On)
+            | "Open" => Ok(IR.Open)
+            | "Mode" => Ok(IR.Mode)
+            | "Lock" => Ok(IR.Lock)
+            | _ => Error(`Unknown device parameter: ${property}`)
+            }
+
+            deviceParamResult->Result.flatMap(deviceParam => {
+              // Check if value is a literal - use immediate value
+              switch valueExpr {
+              | AST.Literal(n) =>
+                // Use immediate value directly
+                Ok(emit(state, IR.Save(IR.DevicePin(devicePin), deviceParam, IR.Num(n))))
+              | _ =>
+                // Generate value expression into a vreg
+                generateExpr(state, valueExpr)->Result.map(((state, valueVReg)) => {
+                  // Emit Save instruction with vreg
+                  emit(state, IR.Save(IR.DevicePin(devicePin), deviceParam, IR.VReg(valueVReg)))
+                })
+              }
+            })
+          | None =>
+            Error(`Variable '${deviceVar}' is not a device. Use: let ${deviceVar} = device(pin)`)
+          }
+
+        // Case 2: s(literal, "Property", value) - direct device pin
+        | (
+            Some(AST.ArgExpr(AST.Literal(devicePin))),
+            Some(AST.ArgString(property)),
+            Some(AST.ArgExpr(valueExpr)),
+          ) =>
+          // Parse property name
+          let deviceParamResult = switch property {
+          | "Temperature" => Ok(IR.Temperature)
+          | "Setting" => Ok(IR.Setting)
+          | "Pressure" => Ok(IR.Pressure)
+          | "On" => Ok(IR.On)
+          | "Open" => Ok(IR.Open)
+          | "Mode" => Ok(IR.Mode)
+          | "Lock" => Ok(IR.Lock)
+          | _ => Error(`Unknown device parameter: ${property}`)
+          }
+
+          deviceParamResult->Result.flatMap(deviceParam => {
+            // Check if value is a literal - use immediate value
+            switch valueExpr {
+            | AST.Literal(n) =>
+              // Use immediate value directly
+              Ok(emit(state, IR.Save(IR.DevicePin(devicePin), deviceParam, IR.Num(n))))
+            | _ =>
+              // Generate value expression into a vreg
+              generateExpr(state, valueExpr)->Result.map(((state, valueVReg)) => {
+                // Emit Save instruction with vreg
+                emit(state, IR.Save(IR.DevicePin(devicePin), deviceParam, IR.VReg(valueVReg)))
+              })
+            }
+          })
+
+        | _ => Error("s() expects (device: identifier or int, property: string, value: expr)")
+        }
+      }
+
+    | _ => Error(`Function '${funcName}' not yet implemented as statement in IR mode`)
+    }
 
   // Phase 2: Support variable declarations and if statements
   | _ => {

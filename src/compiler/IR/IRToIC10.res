@@ -117,16 +117,9 @@ let generateInstr = (state: state, instr: IR.instr): result<state, string> => {
 
   // Stack operations for variants
   | StackAlloc(slotCount) =>
-    // Emit multiple push instructions to reserve slots
-    let rec emitPushes = (state: state, remaining: int): state => {
-      if remaining <= 0 {
-        state
-      } else {
-        let state = emit(state, "push 0")
-        emitPushes(state, remaining - 1)
-      }
-    }
-    Ok(emitPushes(state, slotCount))
+    // Optimize: Instead of multiple push 0, directly move the stack pointer
+    // This is more efficient: move sp 8 instead of 8x push 0
+    Ok(emit(state, `move sp ${Int.toString(slotCount)}`))
 
   | StackPoke(address, operand) =>
     // poke address value
@@ -165,6 +158,10 @@ let generateInstr = (state: state, instr: IR.instr): result<state, string> => {
       | Temperature => "Temperature"
       | Setting => "Setting"
       | Pressure => "Pressure"
+      | On => "On"
+      | Open => "Open"
+      | Mode => "Mode"
+      | Lock => "Lock"
       }
 
       // Build instruction (ignore bulkOpt for now - Phase 1)
@@ -172,11 +169,41 @@ let generateInstr = (state: state, instr: IR.instr): result<state, string> => {
       emit(state, instr)
     })
 
+  // Save: s device property value
+  | Save(device, deviceParam, valueOperand) =>
+    // Convert device to IC10 format
+    let deviceStr = switch device {
+    | DevicePin(pin) => `d${Int.toString(pin)}`
+    | DeviceReg(deviceVReg) =>
+      // Device stored in register - need to allocate physical reg for it
+      switch state.vregMap->Belt.Map.Int.get(deviceVReg) {
+      | Some(devicePhysReg) => `r${Int.toString(devicePhysReg)}`
+      | None => "d0" // Fallback - shouldn't happen
+      }
+    }
+
+    // Convert deviceParam to property name
+    let propertyStr = switch deviceParam {
+    | Temperature => "Temperature"
+    | Setting => "Setting"
+    | Pressure => "Pressure"
+    | On => "On"
+    | Open => "Open"
+    | Mode => "Mode"
+    | Lock => "Lock"
+    }
+
+    // Convert value operand to string
+    convertOperand(state, valueOperand)->Result.map(((state, valueStr)) => {
+      // Build instruction: s device property value
+      let instr = `s ${deviceStr} ${propertyStr} ${valueStr}`
+      emit(state, instr)
+    })
+
   // RawInstruction: emit raw IC10 assembly directly
   | RawInstruction(instruction) => Ok(emit(state, instruction))
 
   // Phase 1: Not yet implemented
-  | Save(_, _, _) => Error("Save instruction not yet implemented in Phase 1")
   | Unary(_, _, _) => Error("Unary instruction not yet implemented in Phase 1")
   }
 }
@@ -187,6 +214,23 @@ let generateBlock = (state: state, block: IR.block): result<state, string> => {
   let rec processInstrs = (state: state, instrs: list<IR.instr>): result<state, string> => {
     switch instrs {
     | list{} => Ok(state)
+
+    // Peephole optimization: Multiple StackAlloc → Single move sp instruction
+    | list{StackAlloc(count1), ...rest} =>
+      // Accumulate consecutive StackAlloc instructions
+      let rec accumulateStackAllocs = (total: int, remaining: list<IR.instr>): (
+        int,
+        list<IR.instr>,
+      ) => {
+        switch remaining {
+        | list{StackAlloc(count), ...rest} => accumulateStackAllocs(total + count, rest)
+        | _ => (total, remaining)
+        }
+      }
+      let (totalSlots, remaining) = accumulateStackAllocs(count1, rest)
+      // Emit single move sp instruction
+      let newState = emit(state, `move sp ${Int.toString(totalSlots)}`)
+      processInstrs(newState, remaining)
 
     // Peephole optimization: Compare + Bnez → Direct branch instruction
     | list{Compare(vreg, op, left, right), Bnez(VReg(condReg), label), ...rest}

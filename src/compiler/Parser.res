@@ -460,7 +460,7 @@ and parsePrimaryExpression = (parser: parser): result<(parser, AST.expr), string
     switch peek(parser) {
     | Some(Lexer.LeftParen) =>
       // Determine if this is a function call or variant constructor
-      // IC10 functions: l, lb, lbn, s, sb, sbn
+      // IC10 functions: l, lb, lbn, s, sb, sbn, device
       // HASH is also a function (used in constants)
       let isIC10Function =
         name == "l" ||
@@ -469,7 +469,8 @@ and parsePrimaryExpression = (parser: parser): result<(parser, AST.expr), string
         name == "s" ||
         name == "sb" ||
         name == "sbn" ||
-        name == "hash"
+        name == "hash" ||
+        name == "device"
 
       if isIC10Function {
         // Parse as function call with multiple arguments

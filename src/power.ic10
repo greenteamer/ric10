@@ -1,0 +1,74 @@
+define sPanels HASH("StructureSolarPanelDualReinforced")
+define batteries HASH("StructureBattery")
+define flashingLights HASH("StructureFlashingLight")
+define leds HASH("StructureConsoleLED5")
+define generators HASH("StructureSolidFuelGenerator")
+
+define powerBatteryAlert HASH("PowerBatteryAlert")
+define powerLed HASH("PowerLED")
+define powerStateLed HASH("PowerStateLED")
+define generatorQuantityLed HASH("GeneratorQuantityLed")
+define baseGenerator HASH("BaseGenerator")
+define baseBattery HASH("BaseBattery")
+
+alias holeSensor d0
+
+alias sPanelsH r0
+alias sPanelsV r1
+alias holeH r2
+alias holeV r3
+
+
+alias power r4
+alias powerState r5
+alias generatorQuantity r6
+
+
+
+sbn leds powerLed On 1
+sbn leds powerStateLed On 1
+sbn leds generatorQuantityLed On 1
+
+main:
+yield
+jal solarControl
+j powerControl
+j main
+
+# Solar Panels Control
+solarControl:
+l holeH holeSensor Horizontal
+l holeV holeSensor Vertical
+add sPanelsH holeH 90
+sub sPanelsV 90 holeV
+sb sPanels Horizontal sPanelsH
+sb sPanels Vertical sPanelsV
+j ra
+
+# Station Power control
+powerControl:
+s db Setting powerState
+lb power batteries Charge Sum
+lb powerState batteries Mode Minimum
+sbn leds powerLed Setting power
+sbn leds powerLed Color powerState
+sbn leds powerStateLed Setting powerState
+sbn leds powerStateLed Color powerState
+sbn leds generatorQuantityLed Setting generatorQuantity
+beq generatorQuantity 0 run_alert
+blt powerState 5 run_generator
+j idle
+
+run_alert:
+sbn flashingLights powerBatteryAlert On 1
+j main
+
+run_generator:
+sbn generators baseGenerator On 1
+## how to check generator slot?
+j main
+
+idle:
+sbn flashingLights powerBatteryAlert On 0
+sbn generators baseGenerator On 0
+j main

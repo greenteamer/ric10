@@ -55,6 +55,10 @@ let printInstr = (instr: IR.instr): string => {
       | Setting => "Setting"
       | Temperature => "Temperature"
       | Pressure => "Pressure"
+      | On => "On"
+      | Open => "Open"
+      | Mode => "Mode"
+      | Lock => "Lock"
       }
       let bulkStr = switch bulkOpt {
       | Some(Maximum) => " Maximum"
@@ -65,14 +69,18 @@ let printInstr = (instr: IR.instr): string => {
       }
       `load ${printVReg(vreg)} ${deviceStr} ${paramStr}${bulkStr}`
     }
-  | Save(device, param, vreg) => {
+  | Save(device, param, operand) => {
       let deviceStr = printDevice(device)
       let paramStr = switch param {
       | Setting => "Setting"
       | Temperature => "Temperature"
       | Pressure => "Pressure"
+      | On => "On"
+      | Open => "Open"
+      | Mode => "Mode"
+      | Lock => "Lock"
       }
-      `save ${deviceStr} ${paramStr} ${printVReg(vreg)}`
+      `save ${deviceStr} ${paramStr} ${printOperand(operand)}`
     }
   | Unary(vreg, op, operand) => {
       let opStr = switch op {
