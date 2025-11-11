@@ -54,19 +54,16 @@ let eliminateDeadCode = (instrs: list<IR.instr>): list<IR.instr> => {
   filter(instrs)
 }
 
-// Optimization 2: Copy Propagation
-// Replace v1 = v0; v2 = v1 with v1 = v0; v2 = v0
+// Optimization 2: Constant and Copy Propagation
+// Replaces variables with their known constant or copy values.
 type copyMap = Belt.Map.Int.t<IR.operand>
 
-let propagateCopies = (instrs: list<IR.instr>): list<IR.instr> => {
+let propagateConstantsAndCopies = (instrs: list<IR.instr>): list<IR.instr> => {
   let substituteOperand = (op: IR.operand, copies: copyMap): IR.operand => {
     switch op {
     | VReg(vreg) =>
       switch copies->Belt.Map.Int.get(vreg) {
-      | Some(replacement) => {
-          Console.log2("[propagateCopies][sustituteOperand] replacement: ", replacement)
-          replacement
-        }
+      | Some(replacement) => replacement
       | None => op
       }
     | Num(_) => op
@@ -76,40 +73,63 @@ let propagateCopies = (instrs: list<IR.instr>): list<IR.instr> => {
   let rec process = (instrs: list<IR.instr>, copies: copyMap): list<IR.instr> => {
     switch instrs {
     | list{} => list{}
-    | list{Move(dst, VReg(src)), ...rest} => {
-        // This is a copy: dst = src
-        // Add to copy map and continue
-        let newCopies = copies->Belt.Map.Int.set(dst, VReg(src))
-        list{Move(dst, VReg(src)), ...process(rest, newCopies)}
+
+    // Instructions that DEFINE a register
+    | list{IR.Move(dst, operand), ...rest} =>
+      let substitutedOperand = substituteOperand(operand, copies)
+      let newInstr = IR.Move(dst, substitutedOperand)
+      let newCopies = copies->Belt.Map.Int.remove(dst)->Belt.Map.Int.set(dst, substitutedOperand)
+      list{newInstr, ...process(rest, newCopies)}
+
+    | list{IR.Binary(dst, op, left, right), ...rest} =>
+      let newLeft = substituteOperand(left, copies)
+      let newRight = substituteOperand(right, copies)
+      let newInstr = IR.Binary(dst, op, newLeft, newRight)
+      let newCopies = copies->Belt.Map.Int.remove(dst)
+      list{newInstr, ...process(rest, newCopies)}
+
+    | list{IR.Compare(dst, op, left, right), ...rest} =>
+      let newLeft = substituteOperand(left, copies)
+      let newRight = substituteOperand(right, copies)
+      let newInstr = IR.Compare(dst, op, newLeft, newRight)
+      let newCopies = copies->Belt.Map.Int.remove(dst)
+      list{newInstr, ...process(rest, newCopies)}
+
+    | list{IR.Unary(dst, op, operand), ...rest} =>
+      let newOperand = substituteOperand(operand, copies)
+      let newInstr = IR.Unary(dst, op, newOperand)
+      let newCopies = copies->Belt.Map.Int.remove(dst)
+      list{newInstr, ...process(rest, newCopies)}
+
+    | list{IR.Load(dst, device, deviceParam, bulkOpt), ...rest} =>
+      let newCopies = copies->Belt.Map.Int.remove(dst)
+      list{IR.Load(dst, device, deviceParam, bulkOpt), ...process(rest, newCopies)}
+
+    | list{IR.StackGet(dst, address), ...rest} =>
+      let newCopies = copies->Belt.Map.Int.remove(dst)
+      list{IR.StackGet(dst, address), ...process(rest, newCopies)}
+
+    // Instructions that USE registers
+    | list{IR.Bnez(operand, label), ...rest} =>
+      let newOperand = substituteOperand(operand, copies)
+      list{IR.Bnez(newOperand, label), ...process(rest, copies)}
+
+    | list{IR.Save(device, field, vreg), ...rest} =>
+      let newVreg = switch substituteOperand(VReg(vreg), copies) {
+      | VReg(newV) => newV
+      | Num(_) => vreg // Cannot substitute a number into a Save instruction, so don't.
       }
-    | list{Move(dst, operand), ...rest} => {
-        // Regular move - apply substitution to operand
-        let newOperand = substituteOperand(operand, copies)
-        // This move invalidates any copies involving dst
-        let newCopies = copies->Belt.Map.Int.remove(dst)
-        list{Move(dst, newOperand), ...process(rest, newCopies)}
-      }
-    | list{Binary(dst, op, left, right), ...rest} => {
-        // Apply substitution to operands
-        let newLeft = substituteOperand(left, copies)
-        let newRight = substituteOperand(right, copies)
-        // This invalidates any copies involving dst
-        let newCopies = copies->Belt.Map.Int.remove(dst)
-        list{Binary(dst, op, newLeft, newRight), ...process(rest, newCopies)}
-      }
-    | list{Compare(dst, op, left, right), ...rest} => {
-        // Apply substitution to operands
-        let newLeft = substituteOperand(left, copies)
-        let newRight = substituteOperand(right, copies)
-        // This invalidates any copies involving dst
-        let newCopies = copies->Belt.Map.Int.remove(dst)
-        list{Compare(dst, op, newLeft, newRight), ...process(rest, newCopies)}
-      }
-    | list{Bnez(operand, label), ...rest} => {
-        // Apply substitution to the condition operand
-        let newOperand = substituteOperand(operand, copies)
-        list{Bnez(newOperand, label), ...process(rest, copies)}
-      }
+      list{IR.Save(device, field, newVreg), ...process(rest, copies)}
+
+    | list{IR.StackPoke(address, operand), ...rest} =>
+      let newOperand = substituteOperand(operand, copies)
+      list{IR.StackPoke(address, newOperand), ...process(rest, copies)}
+
+    | list{IR.StackPush(operand), ...rest} =>
+      let newOperand = substituteOperand(operand, copies)
+      list{IR.StackPush(newOperand), ...process(rest, copies)}
+
+    // Other instructions are left alone
     | list{instr, ...rest} => list{instr, ...process(rest, copies)}
     }
   }
@@ -174,7 +194,7 @@ let optimizeBlock = (block: IR.block): IR.block => {
   let optimized =
     block.instructions
     ->foldConstants
-    ->propagateCopies
+    ->propagateConstantsAndCopies
     ->eliminateRedundantMoves
     ->eliminateDeadCode
 
