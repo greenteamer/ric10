@@ -90,7 +90,8 @@ let convertBinOp = (op: AST.binaryOp): result<IR.binOp, string> => {
   | Sub => Ok(IR.SubOp)
   | Mul => Ok(IR.MulOp)
   | Div => Ok(IR.DivOp)
-  | Lt | Gt | Eq => Error("Comparison operators should use convertCompareOp")
+  | Lt | Gt | Eq =>
+    Error("[IRGen.res][convertArithOp]: comparison operators should use convertCompareOp")
   }
 }
 
@@ -100,7 +101,7 @@ let normalCompareOp = (op: AST.binaryOp): result<IR.compareOp, string> => {
   | Lt => Ok(IR.LtOp)
   | Gt => Ok(IR.GtOp)
   | Eq => Ok(IR.EqOp)
-  | _ => Error("Not a comparison operator")
+  | _ => Error("[IRGen.res][normalCompareOp]: not a comparison operator")
   }
 }
 
@@ -111,7 +112,7 @@ let invertCompareOp = (op: AST.binaryOp): result<IR.compareOp, string> => {
   | Lt => Ok(IR.GeOp) // NOT(a < b) is (a >= b)
   | Gt => Ok(IR.LeOp) // NOT(a > b) is (a <= b)
   | Eq => Ok(IR.NeOp) // NOT(a == b) is (a != b)
-  | _ => Error("Not a comparison operator")
+  | _ => Error("[IRGen.res][invertCompareOp]: not a comparison operator")
   }
 }
 
@@ -127,7 +128,8 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
     }
 
   // LiteralBool: only used for while true, error in expression context
-  | LiteralBool(_) => Error("Boolean literals can only be used in 'while true' loops")
+  | LiteralBool(_) =>
+    Error("[IRGen.res][generateExpr]: boolean literals can only be used in 'while true' loops")
 
   // Identifier: lookup variable, allocate new vreg, emit Move from source vreg
   // OR check if it's a zero-arg variant constructor
@@ -215,12 +217,14 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
     switch funcName {
     | "device" =>
       // device() should only be used in variable declarations, not in expressions
-      Error("device() can only be used in variable declarations: let furnace = device(0)")
+      Error(
+        "[IRGen.res][generateExpr]: device() can only be used in variable declarations: let furnace = device(0)",
+      )
 
     | "l" =>
       // l(device, "Property") - Load instruction
       if Array.length(args) != 2 {
-        Error("l() expects 2 arguments: device pin and property name")
+        Error("[IRGen.res][generateExpr]: l() expects 2 arguments: device pin and property name")
       } else {
         switch (args[0], args[1]) {
         | (Some(AST.ArgExpr(AST.Literal(devicePin))), Some(AST.ArgString(property))) =>
@@ -246,7 +250,7 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
             Ok((state, resultVReg))
           })
 
-        | _ => Error("l() expects (device_pin: int, property: string)")
+        | _ => Error("[IRGen.res][generateExpr]: l() expects (device_pin: int, property: string)")
         }
       }
 
@@ -365,16 +369,19 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
 
       | None =>
         // Not a variant ref
-        Error("Switch expression only supports variant refs in IR mode")
+        Error("[IRGen.res][generateExpr]: switch expression only supports variant refs in IR mode")
       }
 
-    | _ => Error("Switch expression scrutinee must be a ref access (e.g., state.contents)")
+    | _ =>
+      Error(
+        "[IRGen.res][generateExpr]: switch expression scrutinee must be a ref access (e.g., state.contents)",
+      )
     }
 
   // Phase 1: Only support simple expressions
   | _ => {
       Console.log2("Unsupported expression type:", expr)
-      Error("Expression type not supported in Phase 1")
+      Error("[IRGen.res][generateExpr]: expression type not supported in Phase 1")
     }
   }
 }
@@ -391,7 +398,7 @@ and generateBlock = (state: state, block: AST.blockStatement): result<state, str
       switch stmts[index] {
       | Some(stmt) =>
         generateStmt(state, stmt)->Result.flatMap(state => processStmts(state, stmts, index + 1))
-      | None => Error("Internal error: array index out of bounds")
+      | None => Error("[IRGen.res][generateBlock]: internal error: array index out of bounds")
       }
     }
   }
@@ -440,9 +447,9 @@ and generateIfOnly = (state: state, condition: AST.expr, thenBlock: AST.blockSta
           )
         })
       })
-    | _ => Error("If condition must be a comparison expression")
+    | _ => Error("[IRGen.res][generateIfOnly]: if condition must be a comparison expression")
     }
-  | _ => Error("If condition must be a comparison expression")
+  | _ => Error("[IRGen.res][generateIfOnly]: if condition must be a comparison expression")
   }
 }
 
@@ -502,9 +509,9 @@ and generateIfElse = (
           )
         })
       })
-    | _ => Error("If condition must be a comparison expression")
+    | _ => Error("[IRGen.res][generateIfElse]: if condition must be a comparison expression")
     }
-  | _ => Error("If condition must be a comparison expression")
+  | _ => Error("[IRGen.res][generateIfElse]: if condition must be a comparison expression")
   }
 }
 
@@ -558,7 +565,7 @@ and generateWhileLoop = (state: state, condition: AST.expr, body: AST.blockState
           )
         })
       })
-    | _ => Error("While condition must be a comparison expression")
+    | _ => Error("[IRGen.res][generateWhileLoop]: while condition must be a comparison expression")
     }
 
   // LiteralBool(true): infinite loop with no condition check
@@ -583,7 +590,10 @@ and generateWhileLoop = (state: state, condition: AST.expr, body: AST.blockState
     )
 
   // Other expression types: not supported
-  | _ => Error("While condition must be a comparison expression or 'while true'")
+  | _ =>
+    Error(
+      "[IRGen.res][generateWhileLoop]: while condition must be a comparison expression or 'while true'",
+    )
   }
 }
 
@@ -767,7 +777,7 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
           // Just add to deviceMap, don't generate any IR or allocate vreg
           let deviceMap = Belt.Map.String.set(state.deviceMap, name, devicePin)
           Ok({...state, deviceMap})
-        | _ => Error("device() expects a literal device pin: device(0)")
+        | _ => Error("[IRGen.res][generateStmt]: device() expects a literal device pin: device(0)")
         }
       | _ =>
         // Not a ref, not a device - normal variable
@@ -844,10 +854,16 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
                   Ok(state)
                 }
               }
-            | None => Error("Variant ref can only be assigned variant constructors")
+            | None =>
+              Error(
+                "[IRGen.res][generateStmt]: variant ref can only be assigned variant constructors",
+              )
             }
 
-          | _ => Error("Variant ref can only be assigned variant constructors")
+          | _ =>
+            Error(
+              "[IRGen.res][generateStmt]: variant ref can only be assigned variant constructors",
+            )
           }
 
         | None =>
@@ -886,7 +902,9 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
     | "s" =>
       // s(device, "Property", value) - Store instruction
       if Array.length(args) != 3 {
-        Error("s() expects 3 arguments: device, property name, and value")
+        Error(
+          "[IRGen.res][generateStmt]: s() expects 3 arguments: device, property name, and value",
+        )
       } else {
         switch (args[0], args[1], args[2]) {
         // Case 1: s(identifier, "Property", value) - device variable
@@ -961,18 +979,24 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
             }
           })
 
-        | _ => Error("s() expects (device: identifier or int, property: string, value: expr)")
+        | _ =>
+          Error(
+            "[IRGen.res][generateStmt]: s() expects (device: identifier or int, property: string, value: expr)",
+          )
         }
       }
 
-    | _ => Error(`Function '${funcName}' not yet implemented as statement in IR mode`)
+    | _ =>
+      Error(
+        `[IRGen.res][generateStmt]: function '${funcName}' not yet implemented as statement in IR mode`,
+      )
     }
 
   // Phase 2: Support variable declarations and if statements
   | _ => {
       // Debug: log the unsupported statement type
       Console.log2("Unsupported statement type:", stmt)
-      Error("Statement type not supported in Phase 2")
+      Error("[IRGen.res][generateStmt]: statement type not supported in Phase 2")
     }
   }
 }
@@ -994,7 +1018,7 @@ let generate = (ast: AST.program): result<IR.t, string> => {
         generateStmt(state, stmt)->Result.flatMap(state => {
           processStmts(state, stmts, index + 1)
         })
-      | None => Error("Internal error: array index out of bounds")
+      | None => Error("[IRGen.res][generate]: internal error: array index out of bounds")
       }
     }
   }

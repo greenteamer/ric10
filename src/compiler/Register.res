@@ -8,7 +8,7 @@ let isValid = (n: int): bool => n >= minRegister && n <= maxRegister
 let fromInt = n =>
   switch isValid(n) {
   | true => Ok(n)
-  | false => Error("[Register] constructor failed: not valid register range.")
+  | false => Error("[Register.res][fromInt]: register number out of valid range (0-15)")
   }
 
 let toInt = r => r

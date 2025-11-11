@@ -87,7 +87,7 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
     | AST.FunctionCall("hash", args) =>
       // HASH constant - add to defines
       if Array.length(args) != 1 {
-        Error("hash() expects 1 argument: string")
+        Error("[StmtGen.res][generateVariableDeclaration]: hash() expects 1 argument: string")
       } else {
         switch args[0] {
         | Some(AST.ArgString(str)) =>
@@ -95,7 +95,7 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
           let newDefines = Belt.Map.String.set(state.defines, varName, defineValue)
           let newDefineOrder = Array.concat(state.defineOrder, [(varName, defineValue)])
           Ok({...state, defines: newDefines, defineOrder: newDefineOrder})
-        | _ => Error("hash() expects a string argument")
+        | _ => Error("[StmtGen.res][generateVariableDeclaration]: hash() expects a string argument")
         }
       }
 
@@ -118,14 +118,21 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
 
             // Continue with variant ref creation logic
             switch Belt.Map.String.get(state1.variantTypes, typeName) {
-            | None => Error("Variant type not found: " ++ typeName)
+            | None =>
+              Error(
+                "[StmtGen.res][generateVariableDeclaration]: variant type not found: " ++ typeName,
+              )
             | Some(constructors) =>
               let maxArgs = getMaxArgsForVariantType(constructors)
               let numConstructors = Array.length(constructors)
 
               // Get the tag for this constructor
               switch Belt.Map.String.get(state1.variantTags, constructorName) {
-              | None => Error("Constructor tag not found: " ++ constructorName)
+              | None =>
+                Error(
+                  "[StmtGen.res][generateVariableDeclaration]: constructor tag not found: " ++
+                  constructorName,
+                )
               | Some(tag) =>
                 // Step 1: Push tag
                 let state2 = addInstructionWithComment(
@@ -183,11 +190,18 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
         | AST.VariantConstructor(constructorName, arguments) =>
           // This is a variant ref - use fixed stack layout
           switch getVariantTypeName(state1, constructorName) {
-          | None => Error("Unknown variant constructor: " ++ constructorName)
+          | None =>
+            Error(
+              "[StmtGen.res][generateVariableDeclaration]: unknown variant constructor: " ++
+              constructorName,
+            )
           | Some(typeName) =>
             // Look up the full type definition
             switch Belt.Map.String.get(state1.variantTypes, typeName) {
-            | None => Error("Variant type not found: " ++ typeName)
+            | None =>
+              Error(
+                "[StmtGen.res][generateVariableDeclaration]: variant type not found: " ++ typeName,
+              )
             | Some(constructors) =>
               let maxArgs = getMaxArgsForVariantType(constructors)
               let numConstructors = Array.length(constructors)
@@ -195,7 +209,11 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
 
               // Get the tag for this constructor
               switch Belt.Map.String.get(state1.variantTags, constructorName) {
-              | None => Error("Constructor tag not found: " ++ constructorName)
+              | None =>
+                Error(
+                  "[StmtGen.res][generateVariableDeclaration]: constructor tag not found: " ++
+                  constructorName,
+                )
               | Some(tag) =>
                 // Step 1: Push tag
                 let state2 = addInstructionWithComment(
@@ -361,12 +379,14 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
 
       | _ =>
         // Non-comparison binary expression - use fallback
-        Error("[ExprGen] Non-comparison binary expression in if statement")
+        Error(
+          "[StmtGen.res][generateIfStatement]: non-comparison binary expression in if statement",
+        )
       }
 
     | _ =>
       // Non-binary-expression condition - use fallback
-      Error("[ExprGen] Non-binary-expression condition in if statement")
+      Error("[StmtGen.res][generateIfStatement]: non-binary-expression condition in if statement")
     }
 
   | AST.WhileLoop(condition, body) =>
@@ -441,9 +461,9 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
   | AST.RefAssignment(refName, valueExpr) =>
     // Verify ref exists and is actually a ref
     switch RegisterAlloc.getVariableInfo(state.allocator, refName) {
-    | None => Error("Undefined variable: " ++ refName)
+    | None => Error("[StmtGen.res][generate]: undefined variable: " ++ refName)
     | Some({register: _, isRef: false}) =>
-      Error(refName ++ " is not a ref - cannot use := operator")
+      Error("[StmtGen.res][generate]: " ++ refName ++ " is not a ref - cannot use := operator")
     | Some({register: refReg, isRef: true}) =>
       // Check if this is a variant ref
       switch Belt.Map.String.get(state.variantRefTypes, refName) {
@@ -462,19 +482,20 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
             )
             Ok(state1)
 
-          | None => Error("Unknown variant constructor: " ++ name)
+          | None => Error("[StmtGen.res][generate]: unknown variant constructor: " ++ name)
           }
 
         | AST.VariantConstructor(constructorName, arguments) =>
           // Get variant type info
           switch Belt.Map.String.get(state.variantTypes, typeName) {
-          | None => Error("Variant type not found: " ++ typeName)
+          | None => Error("[StmtGen.res][generate]: variant type not found: " ++ typeName)
           | Some(constructors) =>
             let maxArgs = getMaxArgsForVariantType(constructors)
 
             // Get the tag for this constructor
             switch Belt.Map.String.get(state.variantTags, constructorName) {
-            | None => Error("Constructor tag not found: " ++ constructorName)
+            | None =>
+              Error("[StmtGen.res][generate]: constructor tag not found: " ++ constructorName)
             | Some(tag) =>
               // Step 1: Poke the tag to stack[0]
               let state1 = addInstructionWithComment(
@@ -518,7 +539,8 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
             }
           }
 
-        | _ => Error("Variant ref can only be assigned variant constructors")
+        | _ =>
+          Error("[StmtGen.res][generate]: variant ref can only be assigned variant constructors")
         }
 
       | None =>
@@ -543,8 +565,10 @@ let rec generate = (state: codegenState, stmt: AST.astNode): result<codegenState
     newInstructions[len] = instruction
     Ok({...state, instructions: newInstructions})
 
-  | AST.LiteralStr(_) => Error("String literals cannot be used as standalone statements")
-  | AST.LiteralBool(_) => Error("Boolean literals cannot be used as standalone statements")
+  | AST.LiteralStr(_) =>
+    Error("[StmtGen.res][generate]: string literals cannot be used as standalone statements")
+  | AST.LiteralBool(_) =>
+    Error("[StmtGen.res][generate]: boolean literals cannot be used as standalone statements")
 
   | AST.FunctionCall(_, _) =>
     // Function calls as statements (e.g., IC10.s(d0, "Setting", 1))

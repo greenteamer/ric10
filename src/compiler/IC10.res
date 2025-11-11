@@ -22,7 +22,11 @@ module Mode = {
     | "Minimum" => Ok(Minimum)
     | "Average" => Ok(Average)
     | "Sum" => Ok(Sum)
-    | _ => Error("Invalid mode string")
+    | _ =>
+      Error(
+        "[IC10.res][Mode.fromString]: invalid mode string '" ++
+        str ++ "', expected Maximum|Minimum|Average|Sum",
+      )
     }
 }
 

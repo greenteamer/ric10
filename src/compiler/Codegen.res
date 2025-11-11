@@ -47,7 +47,7 @@ let generate = (program: AST.program, options: CodegenTypes.compilerOptions): re
   }
 
   switch loop(state, 0) {
-  | Error(msg) => Error("Code generation error: " ++ msg)
+  | Error(msg) => Error("[Codegen.res][generate]<-" ++ msg)
   | Ok(finalState) =>
     Console.log2(">>> finalState : ", finalState)
     let defineInstructions = Array.map(finalState.defineOrder, ((name, value)) => {

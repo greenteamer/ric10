@@ -8,11 +8,12 @@ module Utils = {
   let getDefineOrRegister = (state: codegenState, name) =>
     switch Belt.Map.String.get(state.defines, name) {
     | Some(CodegenTypes.NumberValue(numValue)) => Ok(Int.toString(numValue)) // Numeric define
-    | Some(CodegenTypes.HashExpr(_)) => Error("Variable '" ++ name ++ "can not be a hash")
+    | Some(CodegenTypes.HashExpr(_)) =>
+      Error("[ExprGen.res][getDefineOrRegister]: variable '" ++ name ++ "' cannot be a hash")
     | None =>
       // Try to get it as a register variable
       switch RegisterAlloc.getRegister(state.allocator, name) {
-      | None => Error("Variable '" ++ name ++ "' not found")
+      | None => Error("[ExprGen.res][getDefineOrRegister]: variable '" ++ name ++ "' not found")
       | Some(valueReg) => Ok(Register.toString(valueReg))
       }
     }
@@ -119,8 +120,9 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
   | AST.RefAccess(refName) =>
     // Look up the ref's register
     switch RegisterAlloc.getVariableInfo(state.allocator, refName) {
-    | None => Error("Undefined variable: " ++ refName)
-    | Some({register: _, isRef: false}) => Error(refName ++ " is not a ref - cannot use .contents")
+    | None => Error("[ExprGen.res][generate]: undefined variable: " ++ refName)
+    | Some({register: _, isRef: false}) =>
+      Error("[ExprGen.res][generate]: " ++ refName ++ " is not a ref - cannot use .contents")
     | Some({register, isRef: true}) =>
       // Ref's register already contains the value
       // No IC10 instruction needed - just return the register
@@ -130,12 +132,12 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
   | AST.LiteralStr(_str) =>
     // String literals shouldn't appear as standalone expressions in IC10
     // They're only used as arguments to IC10 functions
-    Error("String literals can only be used as IC10 function arguments")
+    Error("[ExprGen.res][generate]: string literals can only be used as IC10 function arguments")
 
   | AST.LiteralBool(_bool) =>
     // Boolean literals shouldn't appear as standalone expressions in IC10
     // They're only used as arguments for infinite while loop constructions
-    Error("true literal can only be used in infinite while true loop")
+    Error("[ExprGen.res][generate]: true literal can only be used in infinite while true loop")
 
   | AST.Identifier(name) =>
     // Check if this is a constant
@@ -185,7 +187,7 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
       | None =>
         // Not a constructor or constant, treat as variable reference
         switch RegisterAlloc.getRegister(state.allocator, name) {
-        | None => Error("Variable not found: " ++ name)
+        | None => Error("[ExprGen.res][generate]: variable not found: " ++ name)
         | Some(reg) => Ok((state, reg))
         }
       }
@@ -252,7 +254,10 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
             }
           }
         }
-      | _ => Error("s() expects arguments: (device_identifier, \"property\", value)")
+      | _ =>
+        Error(
+          "[ExprGen.res][generate]: s() expects arguments: (device_identifier, \"property\", value)",
+        )
       }
 
     | list{"s", "b"} =>
@@ -350,7 +355,7 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
         )
       }
 
-    | _ => Error("Unknown IC10 function: " ++ funcName)
+    | _ => Error("[ExprGen.res][generate]: unknown IC10 function: " ++ funcName)
     }
 
   | AST.BinaryExpression(op, left, right) =>
@@ -401,7 +406,7 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
   | AST.VariantConstructor(constructorName, arguments) =>
     // Look up constructor tag
     switch Belt.Map.String.get(state.variantTags, constructorName) {
-    | None => Error("Unknown variant constructor: " ++ constructorName)
+    | None => Error("[ExprGen.res][generate]: unknown variant constructor: " ++ constructorName)
     | Some(tag) =>
       // Push tag onto stack
       let instr1 = "push " ++ Int.toString(tag)
@@ -467,15 +472,19 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
     // For switch expressions, we need case body generation
     // This creates a dependency cycle if we call StmtGen directly
     // Instead, generateSwitch is called from StmtGen with a callback
-    Error("Switch expressions must be generated via generateSwitchWithBody")
+    Error(
+      "[ExprGen.res][generate]: switch expressions must be generated via generateSwitchWithBody",
+    )
 
-  | AST.VariableDeclaration(_, _) => Error("VariableDeclaration in expression context")
-  | AST.TypeDeclaration(_, _) => Error("TypeDeclaration in expression context")
-  | AST.IfStatement(_, _, _) => Error("IfStatement in expression context")
-  | AST.WhileLoop(_, _) => Error("WhileLoop in expression context")
-  | AST.BlockStatement(_) => Error("BlockStatement in expression context")
-  | AST.RefAssignment(_, _) => Error("RefAssignment in expression context")
-  | AST.RawInstruction(_) => Error("RawInstruction in expression context")
+  | AST.VariableDeclaration(_, _) =>
+    Error("[ExprGen.res][generate]: VariableDeclaration in expression context")
+  | AST.TypeDeclaration(_, _) =>
+    Error("[ExprGen.res][generate]: TypeDeclaration in expression context")
+  | AST.IfStatement(_, _, _) => Error("[ExprGen.res][generate]: IfStatement in expression context")
+  | AST.WhileLoop(_, _) => Error("[ExprGen.res][generate]: WhileLoop in expression context")
+  | AST.BlockStatement(_) => Error("[ExprGen.res][generate]: BlockStatement in expression context")
+  | AST.RefAssignment(_, _) => Error("[ExprGen.res][generate]: RefAssignment in expression context")
+  | AST.RawInstruction(_) => Error("[ExprGen.res][generate]: RawInstruction in expression context")
   }
 }
 
@@ -498,7 +507,7 @@ let generateSwitchWithBody = (
     // This is a variant ref - use fixed stack approach with get db
     // Get variant type info
     switch Belt.Map.String.get(state.variantTypes, typeName) {
-    | None => Error("Variant type not found: " ++ typeName)
+    | None => Error("[ExprGen.res][generateSwitchWithBody]: variant type not found: " ++ typeName)
     | Some(constructors) =>
       let maxArgs = getMaxArgsForVariantType(constructors)
 
@@ -786,8 +795,12 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
   | AST.RefAccess(refName) =>
     // Look up ref's register and copy to target if different
     switch RegisterAlloc.getVariableInfo(state.allocator, refName) {
-    | None => Error("Undefined variable: " ++ refName)
-    | Some({register: _, isRef: false}) => Error(refName ++ " is not a ref - cannot use .contents")
+    | None => Error("[ExprGen.res][generateIntoRegister]: undefined variable: " ++ refName)
+    | Some({register: _, isRef: false}) =>
+      Error(
+        "[ExprGen.res][generateIntoRegister]: " ++
+        refName ++ " is not a ref - cannot use .contents",
+      )
     | Some({register: refReg, isRef: true}) =>
       if refReg == targetReg {
         Ok(state) // Already in target
@@ -836,7 +849,7 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
       | None =>
         // Not a constructor or constant, copy from source variable to target register (if different)
         switch RegisterAlloc.getRegister(state.allocator, name) {
-        | None => Error("Variable not found: " ++ name)
+        | None => Error("[ExprGen.res][generateIntoRegister]: variable not found: " ++ name)
         | Some(sourceReg) =>
           if sourceReg == targetReg {
             Ok(state) // Already in target register
@@ -967,7 +980,8 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
     // Generate variant directly into target register (optimization)
     // Look up constructor tag
     switch Belt.Map.String.get(state.variantTags, constructorName) {
-    | None => Error("Unknown variant constructor: " ++ constructorName)
+    | None =>
+      Error("[ExprGen.res][generateIntoRegister]: unknown variant constructor: " ++ constructorName)
     | Some(tag) =>
       // Push tag onto stack
       let instr1 = "push " ++ Int.toString(tag)
@@ -1039,8 +1053,14 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
       }
     }
 
-  | AST.LiteralStr(_) => Error("String literals can only be used as IC10 function arguments")
-  | AST.LiteralBool(_) => Error("True literal can only be used in infinite while true loop")
+  | AST.LiteralStr(_) =>
+    Error(
+      "[ExprGen.res][generateIntoRegister]: string literals can only be used as IC10 function arguments",
+    )
+  | AST.LiteralBool(_) =>
+    Error(
+      "[ExprGen.res][generateIntoRegister]: true literal can only be used in infinite while true loop",
+    )
   | AST.FunctionCall(funcName, args) =>
     // For function calls, use generate then move to target if needed
     // OPTIMIZATION: Handle value-returning IC10 functions directly
@@ -1049,14 +1069,17 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
     switch parsedFuncName {
     | list{"l"} =>
       if Array.length(args) != 2 {
-        Error("l() expects 2 arguments: device and property")
+        Error("[ExprGen.res][generateIntoRegister]: l() expects 2 arguments: device and property")
       } else {
         switch (args[0], args[1]) {
         | (Some(AST.ArgDevice(deviceName)), Some(AST.ArgString(property))) =>
           let instr = "l " ++ Register.toString(targetReg) ++ " " ++ deviceName ++ " " ++ property
           let comment = "load " ++ property
           Ok(addInstructionWithComment(state, instr, comment))
-        | _ => Error("l() expects arguments: (device_identifier, \"property\")")
+        | _ =>
+          Error(
+            "[ExprGen.res][generateIntoRegister]: l() expects arguments: (device_identifier, \"property\")",
+          )
         }
       }
     | list{"l", "b"} =>
@@ -1147,7 +1170,10 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
             Ok(addInstruction({...state1, allocator}, inst))
           }
         }
-      | _ => Error("s() expects arguments: (device_identifier, \"property\", value)")
+      | _ =>
+        Error(
+          "[ExprGen.res][generateIntoRegister]: s() expects arguments: (device_identifier, \"property\", value)",
+        )
       }
 
     | list{"s", "b"} =>
@@ -1236,12 +1262,19 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
       }
     }
 
-  | AST.VariableDeclaration(_, _) => Error("VariableDeclaration in expression context")
-  | AST.TypeDeclaration(_, _) => Error("TypeDeclaration in expression context")
-  | AST.IfStatement(_, _, _) => Error("IfStatement in expression context")
-  | AST.WhileLoop(_, _) => Error("WhileLoop in expression context")
-  | AST.BlockStatement(_) => Error("BlockStatement in expression context")
-  | AST.RefAssignment(_, _) => Error("RefAssignment in expression context")
-  | AST.RawInstruction(_) => Error("RawInstruction in expression context")
+  | AST.VariableDeclaration(_, _) =>
+    Error("[ExprGen.res][generateIntoRegister]: VariableDeclaration in expression context")
+  | AST.TypeDeclaration(_, _) =>
+    Error("[ExprGen.res][generateIntoRegister]: TypeDeclaration in expression context")
+  | AST.IfStatement(_, _, _) =>
+    Error("[ExprGen.res][generateIntoRegister]: IfStatement in expression context")
+  | AST.WhileLoop(_, _) =>
+    Error("[ExprGen.res][generateIntoRegister]: WhileLoop in expression context")
+  | AST.BlockStatement(_) =>
+    Error("[ExprGen.res][generateIntoRegister]: BlockStatement in expression context")
+  | AST.RefAssignment(_, _) =>
+    Error("[ExprGen.res][generateIntoRegister]: RefAssignment in expression context")
+  | AST.RawInstruction(_) =>
+    Error("[ExprGen.res][generateIntoRegister]: RawInstruction in expression context")
   }
 }

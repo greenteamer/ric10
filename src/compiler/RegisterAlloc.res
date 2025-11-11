@@ -44,15 +44,15 @@ let allocate = (allocator: allocator, variableName: string, isRef: bool): result
     let newVarMap = Belt.Map.String.set(
       allocator.variableMap,
       variableName,
-      {register: existingRegister, isRef: isRef}
+      {register: existingRegister, isRef},
     )
     Ok(({...allocator, variableMap: newVarMap}, existingRegister))
   | None =>
     if allocator.nextRegister > allocator.nextTempRegister {
-      Error("Out of registers")
+      Error("[RegisterAlloc.res][allocate]: out of registers (all 16 registers allocated)")
     } else {
       switch Register.fromInt(allocator.nextRegister) {
-      | Error(msg) => Error("Register allocation failed: " ++ msg)
+      | Error(msg) => Error("[RegisterAlloc.res][allocate]<-" ++ msg)
       | Ok(reg) =>
         Ok(
           {
@@ -61,7 +61,7 @@ let allocate = (allocator: allocator, variableName: string, isRef: bool): result
             variableMap: Belt.Map.String.set(
               allocator.variableMap,
               variableName,
-              {register: reg, isRef: isRef}
+              {register: reg, isRef},
             ),
           },
           reg,
@@ -89,10 +89,10 @@ let allocateNormal = (allocator: allocator, variableName: string): result<
 
 let allocateTempRegister = (allocator: allocator): result<(allocator, Register.t), string> => {
   if allocator.nextRegister > allocator.nextTempRegister {
-    Error("Temp Register allocation failed: out of registers")
+    Error("[RegisterAlloc.res][allocateTempRegister]: out of temporary registers")
   } else {
     switch Register.fromInt(allocator.nextTempRegister) {
-    | Error(_) => Error("Temp Register allocation failed: invalid register number")
+    | Error(msg) => Error("[RegisterAlloc.res][allocateTempRegister]<-" ++ msg)
     | Ok(reg) => {
         let tempName = "_temp_" ++ Int.toString(allocator.nextTempRegister)
         Ok(
@@ -102,7 +102,7 @@ let allocateTempRegister = (allocator: allocator): result<(allocator, Register.t
             variableMap: Belt.Map.String.set(
               allocator.variableMap,
               tempName,
-              {register: reg, isRef: false}
+              {register: reg, isRef: false},
             ),
           },
           reg,

@@ -231,13 +231,13 @@ let tokenize = (source: string): result<array<token>, string> => {
     let (lexer, token) = nextToken(lexer)
     switch token {
     | EOF => Ok(acc)
-    | Invalid(msg) => Error("Lexer error: " ++ msg)
+    | Invalid(msg) => Error("[Lexer.res][tokenize]: " ++ msg)
     | _ => loop(lexer, list{token, ...acc}) // O(1) cons operation
     }
   }
   switch loop(create(source), list{}) {
   | Ok(tokens) => Ok(List.toArray(List.reverse(tokens))) // Convert list to array
-  | Error(msg) => Error(msg)
+  | Error(msg) => Error("[Lexer.res][tokenize]<-" ++ msg)
   }
 }
 

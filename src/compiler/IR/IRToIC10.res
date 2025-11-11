@@ -204,7 +204,8 @@ let generateInstr = (state: state, instr: IR.instr): result<state, string> => {
   | RawInstruction(instruction) => Ok(emit(state, instruction))
 
   // Phase 1: Not yet implemented
-  | Unary(_, _, _) => Error("Unary instruction not yet implemented in Phase 1")
+  | Unary(_, _, _) =>
+    Error("[IRToIC10.res][convertInstruction]: unary instruction not yet implemented in Phase 1")
   }
 }
 

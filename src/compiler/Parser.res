@@ -80,9 +80,16 @@ let expect = (parser: parser, expected: Lexer.token): result<parser, string> => 
   | Some(token) if tokensMatch(token, expected) => Ok(advance(parser))
   | Some(token) =>
     Error(
-      "Expected " ++ Lexer.tokenToString(expected) ++ " but found " ++ Lexer.tokenToString(token),
+      "[Parser.res][expect]: expected " ++
+      Lexer.tokenToString(expected) ++
+      " but found " ++
+      Lexer.tokenToString(token),
     )
-  | None => Error("Expected " ++ Lexer.tokenToString(expected) ++ " but reached end of file")
+  | None =>
+    Error(
+      "[Parser.res][expect]: expected " ++
+      Lexer.tokenToString(expected) ++ " but reached end of file",
+    )
   }
 }
 
@@ -174,12 +181,15 @@ and parsePostfixExpression = (parser: parser, base: AST.expr): result<
         | AST.Identifier(refName) =>
           // Return RefAccess node
           Ok((parser, AST.createRefAccess(refName)))
-        | _ => Error("Only simple identifiers can be dereferenced with .contents")
+        | _ =>
+          Error(
+            "[Parser.res][parsePostfixExpression]: only simple identifiers can be dereferenced with .contents",
+          )
         }
       } else {
-        Error("Only .contents field is supported for refs")
+        Error("[Parser.res][parsePostfixExpression]: only .contents field is supported for refs")
       }
-    | _ => Error("Expected field name after '.'")
+    | _ => Error("[Parser.res][parsePostfixExpression]: expected field name after '.'")
     }
   | _ =>
     // No postfix operator, return base as-is
@@ -303,7 +313,10 @@ and parseVariantConstructorArguments = (parser: parser): result<
           | Some(Lexer.Comma) =>
             let parser = advance(parser) // consume comma
             parseArgs(parser, list{expr, ...args})
-          | _ => Error("Expected ',' or ')' after variant constructor argument")
+          | _ =>
+            Error(
+              "[Parser.res][parseVariantConstructorArgs]: expected ',' or ')' after variant constructor argument",
+            )
           }
         }
       }
@@ -343,7 +356,8 @@ and parseFunctionArguments = (parser: parser): result<(parser, array<AST.argumen
         // Consume comma and parse next argument
         let parser = advance(parser)
         parseArgs(parser, list{arg, ...args})
-      | _ => Error("Expected ',' or ')' after function argument")
+      | _ =>
+        Error("[Parser.res][parseFunctionArguments]: expected ',' or ')' after function argument")
       }
     | Some(Lexer.Identifier(name)) =>
       // Check if this is a device identifier (d0-d5, db)
@@ -371,7 +385,10 @@ and parseFunctionArguments = (parser: parser): result<(parser, array<AST.argumen
             // Consume comma and parse next argument
             let parser = advance(parser)
             parseArgs(parser, list{arg, ...args})
-          | _ => Error("Expected ',' or ')' after function argument")
+          | _ =>
+            Error(
+              "[Parser.res][parseFunctionArguments]: expected ',' or ')' after function argument",
+            )
           }
         }
       | (false, true) => {
@@ -382,7 +399,7 @@ and parseFunctionArguments = (parser: parser): result<(parser, array<AST.argumen
           // Check for comma or closing paren
           switch peek(parser) {
           | Some(Lexer.RightParen) => Ok((advance(parser), list{arg, ...args}))
-          | _ => Error("Expected ')' after mode argument")
+          | _ => Error("[Parser.res][parseFunctionArguments]: expected ')' after mode argument")
           }
         }
       | _ =>
@@ -398,7 +415,10 @@ and parseFunctionArguments = (parser: parser): result<(parser, array<AST.argumen
             // Consume comma and parse next argument
             let parser = advance(parser)
             parseArgs(parser, list{arg, ...args})
-          | _ => Error("Expected ',' or ')' after function argument")
+          | _ =>
+            Error(
+              "[Parser.res][parseFunctionArguments]: expected ',' or ')' after function argument",
+            )
           }
         }
       }
@@ -416,10 +436,14 @@ and parseFunctionArguments = (parser: parser): result<(parser, array<AST.argumen
           // Consume comma and parse next argument
           let parser = advance(parser)
           parseArgs(parser, list{arg, ...args})
-        | _ => Error("Expected ',' or ')' after function argument")
+        | _ =>
+          Error("[Parser.res][parseFunctionArguments]: expected ',' or ')' after function argument")
         }
       }
-    | None => Error("Unexpected end of file while parsing function arguments")
+    | None =>
+      Error(
+        "[Parser.res][parseFunctionArguments]: unexpected end of file while parsing function arguments",
+      )
     }
   }
 
@@ -609,12 +633,24 @@ and parseSwitchExpression = (parser: parser): result<(parser, AST.expr), string>
               }
 
             | Some(token) =>
-              Error("Expected constructor name in match case, found " ++ Lexer.tokenToString(token))
-            | None => Error("Expected constructor name in match case, but reached end of file")
+              Error(
+                "[Parser.res][parseSwitchExpression]: expected constructor name in match case, found " ++
+                Lexer.tokenToString(token),
+              )
+            | None =>
+              Error(
+                "[Parser.res][parseSwitchExpression]: expected constructor name in match case, but reached end of file",
+              )
             }
           | Some(token) =>
-            Error("Expected '|' or '}' in match expression, found " ++ Lexer.tokenToString(token))
-          | None => Error("Expected '|' or '}' in match expression, but reached end of file")
+            Error(
+              "[Parser.res][parseSwitchExpression]: expected '|' or '}' in match expression, found " ++
+              Lexer.tokenToString(token),
+            )
+          | None =>
+            Error(
+              "[Parser.res][parseSwitchExpression]: expected '|' or '}' in match expression, but reached end of file",
+            )
           }
         }
 
@@ -649,8 +685,15 @@ and parseVariableDeclaration = (parser: parser): result<(parser, AST.astNode), s
         | Ok((parser, expr)) => Ok((parser, AST.createVariableDeclaration(name, expr)))
         }
       }
-    | Some(token) => Error("Expected identifier after 'let', found " ++ Lexer.tokenToString(token))
-    | None => Error("Expected identifier after 'let', but reached end of file")
+    | Some(token) =>
+      Error(
+        "[Parser.res][parseVariableDeclaration]: expected identifier after 'let', found " ++
+        Lexer.tokenToString(token),
+      )
+    | None =>
+      Error(
+        "[Parser.res][parseVariableDeclaration]: expected identifier after 'let', but reached end of file",
+      )
     }
   }
 }
@@ -724,8 +767,15 @@ and parseTypeDeclaration = (parser: parser): result<(parser, AST.astNode), strin
             | _ => Ok((parser, list{constructor, ...constructors}))
             }
 
-          | Some(token) => Error("Expected constructor name, found " ++ Lexer.tokenToString(token))
-          | None => Error("Expected constructor name, but reached end of file")
+          | Some(token) =>
+            Error(
+              "[Parser.res][parseTypeDeclaration]: expected constructor name, found " ++
+              Lexer.tokenToString(token),
+            )
+          | None =>
+            Error(
+              "[Parser.res][parseTypeDeclaration]: expected constructor name, but reached end of file",
+            )
           }
         }
 
@@ -738,8 +788,15 @@ and parseTypeDeclaration = (parser: parser): result<(parser, AST.astNode), strin
           ))
         }
       }
-    | Some(token) => Error("Expected type name after 'type', found " ++ Lexer.tokenToString(token))
-    | None => Error("Expected type name after 'type', but reached end of file")
+    | Some(token) =>
+      Error(
+        "[Parser.res][parseTypeDeclaration]: expected type name after 'type', found " ++
+        Lexer.tokenToString(token),
+      )
+    | None =>
+      Error(
+        "[Parser.res][parseTypeDeclaration]: expected type name after 'type', but reached end of file",
+      )
     }
   }
 }
@@ -822,12 +879,23 @@ and parseRawInstruction = (parser: parser): result<(parser, AST.astNode), string
           | Ok(parser) => Ok((parser, AST.createRawInstruction(instruction)))
           }
         | Some(token) =>
-          Error("Expected string literal in %raw() but found " ++ Lexer.tokenToString(token))
-        | None => Error("Expected string literal in %raw() but reached end of file")
+          Error(
+            "[Parser.res][parseRawInstruction]: expected string literal in %raw() but found " ++
+            Lexer.tokenToString(token),
+          )
+        | None =>
+          Error(
+            "[Parser.res][parseRawInstruction]: expected string literal in %raw() but reached end of file",
+          )
         }
       }
-    | Some(token) => Error("Expected 'raw' after % but found " ++ Lexer.tokenToString(token))
-    | None => Error("Expected 'raw' after % but reached end of file")
+    | Some(token) =>
+      Error(
+        "[Parser.res][parseRawInstruction]: expected 'raw' after % but found " ++
+        Lexer.tokenToString(token),
+      )
+    | None =>
+      Error("[Parser.res][parseRawInstruction]: expected 'raw' after % but reached end of file")
     }
   }
 }
@@ -867,7 +935,7 @@ and parseStatement = (parser: parser): result<(parser, AST.astNode), string> => 
   | Some(_) =>
     // Try parsing as expression
     parseExpression(parser)
-  | None => Error("Unexpected end of file")
+  | None => Error("[Parser.res][parseStatement]: unexpected end of file")
   }
 }
 
@@ -888,7 +956,7 @@ and parseBlockStatement = (parser: parser): result<(parser, AST.blockStatement),
         | Error(msg) => Error(msg)
         | Ok((parser, stmt)) => parseStatements(parser, list{stmt, ...statements}) // O(1) cons
         }
-      | None => Error("Expected '}' but reached end of file")
+      | None => Error("[Parser.res][parseBlockStatement]: expected '}' but reached end of file")
       }
     }
     switch parseStatements(parser, list{}) {
@@ -921,7 +989,7 @@ let parse = (tokens: array<Lexer.token>): result<AST.program, string> => {
   }
   let parser = create(tokens)
   switch parseStatements(parser, list{}) {
-  | Error(msg) => Error("Parse error: " ++ msg)
+  | Error(msg) => Error("[Parser.res][parse]<-" ++ msg)
   | Ok((_, statements)) =>
     Ok(
       statements
