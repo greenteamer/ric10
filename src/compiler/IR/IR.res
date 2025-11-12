@@ -5,7 +5,7 @@ type operand =
   | Num(int)
 
 type device =
-  | DevicePin(int) // d0, d1, d2, etc. → l/s
+  | DevicePin(string) // "d0", "d1", "db", etc. → l/s
   | DeviceReg(vreg) // device stored in register → l/s
   | DeviceType(string) // type hash → lb/sb
   | DeviceNamed(string, string) // type hash + name hash → lbn/sbn

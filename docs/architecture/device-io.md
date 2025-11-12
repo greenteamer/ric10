@@ -48,7 +48,7 @@ type instr =
 ```rescript
 // Platform-agnostic device addressing
 type device =
-  | DevicePin(int)                    // Numbered pin/port (d0, d1, d2...)
+  | DevicePin(string)                 // Device reference ("d0", "d1", "db", etc.)
   | DeviceReg(vreg)                   // Device address stored in register
   | DeviceType(string)                // Access by type hash
   | DeviceNamed(string, string)       // Access by type hash + name hash
@@ -91,12 +91,13 @@ IRToIC10 decides which IC10 instruction to emit based on device type and bulk op
 
 **ReScript:**
 ```rescript
-let temp = l(d0, "Temperature")
+let sensor = device("d0")
+let temp = l(sensor, "Temperature")
 ```
 
 **IR:**
 ```rescript
-DeviceLoad(vreg0, DevicePin(0), "Temperature", None)
+DeviceLoad(vreg0, DevicePin("d0"), "Temperature", None)
 ```
 
 **IC10:**
@@ -110,12 +111,13 @@ l r0 d0 Temperature
 
 **ReScript:**
 ```rescript
-s(d0, "Setting", 100)
+let controller = device("d0")
+s(controller, "Setting", 100)
 ```
 
 **IR:**
 ```rescript
-DeviceStore(DevicePin(0), "Setting", Num(100))
+DeviceStore(DevicePin("d0"), "Setting", Num(100))
 ```
 
 **IC10:**

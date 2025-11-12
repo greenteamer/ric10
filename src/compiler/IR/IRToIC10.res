@@ -145,8 +145,8 @@ let generateInstr = (state: state, instr: IR.instr): result<state, string> => {
       // Select instruction and build based on device type and bulk option
       let instr = switch (device, bulkOpt) {
       // DevicePin/DeviceReg + no bulk → l
-      | (DevicePin(pin), None) =>
-        `l r${Int.toString(physicalReg)} d${Int.toString(pin)} ${property}`
+      | (DevicePin(deviceRef), None) =>
+        `l r${Int.toString(physicalReg)} ${deviceRef} ${property}`
       | (DeviceReg(deviceVReg), None) =>
         // Device stored in register
         switch state.vregMap->Belt.Map.Int.get(deviceVReg) {
@@ -181,8 +181,8 @@ let generateInstr = (state: state, instr: IR.instr): result<state, string> => {
       // Select instruction based on device type
       let instr = switch device {
       // DevicePin/DeviceReg → s
-      | DevicePin(pin) =>
-        `s d${Int.toString(pin)} ${property} ${valueStr}`
+      | DevicePin(deviceRef) =>
+        `s ${deviceRef} ${property} ${valueStr}`
       | DeviceReg(deviceVReg) =>
         // Device stored in register
         switch state.vregMap->Belt.Map.Int.get(deviceVReg) {

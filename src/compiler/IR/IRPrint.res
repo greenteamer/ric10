@@ -38,7 +38,7 @@ let printCompareOp = (op: IR.compareOp): string => {
 // Format a device
 let printDevice = (device: IR.device): string => {
   switch device {
-  | DevicePin(pin) => `d${Int.toString(pin)}`
+  | DevicePin(deviceRef) => deviceRef // deviceRef is already a string like "d0" or "db"
   | DeviceReg(vreg) => printVReg(vreg)
   | DeviceType(typeHash) => `type(${typeHash})`
   | DeviceNamed(typeHash, nameHash) => `named(${typeHash}, ${nameHash})`

@@ -64,13 +64,15 @@ type astNode =
 Defines phantom implementations for IC10 instructions:
 
 ```rescript
-// Device references (d0-d5, db)
+// Device type
 type device = int
 
-let d0: device = 0  // d0 = device pin 0
-let d1: device = 1
-// ... d2-d5
-let db: device = -1  // Special database device
+// Device constructor - creates device references from strings
+let device = (_deviceRef: string): device => 0
+// Usage:
+//   let housing = device("db")   // Database device
+//   let furnace = device("d0")   // Device pin 0
+//   let pump = device("d1")      // Device pin 1
 
 // Load operations
 @genType
@@ -151,20 +153,15 @@ The compiler recognizes IC10 functions by name and generates assembly:
 
 #### Device References
 
+Device references are created using the `device()` function:
+
 ```rescript
-| AST.Identifier(name) =>
-  if name == "d0" || name == "d1" || ... {
-    // d0 = 0, d1 = 1, etc.
-    let deviceNum = switch name {
-    | "d0" => 0
-    | "d1" => 1
-    // ...
-    }
-    // Generate: move rN deviceNum
-  }
-  else if name == "db" {
-    // Generate: move rN db
-  }
+// ReScript source:
+let housing = device("db")
+let furnace = device("d0")
+
+// The device() function is recognized by the compiler
+// and stored in the device map for later use in l/s operations
 ```
 
 #### Load Operations
@@ -173,14 +170,14 @@ The compiler recognizes IC10 functions by name and generates assembly:
 ```rescript
 | AST.FunctionCall("l", args) =>
   // l resultReg device property
-  // Example: IC10.l(d0, "Temperature")
+  // Example: l(furnace, "Temperature")
   // Generates: l r0 d0 Temperature
 
   switch (args[0], args[1]) {
-  | (ArgExpr(deviceExpr), ArgString(property)) =>
-    // 1. Generate code for device expression
+  | (ArgExpr(Identifier(deviceVar)), ArgString(property)) =>
+    // 1. Look up device in deviceMap (e.g., "furnace" -> "d0")
     // 2. Allocate result register
-    // 3. Generate: l resultReg dDeviceReg property
+    // 3. Generate: l resultReg deviceRef property
   }
 ```
 
@@ -222,27 +219,35 @@ Store operations (`s`, `sb`, `sbn`) follow similar patterns but:
 
 ## Usage Examples
 
-### Basic Device I/O
+### Basic Device I/O with device()
 
 ```rescript
-// Read temperature from device 0
-let temp = IC10.l(IC10.d0, "Temperature")
+// Create named device references for better code clarity
+let housing = device("db")   // Database device
+let furnace = device("d0")   // Device pin 0
+let pump = device("d1")      // Device pin 1
 
-// Set setting on device 1
-IC10.s(IC10.d1, "Setting", 100)
+// Read housing temperature
+let temp = l(housing, "Temperature")
+
+// Control furnace setting
+s(furnace, "Setting", 100)
 
 // Compiles to:
-// l r0 d0 Temperature
-// move r1 100
-// s d1 Setting r1
+// l r0 db Temperature
+// s d0 Setting 100
 ```
 
 ### Using Property Constants
 
 ```rescript
+// Create device references
+let sensor = device("d2")
+let controller = device("d3")
+
 // IC10.Property module provides named constants
-let pressure = IC10.l(IC10.d2, IC10.Property.pressure)
-IC10.s(IC10.d3, IC10.Property.on, 1)
+let pressure = l(sensor, Property.pressure)
+s(controller, Property.on, 1)
 
 // Compiles to:
 // l r0 d2 Pressure
@@ -283,16 +288,20 @@ IC10.sbn("LEDDisplay", "StatusDisplay", "Setting", 100)
 ### Complex Example: Temperature Control
 
 ```rescript
+// Create device references
+let tempSensor = device("d0")
+let heater = device("d1")
+
 // Type-safe temperature control logic
 let maxTemp = 500
-let currentTemp = IC10.l(IC10.d0, IC10.Property.temperature)
+let currentTemp = l(tempSensor, Property.temperature)
 
 if currentTemp > maxTemp {
   // Turn off heater
-  IC10.s(IC10.d1, IC10.Property.on, 0)
+  s(heater, Property.on, 0)
 } else {
   // Turn on heater
-  IC10.s(IC10.d1, IC10.Property.on, 1)
+  s(heater, Property.on, 1)
 }
 
 // Compiles to:
@@ -354,20 +363,20 @@ IC10.l(d0, prop)  // Error: property must be string literal
 
 ### 4. Device Reference Handling
 
-Device references (`d0`-`d5`, `db`) are currently treated specially in the identifier parsing:
+Device references are created using the `device()` function with string literals:
 
 ```rescript
-// These work:
-IC10.l(IC10.d0, "Temperature")  // d0 as module access
-IC10.l(d0, "Temperature")       // d0 as identifier (if imported)
+// Create device references
+let housing = device("db")    // Database device
+let furnace = device("d0")    // Device pin 0
+let pump = device("d1")       // Device pin 1
 
-// But implementation is inconsistent - d0 values are defined in IC10.res
-// but recognized as special identifiers in ExprGen.res
+// Use in I/O operations
+let temp = l(housing, "Temperature")
+s(furnace, "Setting", 100)
 ```
 
-**TODO**: Consolidate device reference handling - either:
-- Option A: Import from IC10 module (`IC10.d0`)
-- Option B: Treat as special identifiers (`d0`)
+This approach is simple and consistent - all devices are created the same way.
 
 ### 5. Unit Return Type Handling
 
@@ -414,11 +423,11 @@ IC10.s(d0)                            // ❌ Type error: missing arguments
 ```rescript
 type device = int
 
-let myDevice: device = IC10.d0
-IC10.l(myDevice, "Temperature")        // ✅ Type-safe device reference
+let myDevice: device = device("d0")
+l(myDevice, "Temperature")        // ✅ Type-safe device reference
 
-IC10.l("d0", "Temperature")            // ❌ Type error: expects device, not string
-IC10.l(true, "Temperature")            // ❌ Type error: expects device, not bool
+l("d0", "Temperature")            // ❌ Type error: expects device, not string
+l(true, "Temperature")            // ❌ Type error: expects device, not bool
 ```
 
 ## Testing Strategy
@@ -459,15 +468,18 @@ Real-world Stationeers scenarios:
 
 ```rescript
 // Cooling system controller
+let sensor = device("d0")
+let cooler = device("d1")
+
 let maxTemp = 403
 while true {
-  let temp = IC10.l(IC10.d0, "Temperature")
-  let pressure = IC10.l(IC10.d0, "Pressure")
+  let temp = l(sensor, "Temperature")
+  let pressure = l(sensor, "Pressure")
 
   if temp > maxTemp {
-    IC10.s(IC10.d1, "On", 1)  // Activate cooler
+    s(cooler, "On", 1)  // Activate cooler
   } else {
-    IC10.s(IC10.d1, "On", 0)  // Deactivate cooler
+    s(cooler, "On", 0)  // Deactivate cooler
   }
 
   %raw("yield")
@@ -597,14 +609,15 @@ IC10.l(d0, "Temperatur")     // ⚠️  Warning: unknown property (typo?)
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  ReScript Source Code                                       │
-│  let temp = IC10.l(IC10.d0, "Temperature")                  │
+│  let sensor = device("d0")                                  │
+│  let temp = l(sensor, "Temperature")                        │
 └─────────────────────┬───────────────────────────────────────┘
                       │
                       ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  Lexer (Lexer.res)                                          │
 │  - Recognizes StringLiteral tokens                          │
-│  - Tokenizes: Identifier("l"), LeftParen, Identifier("d0"), │
+│  - Tokenizes: Identifier("l"), LeftParen, Identifier("sensor"), │
 │    StringLiteral("Temperature"), RightParen                 │
 └─────────────────────┬───────────────────────────────────────┘
                       │
@@ -620,18 +633,18 @@ IC10.l(d0, "Temperatur")     // ⚠️  Warning: unknown property (typo?)
 ┌─────────────────────────────────────────────────────────────┐
 │  AST (AST.res)                                              │
 │  FunctionCall("l", [                                        │
-│    ArgExpr(Identifier("d0")),                               │
+│    ArgExpr(Identifier("sensor")),                           │
 │    ArgString("Temperature")                                 │
 │  ])                                                         │
 └─────────────────────┬───────────────────────────────────────┘
                       │
                       ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Code Generator (ExprGen.res)                               │
+│  Code Generator (IRGen.res)                                 │
 │  - Pattern matches FunctionCall("l", ...)                   │
-│  - Generates device expression: move r1 0  (d0 = 0)         │
+│  - Looks up "sensor" in deviceMap → "d0"                    │
 │  - Allocates result register: r0                            │
-│  - Generates IC10: l r0 d1 Temperature                      │
+│  - Generates IR: DeviceLoad(vreg0, DevicePin("d0"), "Temperature", None) │
 └─────────────────────┬───────────────────────────────────────┘
                       │
                       ▼

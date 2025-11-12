@@ -30,7 +30,7 @@ type state = {
   refToTypeName: Belt.Map.String.t<string>, // refName → typeName
   stackAllocator: stackAllocator, // Stack memory allocator
   // Device tracking
-  deviceMap: Belt.Map.String.t<int>, // variableName → device pin (e.g., "furnace" → 0)
+  deviceMap: Belt.Map.String.t<string>, // variableName → device ref (e.g., "furnace" → "d0", "housing" → "db")
 }
 
 // Create initial state
@@ -232,19 +232,21 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
           let (state, resultVReg) = allocVReg(state)
 
           // Emit DeviceLoad instruction with property as string
-          let state = emit(state, IR.DeviceLoad(resultVReg, IR.DevicePin(devicePin), property, None))
+          // Convert integer device pin to string reference (0 → "d0", etc.)
+          let deviceRef = `d${Int.toString(devicePin)}`
+          let state = emit(state, IR.DeviceLoad(resultVReg, IR.DevicePin(deviceRef), property, None))
 
           Ok((state, resultVReg))
 
         | (Some(AST.ArgExpr(AST.Identifier(deviceVar))), Some(AST.ArgString(property))) =>
           // Look up device variable in deviceMap
           switch state.deviceMap->Belt.Map.String.get(deviceVar) {
-          | Some(devicePin) =>
+          | Some(deviceRef) =>
             // Allocate vreg for result
             let (state, resultVReg) = allocVReg(state)
 
-            // Emit DeviceLoad instruction
-            let state = emit(state, IR.DeviceLoad(resultVReg, IR.DevicePin(devicePin), property, None))
+            // Emit DeviceLoad instruction - deviceRef is already a string like "d0" or "db"
+            let state = emit(state, IR.DeviceLoad(resultVReg, IR.DevicePin(deviceRef), property, None))
 
             Ok((state, resultVReg))
           | None =>
@@ -815,11 +817,12 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
       | FunctionCall("device", args) =>
         // Track this as a device variable (no code generation needed)
         switch args[0] {
-        | Some(AST.ArgExpr(AST.Literal(devicePin))) =>
+        | Some(AST.ArgString(deviceRef)) =>
           // Just add to deviceMap, don't generate any IR or allocate vreg
-          let deviceMap = Belt.Map.String.set(state.deviceMap, name, devicePin)
+          // deviceRef can be "d0", "d1", "db", etc.
+          let deviceMap = Belt.Map.String.set(state.deviceMap, name, deviceRef)
           Ok({...state, deviceMap})
-        | _ => Error("[IRGen.res][generateStmt]: device() expects a literal device pin: device(0)")
+        | _ => Error("[IRGen.res][generateStmt]: device() expects a string device reference: device(\"d0\") or device(\"db\")")
         }
       | FunctionCall("hash", args) =>
         // hash("StructureTank") -> emit DefHash and track name as hash constant
@@ -967,21 +970,22 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
           ) =>
           // Look up device variable in deviceMap
           switch state.deviceMap->Belt.Map.String.get(deviceVar) {
-          | Some(devicePin) =>
+          | Some(deviceRef) =>
             // Check if value is a literal - use immediate value
+            // deviceRef is already a string like "d0" or "db"
             switch valueExpr {
             | AST.Literal(n) =>
               // Use immediate value directly
-              Ok(emit(state, IR.DeviceStore(IR.DevicePin(devicePin), property, IR.Num(n))))
+              Ok(emit(state, IR.DeviceStore(IR.DevicePin(deviceRef), property, IR.Num(n))))
             | _ =>
               // Generate value expression into a vreg
               generateExpr(state, valueExpr)->Result.map(((state, valueVReg)) => {
                 // Emit DeviceStore instruction with vreg
-                emit(state, IR.DeviceStore(IR.DevicePin(devicePin), property, IR.VReg(valueVReg)))
+                emit(state, IR.DeviceStore(IR.DevicePin(deviceRef), property, IR.VReg(valueVReg)))
               })
             }
           | None =>
-            Error(`[IRGen.res][generateStmt]: Variable '${deviceVar}' is not a device. Use: let ${deviceVar} = device(pin)`)
+            Error(`[IRGen.res][generateStmt]: Variable '${deviceVar}' is not a device. Use: let ${deviceVar} = device("d0")`)
           }
 
         // Case 2: s(literal, "Property", value) - direct device pin
@@ -991,15 +995,17 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
             Some(AST.ArgExpr(valueExpr)),
           ) =>
           // Check if value is a literal - use immediate value
+          // Convert integer device pin to string reference (0 → "d0", etc.)
+          let deviceRef = `d${Int.toString(devicePin)}`
           switch valueExpr {
           | AST.Literal(n) =>
             // Use immediate value directly
-            Ok(emit(state, IR.DeviceStore(IR.DevicePin(devicePin), property, IR.Num(n))))
+            Ok(emit(state, IR.DeviceStore(IR.DevicePin(deviceRef), property, IR.Num(n))))
           | _ =>
             // Generate value expression into a vreg
             generateExpr(state, valueExpr)->Result.map(((state, valueVReg)) => {
               // Emit DeviceStore instruction with vreg
-              emit(state, IR.DeviceStore(IR.DevicePin(devicePin), property, IR.VReg(valueVReg)))
+              emit(state, IR.DeviceStore(IR.DevicePin(deviceRef), property, IR.VReg(valueVReg)))
             })
           }
 

@@ -14,17 +14,18 @@ module Mode = {
   let sum = "Sum"
 }
 
-let d0: device = 0
-let d1: device = 1
-let d2: device = 2
-let d3: device = 3
-let d4: device = 4
-let d5: device = 5
-let db: device = -1 // Database device
-
-// Device reference - creates a device reference from a pin number
-// let furnace = device(0) -> d0
-let device = (_pin: int): device => {
+// Device reference - creates a device reference from a device string
+// Examples:
+//   let furnace = device("d0")   // Device pin 0
+//   let pump = device("d1")      // Device pin 1
+//   let housing = device("db")   // Database device
+//   let sensor = device("d2")    // Device pin 2
+//
+// Use descriptive variable names for better code clarity:
+//   let mainFurnace = device("d0")
+//   let backupFurnace = device("d1")
+//   let tempSensor = device("d2")
+let device = (_deviceRef: string): device => {
   0
 }
 

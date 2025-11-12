@@ -18,6 +18,18 @@ describe('IC10 Bindings - Basic Operations', () => {
     expect(asm).toMatch(/l r\d+ d0 Temperature/);
   });
 
+
+  test('db constant - load from database device', () => {
+    const source = `
+      let temp = l(db, "Temperature")
+    `;
+    const result = Compiler.compile(source, { includeComments: false });
+    expect(result.TAG).toBe("Ok");
+
+    const asm = result._0._0; // Program._0 contains the assembly string
+    expect(asm).toMatch(/l r\d+ db Temperature/);
+  });
+
   test('s (store to device) - basic', () => {
     const source = `
       let d1 = 1
@@ -30,6 +42,17 @@ describe('IC10 Bindings - Basic Operations', () => {
     expect(asm).toContain('define d1 1');
     expect(asm).toContain('100');
     expect(asm).toMatch(/s d1 Setting 100/);
+  });
+
+  test('s (store to device) - using db device', () => {
+    const source = `
+      s(db, "Setting", 42)
+    `;
+    const result = Compiler.compile(source, { includeComments: false });
+    expect(result.TAG).toBe("Ok");
+
+    const asm = result._0._0; // Program._0 contains the assembly string
+    expect(asm).toMatch(/s db Setting 42/);
   });
 
   test('multiple operations in sequence', () => {
