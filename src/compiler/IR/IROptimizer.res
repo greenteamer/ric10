@@ -22,8 +22,8 @@ let rec findUsedVRegs = (instrs: list<IR.instr>, used: VRegSet.t): VRegSet.t => 
       | Compare(_, _, Num(_), Num(_)) => used
       | Bnez(VReg(vreg), _) => used->VRegSet.add(vreg)
       | Bnez(Num(_), _) => used
-      | Save(_, _, VReg(vreg)) => used->VRegSet.add(vreg)
-      | Save(_, _, Num(_)) => used
+      | DeviceStore(_, _, VReg(vreg)) => used->VRegSet.add(vreg)
+      | DeviceStore(_, _, Num(_)) => used
       | Unary(_, _, VReg(vreg)) => used->VRegSet.add(vreg)
       | Unary(_, _, Num(_)) => used
       | _ => used
@@ -102,9 +102,9 @@ let propagateConstantsAndCopies = (instrs: list<IR.instr>): list<IR.instr> => {
       let newCopies = copies->Belt.Map.Int.remove(dst)
       list{newInstr, ...process(rest, newCopies)}
 
-    | list{IR.Load(dst, device, deviceParam, bulkOpt), ...rest} =>
+    | list{IR.DeviceLoad(dst, device, property, bulkOpt), ...rest} =>
       let newCopies = copies->Belt.Map.Int.remove(dst)
-      list{IR.Load(dst, device, deviceParam, bulkOpt), ...process(rest, newCopies)}
+      list{IR.DeviceLoad(dst, device, property, bulkOpt), ...process(rest, newCopies)}
 
     | list{IR.StackGet(dst, address), ...rest} =>
       let newCopies = copies->Belt.Map.Int.remove(dst)
@@ -115,9 +115,9 @@ let propagateConstantsAndCopies = (instrs: list<IR.instr>): list<IR.instr> => {
       let newOperand = substituteOperand(operand, copies)
       list{IR.Bnez(newOperand, label), ...process(rest, copies)}
 
-    | list{IR.Save(device, field, operand), ...rest} =>
+    | list{IR.DeviceStore(device, property, operand), ...rest} =>
       let newOperand = substituteOperand(operand, copies)
-      list{IR.Save(device, field, newOperand), ...process(rest, copies)}
+      list{IR.DeviceStore(device, property, newOperand), ...process(rest, copies)}
 
     | list{IR.StackPoke(address, operand), ...rest} =>
       let newOperand = substituteOperand(operand, copies)

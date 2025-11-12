@@ -224,33 +224,75 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
     | "l" =>
       // l(device, "Property") - Load instruction
       if Array.length(args) != 2 {
-        Error("[IRGen.res][generateExpr]: l() expects 2 arguments: device pin and property name")
+        Error("[IRGen.res][generateExpr]: l() expects 2 arguments: device and property name")
       } else {
         switch (args[0], args[1]) {
         | (Some(AST.ArgExpr(AST.Literal(devicePin))), Some(AST.ArgString(property))) =>
-          // Parse property name to deviceParam
-          let deviceParamResult = switch property {
-          | "Temperature" => Ok(IR.Temperature)
-          | "Setting" => Ok(IR.Setting)
-          | "Pressure" => Ok(IR.Pressure)
-          | "On" => Ok(IR.On)
-          | "Open" => Ok(IR.Open)
-          | "Mode" => Ok(IR.Mode)
-          | "Lock" => Ok(IR.Lock)
-          | _ => Error(`Unknown device parameter: ${property}`)
-          }
+          // Allocate vreg for result
+          let (state, resultVReg) = allocVReg(state)
 
-          deviceParamResult->Result.flatMap(deviceParam => {
+          // Emit DeviceLoad instruction with property as string
+          let state = emit(state, IR.DeviceLoad(resultVReg, IR.DevicePin(devicePin), property, None))
+
+          Ok((state, resultVReg))
+
+        | (Some(AST.ArgExpr(AST.Identifier(deviceVar))), Some(AST.ArgString(property))) =>
+          // Look up device variable in deviceMap
+          switch state.deviceMap->Belt.Map.String.get(deviceVar) {
+          | Some(devicePin) =>
             // Allocate vreg for result
             let (state, resultVReg) = allocVReg(state)
 
-            // Emit Load instruction
-            let state = emit(state, IR.Load(resultVReg, IR.DevicePin(devicePin), deviceParam, None))
+            // Emit DeviceLoad instruction
+            let state = emit(state, IR.DeviceLoad(resultVReg, IR.DevicePin(devicePin), property, None))
 
             Ok((state, resultVReg))
-          })
+          | None =>
+            Error(`[IRGen.res][generateExpr]: Variable '${deviceVar}' is not a device`)
+          }
 
-        | _ => Error("[IRGen.res][generateExpr]: l() expects (device_pin: int, property: string)")
+        | _ => Error("[IRGen.res][generateExpr]: l() expects (device: int or identifier, property: string)")
+        }
+      }
+
+    | "lb" =>
+      // lb(typeHash, "Property", "Mode") - Batch load by type
+      if Array.length(args) != 3 {
+        Error("[IRGen.res][generateExpr]: lb() expects 3 arguments: type hash, property, mode")
+      } else {
+        switch (args[0], args[1], args[2]) {
+        | (Some(AST.ArgExpr(AST.Identifier(typeHashVar))), Some(AST.ArgString(property)), Some(AST.ArgString(mode))) =>
+          // Allocate vreg for result
+          let (state, resultVReg) = allocVReg(state)
+
+          // Emit DeviceLoad with DeviceType
+          let state = emit(state, IR.DeviceLoad(resultVReg, IR.DeviceType(typeHashVar), property, Some(mode)))
+
+          Ok((state, resultVReg))
+        | _ => Error("[IRGen.res][generateExpr]: lb() expects (typeHash: identifier, property: string, mode: string)")
+        }
+      }
+
+    | "lbn" =>
+      // lbn(typeHash, nameHash, "Property", "Mode") - Batch load by type and name
+      if Array.length(args) != 4 {
+        Error("[IRGen.res][generateExpr]: lbn() expects 4 arguments: type hash, name hash, property, mode")
+      } else {
+        switch (args[0], args[1], args[2], args[3]) {
+        | (
+            Some(AST.ArgExpr(AST.Identifier(typeHashVar))),
+            Some(AST.ArgExpr(AST.Identifier(nameHashVar))),
+            Some(AST.ArgString(property)),
+            Some(AST.ArgString(mode))
+          ) =>
+          // Allocate vreg for result
+          let (state, resultVReg) = allocVReg(state)
+
+          // Emit DeviceLoad with DeviceNamed
+          let state = emit(state, IR.DeviceLoad(resultVReg, IR.DeviceNamed(typeHashVar, nameHashVar), property, Some(mode)))
+
+          Ok((state, resultVReg))
+        | _ => Error("[IRGen.res][generateExpr]: lbn() expects (typeHash: identifier, nameHash: identifier, property: string, mode: string)")
         }
       }
 
@@ -768,7 +810,7 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
       })
 
     | _ =>
-      // Check if this is a device() call
+      // Check if this is a device() or hash() call
       switch init {
       | FunctionCall("device", args) =>
         // Track this as a device variable (no code generation needed)
@@ -779,8 +821,18 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
           Ok({...state, deviceMap})
         | _ => Error("[IRGen.res][generateStmt]: device() expects a literal device pin: device(0)")
         }
+      | FunctionCall("hash", args) =>
+        // hash("StructureTank") -> emit DefHash and track name as hash constant
+        switch args[0] {
+        | Some(AST.ArgString(hashInput)) =>
+          // Emit DefHash instruction
+          let state = emit(state, IR.DefHash(name, hashInput))
+          // Hash constants don't need vregs - they're just references in device operations
+          Ok(state)
+        | _ => Error("[IRGen.res][generateStmt]: hash() expects a string literal: hash(\"StructureTank\")")
+        }
       | _ =>
-        // Not a ref, not a device - normal variable
+        // Not a ref, not a device, not a hash - normal variable
         generateExpr(state, init)->Result.map(((state, vreg)) => {
           {...state, varMap: state.varMap->Belt.Map.String.set(name, {vreg, isRef: false})}
         })
@@ -916,34 +968,20 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
           // Look up device variable in deviceMap
           switch state.deviceMap->Belt.Map.String.get(deviceVar) {
           | Some(devicePin) =>
-            // Parse property name
-            let deviceParamResult = switch property {
-            | "Temperature" => Ok(IR.Temperature)
-            | "Setting" => Ok(IR.Setting)
-            | "Pressure" => Ok(IR.Pressure)
-            | "On" => Ok(IR.On)
-            | "Open" => Ok(IR.Open)
-            | "Mode" => Ok(IR.Mode)
-            | "Lock" => Ok(IR.Lock)
-            | _ => Error(`Unknown device parameter: ${property}`)
+            // Check if value is a literal - use immediate value
+            switch valueExpr {
+            | AST.Literal(n) =>
+              // Use immediate value directly
+              Ok(emit(state, IR.DeviceStore(IR.DevicePin(devicePin), property, IR.Num(n))))
+            | _ =>
+              // Generate value expression into a vreg
+              generateExpr(state, valueExpr)->Result.map(((state, valueVReg)) => {
+                // Emit DeviceStore instruction with vreg
+                emit(state, IR.DeviceStore(IR.DevicePin(devicePin), property, IR.VReg(valueVReg)))
+              })
             }
-
-            deviceParamResult->Result.flatMap(deviceParam => {
-              // Check if value is a literal - use immediate value
-              switch valueExpr {
-              | AST.Literal(n) =>
-                // Use immediate value directly
-                Ok(emit(state, IR.Save(IR.DevicePin(devicePin), deviceParam, IR.Num(n))))
-              | _ =>
-                // Generate value expression into a vreg
-                generateExpr(state, valueExpr)->Result.map(((state, valueVReg)) => {
-                  // Emit Save instruction with vreg
-                  emit(state, IR.Save(IR.DevicePin(devicePin), deviceParam, IR.VReg(valueVReg)))
-                })
-              }
-            })
           | None =>
-            Error(`Variable '${deviceVar}' is not a device. Use: let ${deviceVar} = device(pin)`)
+            Error(`[IRGen.res][generateStmt]: Variable '${deviceVar}' is not a device. Use: let ${deviceVar} = device(pin)`)
           }
 
         // Case 2: s(literal, "Property", value) - direct device pin
@@ -952,37 +990,74 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
             Some(AST.ArgString(property)),
             Some(AST.ArgExpr(valueExpr)),
           ) =>
-          // Parse property name
-          let deviceParamResult = switch property {
-          | "Temperature" => Ok(IR.Temperature)
-          | "Setting" => Ok(IR.Setting)
-          | "Pressure" => Ok(IR.Pressure)
-          | "On" => Ok(IR.On)
-          | "Open" => Ok(IR.Open)
-          | "Mode" => Ok(IR.Mode)
-          | "Lock" => Ok(IR.Lock)
-          | _ => Error(`Unknown device parameter: ${property}`)
+          // Check if value is a literal - use immediate value
+          switch valueExpr {
+          | AST.Literal(n) =>
+            // Use immediate value directly
+            Ok(emit(state, IR.DeviceStore(IR.DevicePin(devicePin), property, IR.Num(n))))
+          | _ =>
+            // Generate value expression into a vreg
+            generateExpr(state, valueExpr)->Result.map(((state, valueVReg)) => {
+              // Emit DeviceStore instruction with vreg
+              emit(state, IR.DeviceStore(IR.DevicePin(devicePin), property, IR.VReg(valueVReg)))
+            })
           }
-
-          deviceParamResult->Result.flatMap(deviceParam => {
-            // Check if value is a literal - use immediate value
-            switch valueExpr {
-            | AST.Literal(n) =>
-              // Use immediate value directly
-              Ok(emit(state, IR.Save(IR.DevicePin(devicePin), deviceParam, IR.Num(n))))
-            | _ =>
-              // Generate value expression into a vreg
-              generateExpr(state, valueExpr)->Result.map(((state, valueVReg)) => {
-                // Emit Save instruction with vreg
-                emit(state, IR.Save(IR.DevicePin(devicePin), deviceParam, IR.VReg(valueVReg)))
-              })
-            }
-          })
 
         | _ =>
           Error(
             "[IRGen.res][generateStmt]: s() expects (device: identifier or int, property: string, value: expr)",
           )
+        }
+      }
+
+    | "sb" =>
+      // sb(typeHash, "Property", value) - Batch store by type
+      if Array.length(args) != 3 {
+        Error("[IRGen.res][generateStmt]: sb() expects 3 arguments: type hash, property, value")
+      } else {
+        switch (args[0], args[1], args[2]) {
+        | (
+            Some(AST.ArgExpr(AST.Identifier(typeHashVar))),
+            Some(AST.ArgString(property)),
+            Some(AST.ArgExpr(valueExpr)),
+          ) =>
+          // Check if value is a literal
+          switch valueExpr {
+          | AST.Literal(n) =>
+            Ok(emit(state, IR.DeviceStore(IR.DeviceType(typeHashVar), property, IR.Num(n))))
+          | _ =>
+            generateExpr(state, valueExpr)->Result.map(((state, valueVReg)) => {
+              emit(state, IR.DeviceStore(IR.DeviceType(typeHashVar), property, IR.VReg(valueVReg)))
+            })
+          }
+        | _ =>
+          Error("[IRGen.res][generateStmt]: sb() expects (typeHash: identifier, property: string, value: expr)")
+        }
+      }
+
+    | "sbn" =>
+      // sbn(typeHash, nameHash, "Property", value) - Batch store by type and name
+      if Array.length(args) != 4 {
+        Error("[IRGen.res][generateStmt]: sbn() expects 4 arguments: type hash, name hash, property, value")
+      } else {
+        switch (args[0], args[1], args[2], args[3]) {
+        | (
+            Some(AST.ArgExpr(AST.Identifier(typeHashVar))),
+            Some(AST.ArgExpr(AST.Identifier(nameHashVar))),
+            Some(AST.ArgString(property)),
+            Some(AST.ArgExpr(valueExpr)),
+          ) =>
+          // Check if value is a literal
+          switch valueExpr {
+          | AST.Literal(n) =>
+            Ok(emit(state, IR.DeviceStore(IR.DeviceNamed(typeHashVar, nameHashVar), property, IR.Num(n))))
+          | _ =>
+            generateExpr(state, valueExpr)->Result.map(((state, valueVReg)) => {
+              emit(state, IR.DeviceStore(IR.DeviceNamed(typeHashVar, nameHashVar), property, IR.VReg(valueVReg)))
+            })
+          }
+        | _ =>
+          Error("[IRGen.res][generateStmt]: sbn() expects (typeHash: identifier, nameHash: identifier, property: string, value: expr)")
         }
       }
 

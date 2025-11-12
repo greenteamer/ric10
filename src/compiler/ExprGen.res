@@ -269,13 +269,13 @@ let rec generate = (state: codegenState, expr: AST.expr): result<
           Some(AST.ArgExpr(AST.Identifier(hashName))),
           Some(AST.ArgString(property)),
           Some(AST.ArgExpr(AST.Identifier(valueName))),
-          Some(AST.ArgMode(modeExpr)),
+          Some(AST.ArgMode(modeStr)),
         ) =>
         // Verify hash is a define constant
         switch Belt.Map.String.get(state.defines, hashName) {
         | None => Error(hashName ++ " is not a HASH constant - use hash() to define it")
         | Some(_) =>
-          let modeStr = Mode.toString(modeExpr)
+          // modeStr is now already a string
           Utils.getDefineOrRegister(state, valueName)
           ->Result.map(valueStr => `sb ${hashName} ${property} ${valueStr} ${modeStr}`)
           ->Result.map(addInstruction(state, _))
@@ -1091,17 +1091,15 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
       | (
           Some(AST.ArgExpr(AST.Identifier(hashName))),
           Some(AST.ArgString(property)),
-          Some(AST.ArgMode(modeExpr)),
+          Some(AST.ArgMode(modeStr)),
         ) =>
         // Verify hash is a define constant
         switch Belt.Map.String.get(state.defines, hashName) {
         | None => Error(hashName ++ " is not a HASH constant - use hash() to define it")
         | Some(_) =>
           // Get value - check if it's a define constant or a register variable
-
-          let inst = `lb ${Register.toString(targetReg)} ${hashName} ${property} ${Mode.toString(
-              modeExpr,
-            )}`
+          // modeStr is now already a string (Maximum, Minimum, Average, Sum)
+          let inst = `lb ${Register.toString(targetReg)} ${hashName} ${property} ${modeStr}`
 
           Ok(addInstruction(state, inst))
         }
@@ -1119,7 +1117,7 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
           Some(AST.ArgExpr(AST.Identifier(typeHash))),
           Some(AST.ArgExpr(AST.Identifier(nameHash))),
           Some(AST.ArgString(property)),
-          Some(AST.ArgMode(modeExpr)),
+          Some(AST.ArgMode(modeStr)),
         ) =>
         // Verify hash is a define constant
         switch (
@@ -1131,7 +1129,7 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
           Error(`${typeHash} or ${nameHash} is not a HASH constant - use hash() to define it"`)
         | _ =>
           let regStr = Register.toString(targetReg)
-          let modeStr = Mode.toString(modeExpr)
+          // modeStr is now already a string
           let inst = `lbn ${regStr} ${typeHash} ${nameHash} ${property} ${modeStr}`
 
           Ok(addInstruction(state, inst))
@@ -1185,13 +1183,13 @@ let rec generateInto = (state: codegenState, expr: AST.expr, targetReg: Register
           Some(AST.ArgExpr(AST.Identifier(hashName))),
           Some(AST.ArgString(property)),
           Some(AST.ArgExpr(AST.Identifier(valueName))),
-          Some(AST.ArgMode(modeExpr)),
+          Some(AST.ArgMode(modeStr)),
         ) =>
         // Verify hash is a define constant
         switch Belt.Map.String.get(state.defines, hashName) {
         | None => Error(hashName ++ " is not a HASH constant - use hash() to define it")
         | Some(_) =>
-          let modeStr = Mode.toString(modeExpr)
+          // modeStr is now already a string
           Utils.getDefineOrRegister(state, valueName)
           ->Result.map(valueStr => `sb ${hashName} ${property} ${valueStr} ${modeStr}`)
           ->Result.map(addInstruction(state, _))

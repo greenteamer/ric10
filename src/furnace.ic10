@@ -1,1 +1,9 @@
-s d0 On 1
+move sp 2
+define furnaceType HASH("StructureAdvancedFurnace")
+define furnaceName HASH("Furnace")
+label0:
+lbn r0 furnaceType furnaceName Temperature Maximum
+l r1 d1 Temperature
+s d0 Setting r0
+yield
+j label0

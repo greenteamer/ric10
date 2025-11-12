@@ -139,64 +139,68 @@ let generateInstr = (state: state, instr: IR.instr): result<state, string> => {
       emit(state, `push ${valueStr}`)
     })
 
-  // Load: l resultReg device property
-  | Load(vreg, device, deviceParam, bulkOpt) =>
+  // DeviceLoad: l/lb/lbn resultReg device property [bulk_option]
+  | DeviceLoad(vreg, device, property, bulkOpt) =>
     allocatePhysicalReg(state, vreg)->Result.map(((state, physicalReg)) => {
-      // Convert device to IC10 format
-      let deviceStr = switch device {
-      | DevicePin(pin) => `d${Int.toString(pin)}`
-      | DeviceReg(deviceVReg) =>
-        // Device stored in register - need to allocate physical reg for it
+      // Select instruction and build based on device type and bulk option
+      let instr = switch (device, bulkOpt) {
+      // DevicePin/DeviceReg + no bulk → l
+      | (DevicePin(pin), None) =>
+        `l r${Int.toString(physicalReg)} d${Int.toString(pin)} ${property}`
+      | (DeviceReg(deviceVReg), None) =>
+        // Device stored in register
         switch state.vregMap->Belt.Map.Int.get(deviceVReg) {
-        | Some(devicePhysReg) => `r${Int.toString(devicePhysReg)}`
-        | None => "d0" // Fallback - shouldn't happen
+        | Some(devicePhysReg) =>
+          `l r${Int.toString(physicalReg)} r${Int.toString(devicePhysReg)} ${property}`
+        | None =>
+          `l r${Int.toString(physicalReg)} d0 ${property}` // Fallback
         }
+
+      // DeviceType + bulk → lb
+      | (DeviceType(typeHash), Some(bulk)) =>
+        `lb r${Int.toString(physicalReg)} ${typeHash} ${property} ${bulk}`
+
+      // DeviceNamed + bulk → lbn
+      | (DeviceNamed(typeHash, nameHash), Some(bulk)) =>
+        `lbn r${Int.toString(physicalReg)} ${typeHash} ${nameHash} ${property} ${bulk}`
+
+      // Invalid combinations
+      | (DevicePin(_), Some(_)) | (DeviceReg(_), Some(_)) =>
+        "# ERROR: DevicePin/DeviceReg cannot use bulk option"
+      | (DeviceType(_), None) | (DeviceNamed(_, _), None) =>
+        "# ERROR: DeviceType/DeviceNamed must have bulk option for load"
       }
 
-      // Convert deviceParam to property name
-      let propertyStr = switch deviceParam {
-      | Temperature => "Temperature"
-      | Setting => "Setting"
-      | Pressure => "Pressure"
-      | On => "On"
-      | Open => "Open"
-      | Mode => "Mode"
-      | Lock => "Lock"
-      }
-
-      // Build instruction (ignore bulkOpt for now - Phase 1)
-      let instr = `l r${Int.toString(physicalReg)} ${deviceStr} ${propertyStr}`
       emit(state, instr)
     })
 
-  // Save: s device property value
-  | Save(device, deviceParam, valueOperand) =>
-    // Convert device to IC10 format
-    let deviceStr = switch device {
-    | DevicePin(pin) => `d${Int.toString(pin)}`
-    | DeviceReg(deviceVReg) =>
-      // Device stored in register - need to allocate physical reg for it
-      switch state.vregMap->Belt.Map.Int.get(deviceVReg) {
-      | Some(devicePhysReg) => `r${Int.toString(devicePhysReg)}`
-      | None => "d0" // Fallback - shouldn't happen
-      }
-    }
-
-    // Convert deviceParam to property name
-    let propertyStr = switch deviceParam {
-    | Temperature => "Temperature"
-    | Setting => "Setting"
-    | Pressure => "Pressure"
-    | On => "On"
-    | Open => "Open"
-    | Mode => "Mode"
-    | Lock => "Lock"
-    }
-
+  // DeviceStore: s/sb/sbn device property value
+  | DeviceStore(device, property, valueOperand) =>
     // Convert value operand to string
     convertOperand(state, valueOperand)->Result.map(((state, valueStr)) => {
-      // Build instruction: s device property value
-      let instr = `s ${deviceStr} ${propertyStr} ${valueStr}`
+      // Select instruction based on device type
+      let instr = switch device {
+      // DevicePin/DeviceReg → s
+      | DevicePin(pin) =>
+        `s d${Int.toString(pin)} ${property} ${valueStr}`
+      | DeviceReg(deviceVReg) =>
+        // Device stored in register
+        switch state.vregMap->Belt.Map.Int.get(deviceVReg) {
+        | Some(devicePhysReg) =>
+          `s r${Int.toString(devicePhysReg)} ${property} ${valueStr}`
+        | None =>
+          `s d0 ${property} ${valueStr}` // Fallback
+        }
+
+      // DeviceType → sb
+      | DeviceType(typeHash) =>
+        `sb ${typeHash} ${property} ${valueStr}`
+
+      // DeviceNamed → sbn
+      | DeviceNamed(typeHash, nameHash) =>
+        `sbn ${typeHash} ${nameHash} ${property} ${valueStr}`
+      }
+
       emit(state, instr)
     })
 

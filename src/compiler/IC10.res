@@ -5,29 +5,13 @@
 // Device references (d0-d5, db)
 type device = int
 
+// Bulk operation modes for lb/lbn operations
 module Mode = {
-  type t = Maximum | Minimum | Average | Sum
-
-  let toString = (mode: t): string =>
-    switch mode {
-    | Maximum => "Maximum"
-    | Minimum => "Minimum"
-    | Average => "Average"
-    | Sum => "Sum"
-    }
-
-  let fromString = (str: string): result<t, string> =>
-    switch str {
-    | "Maximum" => Ok(Maximum)
-    | "Minimum" => Ok(Minimum)
-    | "Average" => Ok(Average)
-    | "Sum" => Ok(Sum)
-    | _ =>
-      Error(
-        "[IC10.res][Mode.fromString]: invalid mode string '" ++
-        str ++ "', expected Maximum|Minimum|Average|Sum",
-      )
-    }
+  // String constants for bulk operations
+  let maximum = "Maximum"
+  let minimum = "Minimum"
+  let average = "Average"
+  let sum = "Sum"
 }
 
 let d0: device = 0
@@ -50,13 +34,15 @@ let l = (_device: device, _property: string): int => {
   0
 }
 
-// lb r0 HASH Temperature
-let lb = (_typeHash: int, _property: string, _mode: Mode.t): int => {
+// lb r0 typeHash Temperature Maximum
+// typeHash should be a variable from hash("StructureTank")
+let lb = (_typeHash: string, _property: string, _mode: string): int => {
   0
 }
 
-// lbn r0 HASH("Type") HASH("Name") Property Mode
-let lbn = (_typeHash: int, _nameHash: int, _property: string, _mode: Mode.t): int => {
+// lbn r0 typeHash nameHash Property Mode
+// typeHash and nameHash should be variables from hash()
+let lbn = (_typeHash: string, _nameHash: string, _property: string, _mode: string): int => {
   0
 }
 
@@ -66,18 +52,22 @@ let s = (_device: device, _property: string, _value: int): unit => {
   () // Stub - never executed
 }
 
-// sb HASH Setting 1
-let sb = (_hash: int, _property: string, _value: int, _mode: Mode.t): unit => {
+// sb typeHash Setting 1
+// typeHash should be a variable from hash("StructureTank")
+let sb = (_typeHash: string, _property: string, _value: int): unit => {
   ()
 }
 
-// sbn HASH("Type") HASH("Name") Property Value
-let sbn = (_typeHash: int, _nameHash: int, _property: string, _value: int): unit => {
+// sbn typeHash nameHash Property Value
+// typeHash and nameHash should be variables from hash()
+let sbn = (_typeHash: string, _nameHash: string, _property: string, _value: int): unit => {
   ()
 }
 
-let hash = (string): int => {
-  0
+// hash("StructureTank") -> defines a hash constant
+// Usage: let typeHash = hash("StructureTank")
+let hash = (_string: string): string => {
+  "" // Returns the variable name (compiler recognizes this)
 }
 
 // Common IC10 properties for convenience and documentation

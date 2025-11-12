@@ -40,6 +40,8 @@ let printDevice = (device: IR.device): string => {
   switch device {
   | DevicePin(pin) => `d${Int.toString(pin)}`
   | DeviceReg(vreg) => printVReg(vreg)
+  | DeviceType(typeHash) => `type(${typeHash})`
+  | DeviceNamed(typeHash, nameHash) => `named(${typeHash}, ${nameHash})`
   }
 }
 
@@ -49,38 +51,17 @@ let printInstr = (instr: IR.instr): string => {
   | DefInt(name, value) => `define ${name} ${Int.toString(value)}`
   | DefHash(name, value) => `define ${name} HASH("${value}")`
   | Move(vreg, operand) => `move ${printVReg(vreg)} ${printOperand(operand)}`
-  | Load(vreg, device, param, bulkOpt) => {
+  | DeviceLoad(vreg, device, property, bulkOpt) => {
       let deviceStr = printDevice(device)
-      let paramStr = switch param {
-      | Setting => "Setting"
-      | Temperature => "Temperature"
-      | Pressure => "Pressure"
-      | On => "On"
-      | Open => "Open"
-      | Mode => "Mode"
-      | Lock => "Lock"
-      }
       let bulkStr = switch bulkOpt {
-      | Some(Maximum) => " Maximum"
-      | Some(Minimum) => " Minimum"
-      | Some(Average) => " Average"
-      | Some(Sum) => " Sum"
+      | Some(bulk) => ` ${bulk}`
       | None => ""
       }
-      `load ${printVReg(vreg)} ${deviceStr} ${paramStr}${bulkStr}`
+      `load ${printVReg(vreg)} ${deviceStr} ${property}${bulkStr}`
     }
-  | Save(device, param, operand) => {
+  | DeviceStore(device, property, operand) => {
       let deviceStr = printDevice(device)
-      let paramStr = switch param {
-      | Setting => "Setting"
-      | Temperature => "Temperature"
-      | Pressure => "Pressure"
-      | On => "On"
-      | Open => "Open"
-      | Mode => "Mode"
-      | Lock => "Lock"
-      }
-      `save ${deviceStr} ${paramStr} ${printOperand(operand)}`
+      `store ${deviceStr} ${property} ${printOperand(operand)}`
     }
   | Unary(vreg, op, operand) => {
       let opStr = switch op {

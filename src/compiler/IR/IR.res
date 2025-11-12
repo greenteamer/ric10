@@ -4,24 +4,11 @@ type operand =
   | VReg(vreg)
   | Num(int)
 
-type bulkOption =
-  | Maximum
-  | Minimum
-  | Average
-  | Sum
-
-type deviceParam =
-  | Setting
-  | Temperature
-  | Pressure
-  | On
-  | Open
-  | Mode
-  | Lock
-
 type device =
-  | DevicePin(int) // d0, d1, d2, etc.
-  | DeviceReg(vreg) // device stored in register
+  | DevicePin(int) // d0, d1, d2, etc. → l/s
+  | DeviceReg(vreg) // device stored in register → l/s
+  | DeviceType(string) // type hash → lb/sb
+  | DeviceNamed(string, string) // type hash + name hash → lbn/sbn
 
 type binOp =
   | AddOp
@@ -43,8 +30,8 @@ type instr =
   | DefInt(string, int)
   | DefHash(string, string)
   | Move(vreg, operand)
-  | Load(vreg, device, deviceParam, option<bulkOption>)
-  | Save(device, deviceParam, operand)
+  | DeviceLoad(vreg, device, string, option<string>) // dest, device, property, bulk_option?
+  | DeviceStore(device, string, operand) // device, property, value
   | Unary(vreg, unOp, operand)
   | Binary(vreg, binOp, operand, operand)
   | Compare(vreg, compareOp, operand, operand)

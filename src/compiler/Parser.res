@@ -392,10 +392,11 @@ and parseFunctionArguments = (parser: parser): result<(parser, array<AST.argumen
           }
         }
       | (false, true) => {
-          Console.log2("[parseFunctionArguments] mode id: ", (parser, name))
+          Console.log2("[parseFunctionArguments] mode string: ", (parser, name))
           let parser = advance(parser)
 
-          let arg = AST.ArgMode(IC10.Mode.fromString(name)->Belt.Result.getExn)
+          // Mode is now just a string (Maximum, Minimum, Average, Sum)
+          let arg = AST.ArgMode(name)
           // Check for comma or closing paren
           switch peek(parser) {
           | Some(Lexer.RightParen) => Ok((advance(parser), list{arg, ...args}))
