@@ -90,6 +90,7 @@ type state = {
 2. **`convertOperand(state, operand) → result<(state, string), string>`**
    - `VReg(v)` → Allocate physical, return "rN"
    - `Num(n)` → Return string of number
+   - `Name(name)` → Return name directly (for constant references)
 
 3. **`generateInstr(state, instr) → result<state, string>`**
    - `Move(vreg, operand)` → Allocate physical for vreg, emit `move rN <operand>`
@@ -577,12 +578,16 @@ Verify compiled code quality:
 ### IR Instruction Design
 
 - **Matches IC10 closely**: Move, Binary ops, Branch, Load/Save
-- **Operands are flexible**: Can be virtual registers OR immediate values
+- **Operands are flexible**: Can be virtual registers, immediate values, OR named constants
+  - `VReg(vreg)` - Virtual register reference
+  - `Num(int)` - Immediate integer value
+  - `Name(string)` - Named constant reference (e.g., defined via `define`)
 - **Labels are explicit**: Not implicit like current codegen
 - **Benefits**:
   - Easy to reason about (1:1 or 1:few mapping to IC10)
   - Enables future analysis passes
   - Clear representation of control flow
+  - Named constants allow referencing `define` statements
 
 ### Backward Compatibility
 

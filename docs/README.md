@@ -53,7 +53,9 @@ New to the compiler? Start here:
 |----------|-------------|
 | [Compiler Overview](architecture/compiler-overview.md) | High-level architecture and component design |
 | [Stack Layout](architecture/stack-layout.md) | IC10 stack operations and variant storage strategy |
-| [IR Design](architecture/ir-design.md) | Intermediate Representation architecture |
+| [IR Design](architecture/ir-design.md) | Intermediate Representation migration plan |
+| [IR Reference](architecture/ir-reference.md) | Complete IR types, instructions, and examples |
+| [IR Migration Report](architecture/ir-migration-report.md) | Current migration status and progress |
 | [Device I/O Operations](architecture/device-io.md) | Platform-agnostic device I/O design for multi-backend support |
 
 ### Compiler Pipeline

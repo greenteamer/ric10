@@ -1,12 +1,22 @@
 # IR Migration Validation Report
 
 **Generated:** 2025-11-12
+**Updated:** 2025-11-12 (after Name operand fixes)
 **Test Suite:** `tests/migration-validation.test.js`
 **Total Test Cases:** 44
 
 ## Executive Summary
 
 The IR pipeline is **fully implemented** but produces **different output** from the old codegen in 73% of test cases (32/44). Analysis shows these are primarily **missing optimizations** and **constant handling differences**, not fundamental bugs.
+
+### Recent Updates (2025-11-12)
+
+✅ **Fixed:** Pattern matching warnings for `Name` operand variant
+- Updated `IRPrint.res` to handle `Name(name)` case
+- Updated `IRToIC10.res` to handle `Name(name)` case
+- Updated `IROptimizer.res` to handle `Name(_)` in both `findUsedVRegs` and `substituteOperand`
+- **Status:** Build now completes without pattern matching warnings
+- **Impact:** Enables proper constant reference support throughout the IR pipeline
 
 ### Results Overview
 

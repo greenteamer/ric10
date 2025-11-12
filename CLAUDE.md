@@ -58,27 +58,48 @@ src/compiler/
 ├── Parser.res         # AST generation
 ├── AST.res           # AST type definitions
 ├── Codegen.res       # Main orchestrator
-├── StmtGen.res       # Statement code generation
-├── ExprGen.res       # Expression code generation
-├── BranchGen.res     # Control flow
+├── StmtGen.res       # Statement code generation (legacy)
+├── ExprGen.res       # Expression code generation (legacy)
+├── BranchGen.res     # Control flow (legacy)
 ├── RegisterAlloc.res # Register management (r0-r15)
-└── IR/               # Intermediate representation (optional)
+└── IR/               # Intermediate representation (NEW pipeline)
+    ├── IR.res        # IR type definitions
+    ├── IRGen.res     # AST → IR conversion
+    ├── IRPrint.res   # IR pretty printer
+    ├── IRToIC10.res  # IR → IC10 conversion
+    └── IROptimizer.res # IR-level optimizations
 ```
+
+**Note:** The IR pipeline is the recommended approach for new development. Legacy codegen is maintained for compatibility.
 
 ## Key Concepts
 
+### IR Architecture (Intermediate Representation)
+- **Two-phase compilation**: AST → IR (unlimited vregs) → IC10 (r0-r15)
+- **Virtual registers**: IR uses v0, v1, v2... without physical limits
+- **Physical allocation**: IRToIC10 maps virtual → physical registers
+- **Operand types**:
+  - `VReg(n)` - Virtual register reference
+  - `Num(n)` - Immediate integer value
+  - `Name(s)` - Named constant reference (for `define` statements)
+- **Optimizations**: Dead code elimination, constant propagation, peephole
+- **See**: `docs/architecture/ir-reference.md` for complete IR documentation
+
 ### Register Allocation
-- **Variables**: r0-r13 (allocated low to high)
-- **Temps**: r15-r14 (allocated high to low, freed after use)
-- **Constraint**: Maximum 16 registers total
+- **IR Phase**: Unlimited virtual registers (v0, v1, v2...)
+- **IC10 Phase**: r0-r15 physical registers
+- **Legacy**: Variables r0-r13, Temps r15-r14
+- **Constraint**: Maximum 16 physical registers
 
 ### Variant Types
 - Fixed stack layout: `stack[0]` = tag, rest = arguments
 - Stack pointer set once, never modified
 - Use `get db address` and `poke address value` for access
+- **IR**: Stack operations via StackAlloc, StackPoke, StackGet
 
 ### Code Generation
-- Direct IC10 branch instructions (no `slt`/`beqz` patterns)
+- **IR pipeline**: Peephole optimization fuses Compare+Bnez → direct branches
+- **Legacy**: Direct IC10 branch instructions
 - Constant folding optimization
 - Register reuse for variable shadowing
 
@@ -88,6 +109,7 @@ src/compiler/
 |------|----------|
 | Language features | `docs/user-guide/language-reference.md` |
 | Architecture details | `docs/architecture/` |
+| IR documentation | `docs/architecture/ir-reference.md` |
 | Implementation guides | `docs/implementation/` |
 | Test examples | `tests/*.test.js` |
 | Historical context | `docs/archive/` |
