@@ -112,6 +112,10 @@ let generateInstr = (state: state, instr: IR.instr): result<state, string> => {
       emit(state, `bnez ${regStr} ${label}`)
     })
 
+  | Call(label) => Ok(emit(state, `jal ${label}`))
+
+  | Return => Ok(emit(state, `j ra`))
+
   | DefInt(name, value) => Ok(emit(state, `define ${name} ${Int.toString(value)}`))
 
   | DefHash(name, value) => Ok(emit(state, `define ${name} HASH("${value}")`))

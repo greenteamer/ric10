@@ -1,26 +1,82 @@
 move sp 2
 define furnaceType HASH("StructureAdvancedFurnace")
 define furnaceName HASH("Furnace")
+define lcdType HASH("StructureLCD")
+define lcdName HASH("FurnaceLCD")
 define maxPressure 50000
-sub r0 maxPressure 100
 poke 0 0
-poke 1 0
+poke 1 1
+stopCmd:
+sbn furnaceType furnaceName SettingInput 0
+sbn furnaceType furnaceName SettingOutput 0
+s d4 On 0
+s d5 On 0
+s d2 On 0
+j ra
+pressurizeCmd:
+sbn furnaceType furnaceName SettingInput 100
+sbn furnaceType furnaceName SettingOutput 0
+j ra
+depressurizeCmd:
+sbn furnaceType furnaceName SettingInput 0
+sbn furnaceType furnaceName SettingOutput 100
+j ra
+openTankValveCmd:
+s d4 On 1
+s d5 On 0
+j ra
+openAtmValveCmd:
+s d4 On 0
+s d5 On 1
+j ra
 label0:
-lbn r1 furnaceType furnaceName Temperature Maximum
+lbn r0 furnaceType furnaceName Temperature Maximum
+lbn r1 furnaceType furnaceName Pressure Maximum
 l r2 d1 Temperature
-s db Setting r1
-get r3 db 0
-beq r3 0 match_case_3
-j match_end_2
-match_case_3:
-get r4 db 1
-beq r4 0 match_case_5
-j match_end_4
-match_case_5:
+l r3 d0 Open
+bne r3 1 label2
+poke 1 0
+label2:
+sbn lcdType lcdName Setting r0
+get r4 db 0
+beq r4 0 match_case_4
+beq r4 3 match_case_5
+j match_end_3
+match_case_4:
+get r5 db 1
+beq r5 0 match_case_7
+beq r5 1 match_case_8
+beq r5 2 match_case_9
+beq r5 3 match_case_10
+j match_end_6
+match_case_7:
+jal stopCmd
 poke 0 3
-j match_end_4
-match_end_4:
-j match_end_2
-match_end_2:
+j match_end_6
+match_case_8:
+jal stopCmd
+poke 0 0
+j match_end_6
+match_case_9:
+jal pressurizeCmd
+poke 0 1
+j match_end_6
+match_case_10:
+jal depressurizeCmd
+poke 0 2
+j match_end_6
+match_end_6:
+j match_end_3
+match_case_5:
+beq r1 1 label11
+jal stopCmd
+poke 0 0
+j label12
+label11:
+jal stopCmd
+poke 0 3
+label12:
+j match_end_3
+match_end_3:
 yield
 j label0

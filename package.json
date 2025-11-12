@@ -22,10 +22,11 @@
     ]
   },
   "scripts": {
-    "res:clean": "rescript clean",
-    "res:build": "rescript",
-    "res:dev": "rescript -w",
+    "res:clean": "./node_modules/.bin/rescript clean",
+    "res:build": "./node_modules/.bin/rescript",
+    "res:dev": "./node_modules/.bin/rescript -w",
     "compile": "tsc -p ./",
+    "compile:res": "node src/commands.res.js",
     "watch": "tsc -watch -p ./",
     "dev": "npm run watch",
     "test": "jest"
@@ -35,6 +36,7 @@
     "rescript": "^11.1.4"
   },
   "devDependencies": {
+    "@rescript/language-server": "^1.66.0",
     "@types/node": "^18.0.0",
     "@types/vscode": "^1.74.0",
     "gentype": "^4.5.0",

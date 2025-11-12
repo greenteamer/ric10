@@ -39,6 +39,8 @@ type instr =
   | Goto(string)
   | Label(string)
   | Bnez(operand, string)
+  | Call(string) // jal label - jump and link (stores return address in ra/r17)
+  | Return // j ra - return from function call
   // Stack operations for variant support
   | StackAlloc(int) // Reserve N stack slots (emit N × push 0)
   | StackPoke(int, operand) // poke address value (write to stack without changing sp)

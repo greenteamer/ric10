@@ -33,6 +33,8 @@ type state = {
   deviceMap: Belt.Map.String.t<string>, // variableName → device ref (e.g., "furnace" → "d0", "housing" → "db")
   // Constants tracking
   constants: Belt.Set.String.t, // Set of variable names that are constants (use Name operand)
+  // Function tracking
+  functions: Belt.Set.String.t, // Set of declared function names
 }
 
 // Create initial state
@@ -47,6 +49,7 @@ let createState = (): state => {
   stackAllocator: {nextFreeSlot: 0},
   deviceMap: Belt.Map.String.empty,
   constants: Belt.Set.String.empty,
+  functions: Belt.Set.String.empty,
 }
 
 // Allocate a new virtual register
@@ -656,6 +659,22 @@ and generateWhileLoop = (state: state, condition: AST.expr, body: AST.blockState
 // Generate IR for a statement
 and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
   switch stmt {
+  // FunctionDeclaration: emit label, body, and return
+  | FunctionDeclaration(name, body) => {
+      // 1. Add function name to functions set
+      let functions = Belt.Set.String.add(state.functions, name)
+      let state = {...state, functions}
+
+      // 2. Emit function label
+      let state = emit(state, IR.Label(name))
+
+      // 3. Generate function body
+      generateBlock(state, body)->Result.map(state => {
+        // 4. Emit return instruction
+        emit(state, IR.Return)
+      })
+    }
+
   // TypeDeclaration: allocate stack space and store metadata
   | TypeDeclaration(typeName, constructors) => {
       // 1. Calculate maximum arguments across all constructors
@@ -969,6 +988,31 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
     generateExpr(state, SwitchExpression(scrutinee, cases))->Result.map(((state, _resultVreg)) =>
       state
     )
+
+  // VariantConstructor: check if it's a function call (0 args) or variant constructor
+  | VariantConstructor(name, args) =>
+    if Array.length(args) == 0 {
+      // Check if this is a function call
+      if Belt.Set.String.has(state.functions, name) {
+        // This is a function call - emit Call instruction
+        let state = emit(state, IR.Call(name))
+        Ok(state)
+      } else {
+        // Check if this is a variant constructor
+        switch getTypeNameFromConstructor(state, name) {
+        | Some(_) =>
+          Error(
+            `Zero-arg variant constructor '${name}' cannot be used as a statement. ` ++
+            `Use it in ref() or assignment context: let x = ref(${name}) or varName := ${name}`,
+          )
+        | None => Error(`Unknown identifier '${name}'. Did you forget to declare the function?`)
+        }
+      }
+    } else {
+      Error(
+        "[IRGen.res][generateStmt]: variant constructors with arguments cannot be used as statements",
+      )
+    }
 
   // FunctionCall as statement: s(device, property, value)
   | FunctionCall(funcName, args) =>

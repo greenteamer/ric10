@@ -20,13 +20,20 @@ let resToIC10File = (src: string, dest: string) => {
   }
 }
 
-switch (argv[2], argv[3]) {
-| (Some(src), Some(dest)) => {
-    Console.log(`src arg: ${src}`)
-    Console.log(`dest arg: ${dest}`)
+// Generate destination filename by replacing .res extension with .ic10
+let generateDestPath = (src: string) => {
+  if src->String.endsWith(".res") {
+    src->String.slice(~start=0, ~end=String.length(src) - 4) ++ ".ic10"
+  } else {
+    src ++ ".ic10"
+  }
+}
+
+switch argv[2] {
+| Some(src) => {
+    let dest = generateDestPath(src)
+    Console.log(`Compiling: ${src} -> ${dest}`)
     resToIC10File(src, dest)
   }
-| (None, Some(_)) => Console.log("Missing src file arg: (src: string, dest: string) => unit")
-| (Some(_), None) => Console.log("Missing dest file arg: (src: string, dest: string) => unit")
-| _ => Console.log("Missing src and dest file args: (src: string, dest: string) => unit")
+| None => Console.log("Usage: node src/commands.res.js <source.res>")
 }

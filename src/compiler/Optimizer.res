@@ -92,6 +92,10 @@ let rec optimize = (node: astNode): astNode => {
   // Optimize type declarations (pass through unchanged - compile-time only)
   | TypeDeclaration(_, _) => node
 
+  // Optimize function declarations
+  | FunctionDeclaration(name, body) =>
+    FunctionDeclaration(name, optimizeBlock(body))
+
   // Optimize variant constructors
   | VariantConstructor(name, arguments) => VariantConstructor(name, Array.map(arguments, optimize))
 

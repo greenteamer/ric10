@@ -77,6 +77,8 @@ let printInstr = (instr: IR.instr): string => {
   | Goto(label) => `j ${label}`
   | Label(label) => `${label}:`
   | Bnez(operand, label) => `bnez ${printOperand(operand)} ${label}`
+  | Call(label) => `jal ${label}`
+  | Return => `j ra`
   | StackAlloc(count) => `stack_alloc ${Int.toString(count)}`
   | StackPoke(addr, operand) => `stack_poke ${Int.toString(addr)} ${printOperand(operand)}`
   | StackGet(vreg, addr) => `stack_get ${printVReg(vreg)} ${Int.toString(addr)}`

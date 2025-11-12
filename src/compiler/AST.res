@@ -20,6 +20,7 @@ type variantConstructor = {
 // AST node types (mutually recursive)
 type rec astNode =
   | VariableDeclaration(string, expr) // let x = expr
+  | FunctionDeclaration(string, blockStatement) // let name = () => { body }
   | BinaryExpression(binaryOp, expr, expr) // expr op expr
   | Literal(int) // integer literal
   | LiteralBool(bool) // boolean literal (for while true)
@@ -63,6 +64,10 @@ type program = array<stmt>
 // Helper functions for creating AST nodes
 let createVariableDeclaration = (name: string, value: expr): astNode => {
   VariableDeclaration(name, value)
+}
+
+let createFunctionDeclaration = (name: string, body: blockStatement): astNode => {
+  FunctionDeclaration(name, body)
 }
 
 let createBinaryExpression = (op: binaryOp, left: expr, right: expr): astNode => {

@@ -666,6 +666,7 @@ and parseSwitchExpression = (parser: parser): result<(parser, AST.expr), string>
 }
 
 // Parse a variable declaration: let identifier = expression
+// Or function declaration: let identifier = () => { body }
 // Part of the same mutual recursion group
 and parseVariableDeclaration = (parser: parser): result<(parser, AST.astNode), string> => {
   // Expect "let"
@@ -680,10 +681,22 @@ and parseVariableDeclaration = (parser: parser): result<(parser, AST.astNode), s
       switch expect(parser, Lexer.Assign) {
       | Error(msg) => Error(msg)
       | Ok(parser) =>
-        // Parse expression
-        switch parseExpression(parser) {
-        | Error(msg) => Error(msg)
-        | Ok((parser, expr)) => Ok((parser, AST.createVariableDeclaration(name, expr)))
+        // Check if this is a function declaration: () => { body }
+        switch (peek(parser), peek(advance(parser)), peek(advance(advance(parser)))) {
+        | (Some(Lexer.LeftParen), Some(Lexer.RightParen), Some(Lexer.Arrow)) =>
+          // Function declaration: let name = () => { body }
+          let parser = advance(advance(advance(parser))) // consume (), =>
+          // Parse function body block
+          switch parseBlockStatement(parser) {
+          | Error(msg) => Error(msg)
+          | Ok((parser, body)) => Ok((parser, AST.createFunctionDeclaration(name, body)))
+          }
+        | _ =>
+          // Regular variable declaration
+          switch parseExpression(parser) {
+          | Error(msg) => Error(msg)
+          | Ok((parser, expr)) => Ok((parser, AST.createVariableDeclaration(name, expr)))
+          }
         }
       }
     | Some(token) =>
