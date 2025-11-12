@@ -11,22 +11,25 @@ let dialType = hash("StructureLogicDial")
 let dialTempName = hash("FurnaceDialTemp")
 let dialPressName = hash("FurnaceDialPress")
 
+let valveType = hash("StructureDigitalValve")
+let tankValveName = hash("FurnaceTankValve")
+let atmValveName = hash("FurnaceAtmValve")
+
 let housing = device("db")
 
 let emergencyLever = device("d0")
-let atmSensor = device("d1")
-let vent = device("d2")
-let tank = device("d3")
-let tankValve = device("d4")
-let atmValve = device("d5")
+let depleteLever = device("d1")
+let atmSensor = device("d2")
+let vent = device("d3")
+let tank = device("d4")
 
 let state = ref(Idle)
 
 let stopCmd = () => {
   sbn(furnaceType, furnaceName, "SettingInput", 0)
   sbn(furnaceType, furnaceName, "SettingOutput", 0)
-  s(tankValve, "On", 0)
-  s(atmValve, "On", 0)
+  sbn(valveType, tankValveName, "On", 0)
+  sbn(valveType, atmValveName, "On", 0)
   s(vent, "On", 0)
 }
 
@@ -43,14 +46,14 @@ let depressurizeCmd = () => {
 }
 
 let openTankValveCmd = () => {
-  s(tankValve, "On", 1)
-  s(atmValve, "On", 0)
+  sbn(valveType, tankValveName, "On", 1)
+  sbn(valveType, atmValveName, "On", 0)
   s(vent, "On", 0)
 }
 
 let openAtmValveCmd = () => {
-  s(tankValve, "On", 0)
-  s(atmValve, "On", 1)
+  sbn(valveType, tankValveName, "On", 0)
+  sbn(valveType, atmValveName, "On", 1)
   s(vent, "On", 1)
 }
 
@@ -60,8 +63,9 @@ while true {
   let atmTemp = l(atmSensor, "Temperature")
   let tankTemp = l(tank, "Temperature")
   let isEmergencyLeverOpen = l(emergencyLever, "Open")
-  let confTemp = lbn(dialType, dialTempName, "Setting", "Maximum")
-  let confPress = lbn(dialType, dialPressName, "Setting", "Maximum")
+  let isDepleteLeverOpen = l(depleteLever, "Open")
+  let confTemp = lbn(dialType, dialTempName, "Setting", "Maximum") * 100
+  let confPress = lbn(dialType, dialPressName, "Setting", "Maximum") * 1000
 
   if fPress > 55000 {
     state := Emergency
@@ -77,6 +81,9 @@ while true {
   | Emergency =>
     if isEmergencyLeverOpen == 0 {
       state := Idle
+    } else if isDepleteLeverOpen == 1 {
+      openAtmValveCmd()
+      depressurizeCmd()
     }
 
   | Idle => {
@@ -84,7 +91,11 @@ while true {
       if isEmergencyLeverOpen == 1 {
         state := Emergency
       } else if fPress > confPress {
-        state := Depressurizing
+        if fTemp > confTemp {
+          state := Idle
+        } else {
+          state := Depressurizing
+        }
       } else {
         state := Pressurizing
       }

@@ -13,33 +13,51 @@ let rec findUsedVRegs = (instrs: list<IR.instr>, used: VRegSet.t): VRegSet.t => 
       | Move(_, VReg(vreg)) => used->VRegSet.add(vreg)
       | Move(_, Num(_)) => used
       | Move(_, Name(_)) => used
+      | Move(_, Hash(_)) => used
       | Binary(_, _, VReg(left), VReg(right)) => used->VRegSet.add(left)->VRegSet.add(right)
       | Binary(_, _, VReg(left), Num(_)) => used->VRegSet.add(left)
       | Binary(_, _, VReg(left), Name(_)) => used->VRegSet.add(left)
+      | Binary(_, _, VReg(left), Hash(_)) => used->VRegSet.add(left)
       | Binary(_, _, Num(_), VReg(right)) => used->VRegSet.add(right)
       | Binary(_, _, Num(_), Num(_)) => used
       | Binary(_, _, Num(_), Name(_)) => used
+      | Binary(_, _, Num(_), Hash(_)) => used
       | Binary(_, _, Name(_), VReg(right)) => used->VRegSet.add(right)
       | Binary(_, _, Name(_), Num(_)) => used
       | Binary(_, _, Name(_), Name(_)) => used
+      | Binary(_, _, Name(_), Hash(_)) => used
+      | Binary(_, _, Hash(_), VReg(right)) => used->VRegSet.add(right)
+      | Binary(_, _, Hash(_), Num(_)) => used
+      | Binary(_, _, Hash(_), Name(_)) => used
+      | Binary(_, _, Hash(_), Hash(_)) => used
       | Compare(_, _, VReg(left), VReg(right)) => used->VRegSet.add(left)->VRegSet.add(right)
       | Compare(_, _, VReg(left), Num(_)) => used->VRegSet.add(left)
       | Compare(_, _, VReg(left), Name(_)) => used->VRegSet.add(left)
+      | Compare(_, _, VReg(left), Hash(_)) => used->VRegSet.add(left)
       | Compare(_, _, Num(_), VReg(right)) => used->VRegSet.add(right)
       | Compare(_, _, Num(_), Num(_)) => used
       | Compare(_, _, Num(_), Name(_)) => used
+      | Compare(_, _, Num(_), Hash(_)) => used
       | Compare(_, _, Name(_), VReg(right)) => used->VRegSet.add(right)
       | Compare(_, _, Name(_), Num(_)) => used
       | Compare(_, _, Name(_), Name(_)) => used
+      | Compare(_, _, Name(_), Hash(_)) => used
+      | Compare(_, _, Hash(_), VReg(right)) => used->VRegSet.add(right)
+      | Compare(_, _, Hash(_), Num(_)) => used
+      | Compare(_, _, Hash(_), Name(_)) => used
+      | Compare(_, _, Hash(_), Hash(_)) => used
       | Bnez(VReg(vreg), _) => used->VRegSet.add(vreg)
       | Bnez(Num(_), _) => used
       | Bnez(Name(_), _) => used
+      | Bnez(Hash(_), _) => used
       | DeviceStore(_, _, VReg(vreg)) => used->VRegSet.add(vreg)
       | DeviceStore(_, _, Num(_)) => used
       | DeviceStore(_, _, Name(_)) => used
+      | DeviceStore(_, _, Hash(_)) => used
       | Unary(_, _, VReg(vreg)) => used->VRegSet.add(vreg)
       | Unary(_, _, Num(_)) => used
       | Unary(_, _, Name(_)) => used
+      | Unary(_, _, Hash(_)) => used
       | _ => used
       }
       findUsedVRegs(rest, newUsed)
@@ -83,6 +101,7 @@ let propagateConstantsAndCopies = (instrs: list<IR.instr>): list<IR.instr> => {
       }
     | Num(_) => op
     | Name(_) => op
+    | Hash(_) => op
     }
   }
 
@@ -202,8 +221,15 @@ let foldConstants = (instrs: list<IR.instr>): list<IR.instr> => {
   process(instrs)
 }
 
-// Apply all optimizations to a block
-let optimizeBlock = (block: IR.block): IR.block => {
+// Type definitions for define substitution
+type defineValue =
+  | DefNum(int)
+  | DefHashStr(string)
+
+type defineMap = Belt.Map.String.t<defineValue>
+
+// Apply all optimizations to a block (without define substitution)
+let optimizeBlockWithoutDefines = (block: IR.block): IR.block => {
   let optimized =
     block.instructions
     ->foldConstants
@@ -214,11 +240,116 @@ let optimizeBlock = (block: IR.block): IR.block => {
   {...block, instructions: optimized}
 }
 
+// Global define substitution across all blocks
+// Collects defines from all blocks, then substitutes in all blocks
+let globalDefineSubstitution = (blocks: list<IR.block>): list<IR.block> => {
+  // First pass: collect defines from ALL blocks
+  let collectDefinesFromBlocks = (blocks: list<IR.block>): defineMap => {
+    blocks->List.reduce(Belt.Map.String.empty, (defines, block) => {
+      block.instructions->List.reduce(defines, (defines, instr) => {
+        switch instr {
+        | DefInt(name, value) => defines->Belt.Map.String.set(name, DefNum(value))
+        | DefHash(name, hashValue) => defines->Belt.Map.String.set(name, DefHashStr(hashValue))
+        | _ => defines
+        }
+      })
+    })
+  }
+
+  let globalDefines = collectDefinesFromBlocks(blocks)
+
+  // Helper to substitute a single operand using global defines
+  let substituteOperand = (op: IR.operand): IR.operand => {
+    switch op {
+    | Name(name) =>
+      switch globalDefines->Belt.Map.String.get(name) {
+      | Some(DefNum(value)) => Num(value)
+      | Some(DefHashStr(hashStr)) => Hash(hashStr)
+      | None => op
+      }
+    | other => other
+    }
+  }
+
+  // Helper to substitute device types using global defines
+  let substituteDevice = (device: IR.device): IR.device => {
+    switch device {
+    | DeviceType(name) =>
+      switch globalDefines->Belt.Map.String.get(name) {
+      | Some(DefHashStr(hashStr)) => DeviceType(`HASH("${hashStr}")`)
+      | _ => device
+      }
+    | DeviceNamed(typeName, nameName) =>
+      let newTypeName = switch globalDefines->Belt.Map.String.get(typeName) {
+      | Some(DefHashStr(hashStr)) => `HASH("${hashStr}")`
+      | _ => typeName
+      }
+      let newNameName = switch globalDefines->Belt.Map.String.get(nameName) {
+      | Some(DefHashStr(hashStr)) => `HASH("${hashStr}")`
+      | _ => nameName
+      }
+      DeviceNamed(newTypeName, newNameName)
+    | other => other
+    }
+  }
+
+  // Second pass: substitute in all blocks and remove define instructions
+  let substituteInBlock = (block: IR.block): IR.block => {
+    let rec process = (instrs: list<IR.instr>): list<IR.instr> => {
+      switch instrs {
+      | list{} => list{}
+
+      // Remove DefInt and DefHash instructions
+      | list{DefInt(_, _), ...rest} => process(rest)
+      | list{DefHash(_, _), ...rest} => process(rest)
+
+      // Substitute in instructions with operands
+      | list{Move(dst, operand), ...rest} =>
+        list{Move(dst, substituteOperand(operand)), ...process(rest)}
+
+      | list{Binary(dst, op, left, right), ...rest} =>
+        list{Binary(dst, op, substituteOperand(left), substituteOperand(right)), ...process(rest)}
+
+      | list{Compare(dst, op, left, right), ...rest} =>
+        list{Compare(dst, op, substituteOperand(left), substituteOperand(right)), ...process(rest)}
+
+      | list{Unary(dst, op, operand), ...rest} =>
+        list{Unary(dst, op, substituteOperand(operand)), ...process(rest)}
+
+      | list{Bnez(operand, label), ...rest} =>
+        list{Bnez(substituteOperand(operand), label), ...process(rest)}
+
+      | list{DeviceLoad(dst, device, property, bulkOpt), ...rest} =>
+        list{DeviceLoad(dst, substituteDevice(device), property, bulkOpt), ...process(rest)}
+
+      | list{DeviceStore(device, property, operand), ...rest} =>
+        list{DeviceStore(substituteDevice(device), property, substituteOperand(operand)), ...process(rest)}
+
+      | list{StackPoke(address, operand), ...rest} =>
+        list{StackPoke(address, substituteOperand(operand)), ...process(rest)}
+
+      | list{StackPush(operand), ...rest} =>
+        list{StackPush(substituteOperand(operand)), ...process(rest)}
+
+      // Other instructions are left alone
+      | list{instr, ...rest} => list{instr, ...process(rest)}
+      }
+    }
+
+    {...block, instructions: process(block.instructions)}
+  }
+
+  blocks->List.map(substituteInBlock)
+}
+
 // Apply optimizations to entire program
 // Run multiple passes until no more changes
 let optimize = (ir: IR.t): IR.t => {
+  // First, do global define substitution across all blocks
+  let afterDefineSubst = globalDefineSubstitution(ir)
+
   let rec optimizePass = (blocks: list<IR.block>, prevSize: int): list<IR.block> => {
-    let optimized = blocks->List.map(optimizeBlock)
+    let optimized = blocks->List.map(optimizeBlockWithoutDefines)
 
     // Count total instructions
     let currentSize = optimized->List.reduce(0, (acc, block) => {
@@ -233,10 +364,10 @@ let optimize = (ir: IR.t): IR.t => {
     }
   }
 
-  // Calculate initial size
-  let initialSize = ir->List.reduce(0, (acc, block) => {
+  // Calculate initial size (after define substitution)
+  let initialSize = afterDefineSubst->List.reduce(0, (acc, block) => {
     acc + List.length(block.instructions)
   })
 
-  optimizePass(ir, initialSize)
+  optimizePass(afterDefineSubst, initialSize)
 }

@@ -11,6 +11,7 @@ let printOperand = (operand: IR.operand): string => {
   | VReg(vreg) => printVReg(vreg)
   | Num(n) => Int.toString(n)
   | Name(name) => name
+  | Hash(hashStr) => `HASH("${hashStr}")`
   }
 }
 

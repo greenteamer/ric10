@@ -45,6 +45,7 @@ let convertOperand = (state: state, operand: IR.operand): result<(state, string)
     })
   | Num(n) => Ok((state, Int.toString(n)))
   | Name(name) => Ok((state, name))
+  | Hash(hashStr) => Ok((state, `HASH("${hashStr}")`))
   }
 }
 

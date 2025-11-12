@@ -1,92 +1,93 @@
 move sp 1
-define furnaceType HASH("StructureAdvancedFurnace")
-define furnaceName HASH("Furnace")
-define lcdType HASH("StructureConsoleLED5")
-define lcd1Name HASH("FurnaceLCD1")
-define lcd2Name HASH("FurnaceLCD2")
-define dialType HASH("StructureLogicDial")
-define dialTempName HASH("FurnaceDialTemp")
-define dialPressName HASH("FurnaceDialPress")
 poke 0 0
 label0:
-s db Setting 666
-lbn r0 furnaceType furnaceName Temperature Maximum
-lbn r1 furnaceType furnaceName Pressure Maximum
-l r2 d1 Temperature
-l r3 d3 Temperature
+lbn r0 HASH("StructureAdvancedFurnace") HASH("Furnace") Temperature Maximum
+lbn r1 HASH("StructureAdvancedFurnace") HASH("Furnace") Pressure Maximum
+l r2 d2 Temperature
+l r3 d4 Temperature
 l r4 d0 Open
-lbn r5 dialType dialTempName Setting Maximum
-lbn r6 dialType dialPressName Setting Maximum
+l r5 d1 Open
+lbn r6 HASH("StructureLogicDial") HASH("FurnaceDialTemp") Setting Maximum
+mul r7 r6 100
+lbn r8 HASH("StructureLogicDial") HASH("FurnaceDialPress") Setting Maximum
+mul r9 r8 1000
 ble r1 55000 label2
 poke 0 3
 label2:
 bne r4 1 label3
 poke 0 3
 label3:
-sbn lcdType lcd2Name Setting r2
-get r7 db 0
-beq r7 3 match_case_5
-beq r7 0 match_case_6
-beq r7 1 match_case_7
-beq r7 2 match_case_8
+sbn HASH("StructureConsoleLED5") HASH("FurnaceLCD2") Setting r2
+get r10 db 0
+beq r10 3 match_case_5
+beq r10 0 match_case_6
+beq r10 1 match_case_7
+beq r10 2 match_case_8
 j match_end_4
 match_case_5:
-sbn lcdType lcd1Name Setting 500
-bne r4 0 label9
-poke 0 0
-label9:
-j match_end_4
-match_case_6:
-sbn lcdType lcd1Name Setting 0
-jal stopCmd
-beq r4 1 label10
-bgt r1 r6 label12
-poke 0 1
-j label13
-label12:
-poke 0 2
-label13:
-j label11
-label10:
-poke 0 3
-label11:
-j match_end_4
-match_case_7:
-sbn lcdType lcd1Name Setting 1
-bgt r1 r6 label14
-bgt r2 r5 label16
-bgt r3 r5 label18
-poke 0 0
-j label19
-label18:
-jal openTankValveCmd
-jal pressurizeCmd
-label19:
-j label17
-label16:
-jal openAtmValveCmd
-jal pressurizeCmd
-label17:
-j label15
-label14:
-poke 0 0
-label15:
-j match_end_4
-match_case_8:
-sbn lcdType lcd1Name Setting 2
-blt r1 r6 label20
-bgt r0 r3 label22
+beq r4 0 label9
+bne r5 1 label11
 jal openAtmValveCmd
 jal depressurizeCmd
+label11:
+j label10
+label9:
+poke 0 0
+label10:
+j match_end_4
+match_case_6:
+jal stopCmd
+beq r4 1 label12
+bgt r1 r9 label14
+poke 0 1
+j label15
+label14:
+bgt r0 r7 label16
+poke 0 2
+j label17
+label16:
+poke 0 0
+label17:
+label15:
+j label13
+label12:
+poke 0 3
+label13:
+j match_end_4
+match_case_7:
+bgt r1 r9 label18
+bgt r2 r7 label20
+bgt r3 r7 label22
+poke 0 0
 j label23
 label22:
 jal openTankValveCmd
-jal depressurizeCmd
+jal pressurizeCmd
 label23:
 j label21
 label20:
-poke 0 0
+jal openAtmValveCmd
+jal pressurizeCmd
 label21:
+j label19
+label18:
+poke 0 0
+label19:
+j match_end_4
+match_case_8:
+blt r1 r9 label24
+bgt r0 r3 label26
+jal openAtmValveCmd
+jal depressurizeCmd
+j label27
+label26:
+jal openTankValveCmd
+jal depressurizeCmd
+label27:
+j label25
+label24:
+poke 0 0
+label25:
 j match_end_4
 match_end_4:
 yield
@@ -95,29 +96,29 @@ j __end
 __end:
 j __end
 stopCmd:
-sbn furnaceType furnaceName SettingInput 0
-sbn furnaceType furnaceName SettingOutput 0
-s d4 On 0
-s d5 On 0
-s d2 On 0
+sbn HASH("StructureAdvancedFurnace") HASH("Furnace") SettingInput 0
+sbn HASH("StructureAdvancedFurnace") HASH("Furnace") SettingOutput 0
+sbn HASH("StructureDigitalValve") HASH("FurnaceTankValve") On 0
+sbn HASH("StructureDigitalValve") HASH("FurnaceAtmValve") On 0
+s d3 On 0
 j ra
 pressurizeCmd:
-sbn furnaceType furnaceName SettingInput 10
-sbn furnaceType furnaceName SettingOutput 0
-s d2 Mode 1
+sbn HASH("StructureAdvancedFurnace") HASH("Furnace") SettingInput 10
+sbn HASH("StructureAdvancedFurnace") HASH("Furnace") SettingOutput 0
+s d3 Mode 1
 j ra
 depressurizeCmd:
-sbn furnaceType furnaceName SettingInput 0
-sbn furnaceType furnaceName SettingOutput 10
-s d2 Mode 0
+sbn HASH("StructureAdvancedFurnace") HASH("Furnace") SettingInput 0
+sbn HASH("StructureAdvancedFurnace") HASH("Furnace") SettingOutput 10
+s d3 Mode 0
 j ra
 openTankValveCmd:
-s d4 On 1
-s d5 On 0
-s d2 On 0
+sbn HASH("StructureDigitalValve") HASH("FurnaceTankValve") On 1
+sbn HASH("StructureDigitalValve") HASH("FurnaceAtmValve") On 0
+s d3 On 0
 j ra
 openAtmValveCmd:
-s d4 On 0
-s d5 On 1
-s d2 On 1
+sbn HASH("StructureDigitalValve") HASH("FurnaceTankValve") On 0
+sbn HASH("StructureDigitalValve") HASH("FurnaceAtmValve") On 1
+s d3 On 1
 j ra
