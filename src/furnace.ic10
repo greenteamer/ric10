@@ -1,11 +1,26 @@
 move sp 2
 define furnaceType HASH("StructureAdvancedFurnace")
 define furnaceName HASH("Furnace")
+define maxPressure 50000
+sub r0 maxPressure 100
 poke 0 0
 poke 1 0
 label0:
-lbn r0 furnaceType furnaceName Temperature Maximum
-l r1 d1 Temperature
-s db Setting r0
+lbn r1 furnaceType furnaceName Temperature Maximum
+l r2 d1 Temperature
+s db Setting r1
+get r3 db 0
+beq r3 0 match_case_3
+j match_end_2
+match_case_3:
+get r4 db 1
+beq r4 0 match_case_5
+j match_end_4
+match_case_5:
+poke 0 3
+j match_end_4
+match_end_4:
+j match_end_2
+match_end_2:
 yield
 j label0

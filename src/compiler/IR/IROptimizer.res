@@ -12,20 +12,34 @@ let rec findUsedVRegs = (instrs: list<IR.instr>, used: VRegSet.t): VRegSet.t => 
       let newUsed = switch instr {
       | Move(_, VReg(vreg)) => used->VRegSet.add(vreg)
       | Move(_, Num(_)) => used
+      | Move(_, Name(_)) => used
       | Binary(_, _, VReg(left), VReg(right)) => used->VRegSet.add(left)->VRegSet.add(right)
       | Binary(_, _, VReg(left), Num(_)) => used->VRegSet.add(left)
+      | Binary(_, _, VReg(left), Name(_)) => used->VRegSet.add(left)
       | Binary(_, _, Num(_), VReg(right)) => used->VRegSet.add(right)
       | Binary(_, _, Num(_), Num(_)) => used
+      | Binary(_, _, Num(_), Name(_)) => used
+      | Binary(_, _, Name(_), VReg(right)) => used->VRegSet.add(right)
+      | Binary(_, _, Name(_), Num(_)) => used
+      | Binary(_, _, Name(_), Name(_)) => used
       | Compare(_, _, VReg(left), VReg(right)) => used->VRegSet.add(left)->VRegSet.add(right)
       | Compare(_, _, VReg(left), Num(_)) => used->VRegSet.add(left)
+      | Compare(_, _, VReg(left), Name(_)) => used->VRegSet.add(left)
       | Compare(_, _, Num(_), VReg(right)) => used->VRegSet.add(right)
       | Compare(_, _, Num(_), Num(_)) => used
+      | Compare(_, _, Num(_), Name(_)) => used
+      | Compare(_, _, Name(_), VReg(right)) => used->VRegSet.add(right)
+      | Compare(_, _, Name(_), Num(_)) => used
+      | Compare(_, _, Name(_), Name(_)) => used
       | Bnez(VReg(vreg), _) => used->VRegSet.add(vreg)
       | Bnez(Num(_), _) => used
+      | Bnez(Name(_), _) => used
       | DeviceStore(_, _, VReg(vreg)) => used->VRegSet.add(vreg)
       | DeviceStore(_, _, Num(_)) => used
+      | DeviceStore(_, _, Name(_)) => used
       | Unary(_, _, VReg(vreg)) => used->VRegSet.add(vreg)
       | Unary(_, _, Num(_)) => used
+      | Unary(_, _, Name(_)) => used
       | _ => used
       }
       findUsedVRegs(rest, newUsed)
@@ -68,6 +82,7 @@ let propagateConstantsAndCopies = (instrs: list<IR.instr>): list<IR.instr> => {
       | None => op
       }
     | Num(_) => op
+    | Name(_) => op
     }
   }
 

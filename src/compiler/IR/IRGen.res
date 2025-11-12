@@ -31,6 +31,8 @@ type state = {
   stackAllocator: stackAllocator, // Stack memory allocator
   // Device tracking
   deviceMap: Belt.Map.String.t<string>, // variableName → device ref (e.g., "furnace" → "d0", "housing" → "db")
+  // Constants tracking
+  constants: Belt.Set.String.t, // Set of variable names that are constants (use Name operand)
 }
 
 // Create initial state
@@ -44,6 +46,7 @@ let createState = (): state => {
   refToTypeName: Belt.Map.String.empty,
   stackAllocator: {nextFreeSlot: 0},
   deviceMap: Belt.Map.String.empty,
+  constants: Belt.Set.String.empty,
 }
 
 // Allocate a new virtual register
@@ -131,27 +134,36 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
   | LiteralBool(_) =>
     Error("[IRGen.res][generateExpr]: boolean literals can only be used in 'while true' loops")
 
-  // Identifier: lookup variable, allocate new vreg, emit Move from source vreg
+  // Identifier: check if constant, then lookup variable, allocate new vreg, emit Move
   // OR check if it's a zero-arg variant constructor
   | Identifier(name) =>
-    switch state.varMap->Belt.Map.String.get(name) {
-    | Some(varInfo) => {
-        let (state, vreg) = allocVReg(state)
-        let state = emit(state, IR.Move(vreg, IR.VReg(varInfo.vreg)))
-        Ok(state, vreg)
-      }
-    | None =>
-      // Check if this identifier is a zero-arg variant constructor
-      switch getTypeNameFromConstructor(state, name) {
-      | Some(_typeName) =>
-        // This is a zero-arg variant constructor - treat as VariantConstructor(name, [])
-        // Note: In expression context, this represents the constructor value itself
-        // In ref context (handled in VariableDeclaration/RefAssignment), it will be properly initialized
-        Error(
-          `Zero-arg variant constructor '${name}' cannot be used directly in expressions. ` ++
-          `Use it in ref() or assignment context: ref(${name}) or varName := ${name}`,
-        )
-      | None => Error(`Variable '${name}' not found`)
+    // First check if this is a constant
+    if Belt.Set.String.has(state.constants, name) {
+      // This is a constant - allocate vreg and emit Move with Name operand
+      let (state, vreg) = allocVReg(state)
+      let state = emit(state, IR.Move(vreg, IR.Name(name)))
+      Ok(state, vreg)
+    } else {
+      // Not a constant - check varMap
+      switch state.varMap->Belt.Map.String.get(name) {
+      | Some(varInfo) => {
+          let (state, vreg) = allocVReg(state)
+          let state = emit(state, IR.Move(vreg, IR.VReg(varInfo.vreg)))
+          Ok(state, vreg)
+        }
+      | None =>
+        // Check if this identifier is a zero-arg variant constructor
+        switch getTypeNameFromConstructor(state, name) {
+        | Some(_typeName) =>
+          // This is a zero-arg variant constructor - treat as VariantConstructor(name, [])
+          // Note: In expression context, this represents the constructor value itself
+          // In ref context (handled in VariableDeclaration/RefAssignment), it will be properly initialized
+          Error(
+            `Zero-arg variant constructor '${name}' cannot be used directly in expressions. ` ++
+            `Use it in ref() or assignment context: ref(${name}) or varName := ${name}`,
+          )
+        | None => Error(`Variable '${name}' not found`)
+        }
       }
     }
 
@@ -834,8 +846,15 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
           Ok(state)
         | _ => Error("[IRGen.res][generateStmt]: hash() expects a string literal: hash(\"StructureTank\")")
         }
+      | Literal(value) =>
+        // Integer constant - emit DefInt instruction
+        // Constants don't need vregs - they can be referenced directly by name
+        let state = emit(state, IR.DefInt(name, value))
+        // Track this as a constant so we can reference it by name later
+        let constants = Belt.Set.String.add(state.constants, name)
+        Ok({...state, constants})
       | _ =>
-        // Not a ref, not a device, not a hash - normal variable
+        // Not a ref, not a device, not a hash, not a constant - normal variable
         generateExpr(state, init)->Result.map(((state, vreg)) => {
           {...state, varMap: state.varMap->Belt.Map.String.set(name, {vreg, isRef: false})}
         })

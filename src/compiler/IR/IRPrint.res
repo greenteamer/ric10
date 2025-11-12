@@ -10,6 +10,7 @@ let printOperand = (operand: IR.operand): string => {
   switch operand {
   | VReg(vreg) => printVReg(vreg)
   | Num(n) => Int.toString(n)
+  | Name(name) => name
   }
 }
 

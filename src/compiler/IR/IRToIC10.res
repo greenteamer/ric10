@@ -44,6 +44,7 @@ let convertOperand = (state: state, operand: IR.operand): result<(state, string)
       (state, `r${Int.toString(physicalReg)}`)
     })
   | Num(n) => Ok((state, Int.toString(n)))
+  | Name(name) => Ok((state, name))
   }
 }
 

@@ -3,6 +3,7 @@ type vreg = int
 type operand =
   | VReg(vreg)
   | Num(int)
+  | Name(string)  // Reference to a defined constant (e.g., "a" in "move r0 a")
 
 type device =
   | DevicePin(string) // "d0", "d1", "db", etc. → l/s

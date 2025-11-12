@@ -10,6 +10,9 @@ type action =
 let furnaceType = hash("StructureAdvancedFurnace")
 let furnaceName = hash("Furnace")
 
+let maxPressure = 50000
+let isNormal = maxPressure - 100
+
 let housing = device("db")
 let lcd = device("d0")
 let atmSensor = device("d1")
@@ -30,7 +33,7 @@ while true {
   switch state.contents {
   | Idle =>
     switch action.contents {
-    | EmergencyStop => Waiting
+    | EmergencyStop => state := Waiting
     }
   }
 
