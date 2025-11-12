@@ -24,6 +24,10 @@ let atmValve = device("d5")
 let state = ref(Idle)
 let action = ref(EmergencyStop)
 
+let stop = () => {
+  state := Waiting
+}
+
 while true {
   let fTemp = lbn(furnaceType, furnaceName, "Temperature", "Maximum")
   let atmTemp = l(atmSensor, "Temperature")
@@ -33,7 +37,7 @@ while true {
   switch state.contents {
   | Idle =>
     switch action.contents {
-    | EmergencyStop => state := Waiting
+    | EmergencyStop => stop()
     }
   }
 
