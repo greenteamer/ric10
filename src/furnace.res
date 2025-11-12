@@ -18,11 +18,21 @@ let tank = device("d3")
 let tankValve = device("d4")
 let atmValve = device("d5")
 
+let state = ref(Idle)
+let action = ref(EmergencyStop)
+
 while true {
   let fTemp = lbn(furnaceType, furnaceName, "Temperature", "Maximum")
   let atmTemp = l(atmSensor, "Temperature")
 
   s(housing, "Setting", fTemp)
+
+  switch state.contents {
+  | Idle =>
+    switch action.contents {
+    | EmergencyStop => Waiting
+    }
+  }
 
   %raw("yield")
 }

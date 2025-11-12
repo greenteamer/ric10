@@ -1,6 +1,8 @@
 move sp 2
 define furnaceType HASH("StructureAdvancedFurnace")
 define furnaceName HASH("Furnace")
+poke 0 0
+poke 1 0
 label0:
 lbn r0 furnaceType furnaceName Temperature Maximum
 l r1 d1 Temperature
