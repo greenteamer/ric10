@@ -5,7 +5,10 @@ describe('Function Declarations and Calls', () => {
         const code = `let setup = () => {
   %raw("move r0 100")
 }`;
-        const expected = `setup:
+        const expected = `j __end
+__end:
+j __end
+setup:
 move r0 100
 j ra`;
 
@@ -24,10 +27,13 @@ j ra`;
 }
 
 setup()`;
-        const expected = `setup:
+        const expected = `jal setup
+j __end
+__end:
+j __end
+setup:
 move r0 100
-j ra
-jal setup`;
+j ra`;
 
         const result = Compiler.compile(code, {useIR: true}, undefined);
         expect(result.TAG).toBe('Ok');
@@ -47,15 +53,18 @@ let reset = () => {
 init()
 reset()
 init()`;
-        const expected = `init:
+        const expected = `jal init
+jal reset
+jal init
+j __end
+__end:
+j __end
+init:
 move r0 1
 j ra
 reset:
 move r0 0
-j ra
-jal init
-jal reset
-jal init`;
+j ra`;
 
         const result = Compiler.compile(code, {useIR: true}, undefined);
         expect(result.TAG).toBe('Ok');
@@ -71,12 +80,15 @@ jal init`;
 }
 
 configure()`;
-        const expected = `configure:
+        const expected = `jal configure
+j __end
+__end:
+j __end
+configure:
 move r0 100
 move r1 200
 add r2 r0 r1
-j ra
-jal configure`;
+j ra`;
 
         const result = Compiler.compile(code, {useIR: true}, undefined);
         expect(result.TAG).toBe('Ok');
@@ -92,12 +104,15 @@ jal configure`;
 while true {
   tick()
 }`;
-        const expected = `tick:
-add r0 r0 1
-j ra
-label0:
+        const expected = `label0:
 jal tick
-j label0`;
+j label0
+j __end
+__end:
+j __end
+tick:
+add r0 r0 1
+j ra`;
 
         const result = Compiler.compile(code, {useIR: true}, undefined);
         expect(result.TAG).toBe('Ok');

@@ -4,13 +4,12 @@ let furnaceType = hash("StructureAdvancedFurnace")
 let furnaceName = hash("Furnace")
 
 let lcdType = hash("StructureConsoleLED5")
-let lcdName = hash("FurnaceLCD")
+let lcd1Name = hash("FurnaceLCD1")
+let lcd2Name = hash("FurnaceLCD2")
 
 let dialType = hash("StructureLogicDial")
 let dialTempName = hash("FurnaceDialTemp")
 let dialPressName = hash("FurnaceDialPress")
-
-let maxPressure = 50000
 
 let housing = device("db")
 
@@ -32,23 +31,27 @@ let stopCmd = () => {
 }
 
 let pressurizeCmd = () => {
-  sbn(furnaceType, furnaceName, "SettingInput", 100)
+  sbn(furnaceType, furnaceName, "SettingInput", 10)
   sbn(furnaceType, furnaceName, "SettingOutput", 0)
+  s(vent, "Mode", 1)
 }
 
 let depressurizeCmd = () => {
   sbn(furnaceType, furnaceName, "SettingInput", 0)
-  sbn(furnaceType, furnaceName, "SettingOutput", 100)
+  sbn(furnaceType, furnaceName, "SettingOutput", 10)
+  s(vent, "Mode", 0)
 }
 
 let openTankValveCmd = () => {
   s(tankValve, "On", 1)
   s(atmValve, "On", 0)
+  s(vent, "On", 0)
 }
 
 let openAtmValveCmd = () => {
   s(tankValve, "On", 0)
   s(atmValve, "On", 1)
+  s(vent, "On", 1)
 }
 
 while true {
@@ -64,7 +67,11 @@ while true {
     state := Emergency
   }
 
-  sbn(lcdType, lcdName, "Setting", fTemp)
+  if isEmergencyLeverOpen == 1 {
+    state := Emergency
+  }
+
+  sbn(lcdType, lcd2Name, "Setting", atmTemp)
 
   switch state.contents {
   | Emergency =>
@@ -83,6 +90,19 @@ while true {
       }
     }
 
+  | Pressurizing =>
+    if fPress > confPress {
+      state := Idle
+    } else if atmTemp > confTemp {
+      openAtmValveCmd()
+      pressurizeCmd()
+    } else if tankTemp > confTemp {
+      openTankValveCmd()
+      pressurizeCmd()
+    } else {
+      state := Idle
+    }
+
   | Depressurizing =>
     if fPress < confPress {
       state := Idle
@@ -92,17 +112,6 @@ while true {
     } else {
       openAtmValveCmd()
       depressurizeCmd()
-    }
-
-  | Pressurizing =>
-    if atmTemp > confTemp {
-      openAtmValveCmd()
-      pressurizeCmd()
-    } else if tankTemp > confTemp {
-      openTankValveCmd()
-      pressurizeCmd()
-    } else {
-      state := Idle
     }
   }
 

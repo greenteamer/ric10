@@ -1,37 +1,15 @@
 move sp 1
 define furnaceType HASH("StructureAdvancedFurnace")
 define furnaceName HASH("Furnace")
-define lcdType HASH("StructureLCD")
-define lcdName HASH("FurnaceLCD")
+define lcdType HASH("StructureConsoleLED5")
+define lcd1Name HASH("FurnaceLCD1")
+define lcd2Name HASH("FurnaceLCD2")
 define dialType HASH("StructureLogicDial")
 define dialTempName HASH("FurnaceDialTemp")
 define dialPressName HASH("FurnaceDialPress")
-define maxPressure 50000
 poke 0 0
-stopCmd:
-sbn furnaceType furnaceName SettingInput 0
-sbn furnaceType furnaceName SettingOutput 0
-s d4 On 0
-s d5 On 0
-s d2 On 0
-j ra
-pressurizeCmd:
-sbn furnaceType furnaceName SettingInput 100
-sbn furnaceType furnaceName SettingOutput 0
-j ra
-depressurizeCmd:
-sbn furnaceType furnaceName SettingInput 0
-sbn furnaceType furnaceName SettingOutput 100
-j ra
-openTankValveCmd:
-s d4 On 1
-s d5 On 0
-j ra
-openAtmValveCmd:
-s d4 On 0
-s d5 On 1
-j ra
 label0:
+s db Setting 666
 lbn r0 furnaceType furnaceName Temperature Maximum
 lbn r1 furnaceType furnaceName Pressure Maximum
 l r2 d1 Temperature
@@ -42,62 +20,104 @@ lbn r6 dialType dialPressName Setting Maximum
 ble r1 55000 label2
 poke 0 3
 label2:
-sbn lcdType lcdName Setting r0
-get r7 db 0
-beq r7 3 match_case_4
-beq r7 0 match_case_5
-beq r7 2 match_case_6
-beq r7 1 match_case_7
-j match_end_3
-match_case_4:
-bne r4 0 label8
-poke 0 0
-label8:
-j match_end_3
-match_case_5:
-jal stopCmd
-beq r4 1 label9
-bgt r1 r6 label11
-poke 0 1
-j label12
-label11:
-poke 0 2
-label12:
-j label10
-label9:
+bne r4 1 label3
 poke 0 3
-label10:
-j match_end_3
+label3:
+sbn lcdType lcd2Name Setting r2
+get r7 db 0
+beq r7 3 match_case_5
+beq r7 0 match_case_6
+beq r7 1 match_case_7
+beq r7 2 match_case_8
+j match_end_4
+match_case_5:
+sbn lcdType lcd1Name Setting 500
+bne r4 0 label9
+poke 0 0
+label9:
+j match_end_4
 match_case_6:
-blt r1 r6 label13
-bgt r0 r3 label15
-jal openAtmValveCmd
-jal depressurizeCmd
-j label16
-label15:
-jal openTankValveCmd
-jal depressurizeCmd
-label16:
-j label14
+sbn lcdType lcd1Name Setting 0
+jal stopCmd
+beq r4 1 label10
+bgt r1 r6 label12
+poke 0 1
+j label13
+label12:
+poke 0 2
 label13:
-poke 0 0
-label14:
-j match_end_3
+j label11
+label10:
+poke 0 3
+label11:
+j match_end_4
 match_case_7:
-bgt r2 r5 label17
-bgt r3 r5 label19
+sbn lcdType lcd1Name Setting 1
+bgt r1 r6 label14
+bgt r2 r5 label16
+bgt r3 r5 label18
 poke 0 0
-j label20
-label19:
+j label19
+label18:
 jal openTankValveCmd
 jal pressurizeCmd
-label20:
-j label18
-label17:
+label19:
+j label17
+label16:
 jal openAtmValveCmd
 jal pressurizeCmd
-label18:
-j match_end_3
-match_end_3:
+label17:
+j label15
+label14:
+poke 0 0
+label15:
+j match_end_4
+match_case_8:
+sbn lcdType lcd1Name Setting 2
+blt r1 r6 label20
+bgt r0 r3 label22
+jal openAtmValveCmd
+jal depressurizeCmd
+j label23
+label22:
+jal openTankValveCmd
+jal depressurizeCmd
+label23:
+j label21
+label20:
+poke 0 0
+label21:
+j match_end_4
+match_end_4:
 yield
 j label0
+j __end
+__end:
+j __end
+stopCmd:
+sbn furnaceType furnaceName SettingInput 0
+sbn furnaceType furnaceName SettingOutput 0
+s d4 On 0
+s d5 On 0
+s d2 On 0
+j ra
+pressurizeCmd:
+sbn furnaceType furnaceName SettingInput 10
+sbn furnaceType furnaceName SettingOutput 0
+s d2 Mode 1
+j ra
+depressurizeCmd:
+sbn furnaceType furnaceName SettingInput 0
+sbn furnaceType furnaceName SettingOutput 10
+s d2 Mode 0
+j ra
+openTankValveCmd:
+s d4 On 1
+s d5 On 0
+s d2 On 0
+j ra
+openAtmValveCmd:
+s d4 On 0
+s d5 On 1
+s d2 On 1
+j ra

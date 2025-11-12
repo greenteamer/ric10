@@ -21,7 +21,7 @@ type stackAllocator = {nextFreeSlot: int}
 // State for IR generation
 type state = {
   nextVReg: int, // Counter for virtual register allocation
-  instructions: list<IR.instr>, // Accumulated IR instructions
+  instructions: list<IR.instr>, // Accumulated IR instructions for main code
   nextLabel: int, // Counter for label generation
   varMap: Belt.Map.String.t<varInfo>, // Variable name → variable info mapping
   // Variant type support
@@ -35,6 +35,7 @@ type state = {
   constants: Belt.Set.String.t, // Set of variable names that are constants (use Name operand)
   // Function tracking
   functions: Belt.Set.String.t, // Set of declared function names
+  functionBlocks: list<IR.block>, // Accumulated function blocks (separate from main)
 }
 
 // Create initial state
@@ -50,6 +51,7 @@ let createState = (): state => {
   deviceMap: Belt.Map.String.empty,
   constants: Belt.Set.String.empty,
   functions: Belt.Set.String.empty,
+  functionBlocks: list{},
 }
 
 // Allocate a new virtual register
@@ -659,19 +661,37 @@ and generateWhileLoop = (state: state, condition: AST.expr, body: AST.blockState
 // Generate IR for a statement
 and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
   switch stmt {
-  // FunctionDeclaration: emit label, body, and return
+  // FunctionDeclaration: create a separate function block
   | FunctionDeclaration(name, body) => {
       // 1. Add function name to functions set
       let functions = Belt.Set.String.add(state.functions, name)
-      let state = {...state, functions}
 
-      // 2. Emit function label
-      let state = emit(state, IR.Label(name))
+      // 2. Create a new temporary state for the function body
+      // (inherits varMap and other context, but has its own instruction list)
+      let funcState = {...state, functions, instructions: list{}}
 
-      // 3. Generate function body
-      generateBlock(state, body)->Result.map(state => {
-        // 4. Emit return instruction
-        emit(state, IR.Return)
+      // 3. Emit function label
+      let funcState = emit(funcState, IR.Label(name))
+
+      // 4. Generate function body
+      generateBlock(funcState, body)->Result.map(funcState => {
+        // 5. Emit return instruction
+        let funcState = emit(funcState, IR.Return)
+
+        // 6. Create a function block with all the function's instructions
+        let funcBlock: IR.block = {
+          name,
+          instructions: funcState.instructions->List.reverse,
+        }
+
+        // 7. Add the function block to the state's functionBlocks list
+        // Return the original state (with main instructions unchanged)
+        // but with the new function block added
+        {
+          ...state,
+          functions,
+          functionBlocks: list{funcBlock, ...state.functionBlocks},
+        }
       })
     }
 
@@ -1168,12 +1188,35 @@ let generate = (ast: AST.program): result<IR.t, string> => {
   }
 
   processStmts(initialState, ast, 0)->Result.map(finalState => {
-    // Create a single block with all instructions (reversed to correct order)
-    let instructions = finalState.instructions->List.reverse
-    let block: IR.block = {
-      name: "main",
-      instructions,
+    // Create main block with main instructions (reversed to correct order)
+    let mainInstructions = finalState.instructions->List.reverse
+
+    // Add a safety mechanism: if there are function blocks, add an infinite loop
+    // at the end of main to prevent falling through into function definitions
+    let mainInstructionsWithSafety = if List.length(finalState.functionBlocks) > 0 {
+      // Append "j 0" at the end to loop back to the beginning
+      // This prevents execution from falling through into function definitions
+      List.concat(mainInstructions, list{IR.Goto("__end")})
+    } else {
+      mainInstructions
     }
-    list{block}
+
+    let mainBlock: IR.block = {
+      name: "main",
+      instructions: mainInstructionsWithSafety,
+    }
+
+    // If there are functions, add a label for the infinite loop
+    let finalMainBlock = if List.length(finalState.functionBlocks) > 0 {
+      {
+        ...mainBlock,
+        instructions: List.concat(mainBlock.instructions, list{IR.Label("__end"), IR.Goto("__end")}),
+      }
+    } else {
+      mainBlock
+    }
+
+    // Return: main block first, then all function blocks (reversed to correct order)
+    List.concat(list{finalMainBlock}, List.reverse(finalState.functionBlocks))
   })
 }

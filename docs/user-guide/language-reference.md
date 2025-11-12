@@ -10,6 +10,7 @@ Complete language reference for the ReScript to IC10 assembly compiler.
 - [Literals](#literals)
 - [Operators](#operators)
 - [Control Flow](#control-flow)
+- [Functions](#functions)
 - [Mutable References](#mutable-references)
 - [Variant Types](#variant-types)
 - [Pattern Matching](#pattern-matching)
@@ -28,6 +29,7 @@ This compiler translates a subset of ReScript to IC10 assembly language for the 
 - ✅ Arithmetic and comparison operations
 - ✅ If/else conditionals (including else if chains)
 - ✅ While loops (including infinite loops)
+- ✅ Zero-argument functions
 - ✅ Mutable references
 - ✅ Variant types (enums)
 - ✅ Pattern matching
@@ -263,6 +265,72 @@ while i.contents < 3 {
   i := i.contents + 1
 }
 ```
+
+---
+
+## Functions
+
+Zero-argument functions are supported for code organization and reuse.
+
+### Function Declarations
+
+```rescript
+let setup = () => {
+  %raw("move r0 100")
+}
+
+let reset = () => {
+  %raw("move r0 0")
+}
+```
+
+### Function Calls
+
+```rescript
+setup()
+reset()
+setup()
+```
+
+### Compilation Details
+
+Functions are compiled to IC10 labels with `jal` (jump and link) for calls:
+
+**Input:**
+```rescript
+let increment = () => {
+  %raw("add r0 r0 1")
+}
+
+while true {
+  increment()
+}
+```
+
+**Output:**
+```ic10
+label0:
+jal increment
+j label0
+j __end
+__end:
+j __end
+increment:
+add r0 r0 1
+j ra
+```
+
+**Key Points:**
+- Functions are placed **after** main code in the output
+- A safety jump prevents execution from falling into functions
+- `jal` stores the return address in the `ra` register
+- `j ra` returns to the calling code
+
+### Limitations
+
+- **No parameters or return values** - Functions cannot accept arguments or return results
+- **No closures** - Functions cannot capture variables from outer scopes
+- **Zero arguments only** - Must use `()` syntax: `let func = () => { ... }`
 
 ---
 
@@ -579,7 +647,7 @@ The compiler performs several optimizations:
 - **String literals** - Except in `%raw()`
 - **Floating-point numbers** - IC10 is integer-only
 - **Arrays** - Not supported
-- **Functions** - Not supported
+- **Function parameters/returns** - Functions can be declared and called, but cannot accept parameters or return values
 - **Loops:** Only `while` loops (no `for` loops)
 - **Break/Continue** - Not supported
 - **Comparison operators:** Only `<`, `>`, `==` (no `>=`, `<=`, `!=`)

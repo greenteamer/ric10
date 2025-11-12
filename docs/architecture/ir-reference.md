@@ -185,6 +185,26 @@ Bnez(condition: operand, label: string)
 
 **Note:** The IR uses only `Bnez` for all conditional branches. Inverted comparisons are used for if-only statements.
 
+#### Call - Function Call
+```rescript
+Call(label: string)
+```
+**Purpose:** Call a function (jump and link)
+**IR Example:** `Call("setup")`
+**IC10 Output:** `jal setup`
+
+**Note:** Stores return address in `ra` register (r17 in IC10) so the function can return.
+
+#### Return - Return from Function
+```rescript
+Return
+```
+**Purpose:** Return from a function call
+**IR Example:** `Return`
+**IC10 Output:** `j ra`
+
+**Note:** Jumps back to the address stored in the `ra` register.
+
 ### Device I/O Instructions
 
 #### DeviceLoad - Load from Device
@@ -266,6 +286,62 @@ RawInstruction(instruction: string)
 - Device mapping
 - Variant type metadata
 - Stack allocation
+- Function block separation and ordering
+
+#### Function Block Ordering
+
+IRGen separates function definitions from main code to ensure correct execution order in IC10:
+
+**Problem:** In ReScript, functions must be declared before use. But in IC10, execution starts at the first line, so functions placed first would execute incorrectly.
+
+**Solution:** IRGen creates separate blocks:
+1. **Main block** - Contains main execution code
+2. **Function blocks** - One block per function definition
+
+**Output Order:**
+```
+main block:
+  [main code]
+  j __end      # Safety: prevent falling into functions
+  __end:
+  j __end
+
+function blocks:
+  functionName:
+  [function body]
+  j ra
+```
+
+**Example:**
+
+ReScript:
+```rescript
+let increment = () => {
+  %raw("add r0 r0 1")
+}
+
+while true {
+  increment()
+}
+```
+
+IR Output:
+```
+# Block: main
+label0:
+jal increment
+j label0
+j __end
+__end:
+j __end
+
+# Block: increment
+increment:
+add r0 r0 1
+j ra
+```
+
+This ensures the while loop executes first, preventing execution from falling through into the function definition.
 
 ### IRPrint.res - IR Pretty Printer
 
@@ -340,9 +416,17 @@ add v2 v0 v1
 - Peephole optimization (Compare + Bnez fusion)
 - Named constant support (Name operand)
 
-### 🔧 Recent Fixes (2025-11-12)
+### 🔧 Recent Fixes
 
-- **Pattern Matching Warnings Fixed:** All IR modules now properly handle the `Name` operand variant
+**2025-11-13: Function Block Ordering**
+- **Critical Bug Fix:** Functions are now placed after main code, not before
+- IRGen separates function declarations into separate blocks
+- Main code executes first, followed by safety jump, then function definitions
+- Prevents IC10 from executing function bodies on program start
+- Added `__end` infinite loop to prevent falling through into functions
+
+**2025-11-12: Pattern Matching Warnings Fixed**
+- All IR modules now properly handle the `Name` operand variant
   - `IRPrint.res` - prints name directly
   - `IRToIC10.res` - passes name through to IC10
   - `IROptimizer.res` - handles in dead code and constant propagation analysis
@@ -437,6 +521,49 @@ define furnaceType HASH("StructureAdvancedFurnace")
 lb r0 furnaceType Temperature Maximum
 s d0 Setting r0
 ```
+
+### Function Declarations and Calls
+
+**ReScript:**
+```rescript
+let configure = () => {
+  %raw("move r0 100")
+}
+
+configure()
+```
+
+**IR:**
+```
+# Block: main
+jal configure
+j __end
+__end:
+j __end
+
+# Block: configure
+configure:
+move v0 100
+j ra
+```
+
+**IC10:**
+```
+jal configure
+j __end
+__end:
+j __end
+configure:
+move r0 100
+j ra
+```
+
+**Key Points:**
+- Main code (function call) executes first
+- Safety jump prevents falling into function
+- Function definition comes after main code
+- `jal` stores return address in `ra` register
+- `j ra` returns to the calling code
 
 ## See Also
 
