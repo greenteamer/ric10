@@ -1,15 +1,14 @@
-type state = Idle | Pressurizing | Depressurizing | Waiting
-type action =
-  | EmergencyStop
-  | Stop
-  | Pressurize
-  | Depressurize
-  | Deplete
+type state = Idle | Pressurizing | Depressurizing | Emergency
 
 let furnaceType = hash("StructureAdvancedFurnace")
 let furnaceName = hash("Furnace")
-let lcdType = hash("StructureLCD")
+
+let lcdType = hash("StructureConsoleLED5")
 let lcdName = hash("FurnaceLCD")
+
+let dialType = hash("StructureLogicDial")
+let dialTempName = hash("FurnaceDialTemp")
+let dialPressName = hash("FurnaceDialPress")
 
 let maxPressure = 50000
 
@@ -23,7 +22,6 @@ let tankValve = device("d4")
 let atmValve = device("d5")
 
 let state = ref(Idle)
-let action = ref(Stop)
 
 let stopCmd = () => {
   sbn(furnaceType, furnaceName, "SettingInput", 0)
@@ -57,40 +55,53 @@ while true {
   let fTemp = lbn(furnaceType, furnaceName, "Temperature", "Maximum")
   let fPress = lbn(furnaceType, furnaceName, "Pressure", "Maximum")
   let atmTemp = l(atmSensor, "Temperature")
+  let tankTemp = l(tank, "Temperature")
   let isEmergencyLeverOpen = l(emergencyLever, "Open")
+  let confTemp = lbn(dialType, dialTempName, "Setting", "Maximum")
+  let confPress = lbn(dialType, dialPressName, "Setting", "Maximum")
 
-  if isEmergencyLeverOpen == 1 {
-    action := EmergencyStop
+  if fPress > 55000 {
+    state := Emergency
   }
 
   sbn(lcdType, lcdName, "Setting", fTemp)
 
   switch state.contents {
-  | Idle =>
-    switch action.contents {
-    | EmergencyStop => {
-        stopCmd()
-        state := Waiting
-      }
-    | Stop => {
-        stopCmd()
-        state := Idle
-      }
-    | Pressurize => {
-        pressurizeCmd()
+  | Emergency =>
+    if isEmergencyLeverOpen == 0 {
+      state := Idle
+    }
+
+  | Idle => {
+      stopCmd()
+      if isEmergencyLeverOpen == 1 {
+        state := Emergency
+      } else if fPress > confPress {
+        state := Depressurizing
+      } else {
         state := Pressurizing
       }
-    | Depressurize => {
-        depressurizeCmd()
-        state := Depressurizing
-      }
     }
-  | Waiting =>
-    if fPress == 1 {
-      stopCmd()
-      state := Waiting
+
+  | Depressurizing =>
+    if fPress < confPress {
+      state := Idle
+    } else if fTemp > tankTemp {
+      openTankValveCmd()
+      depressurizeCmd()
     } else {
-      stopCmd()
+      openAtmValveCmd()
+      depressurizeCmd()
+    }
+
+  | Pressurizing =>
+    if atmTemp > confTemp {
+      openAtmValveCmd()
+      pressurizeCmd()
+    } else if tankTemp > confTemp {
+      openTankValveCmd()
+      pressurizeCmd()
+    } else {
       state := Idle
     }
   }

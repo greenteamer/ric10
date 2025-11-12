@@ -829,10 +829,24 @@ and parseIfStatement = (parser: parser): result<(parser, AST.astNode), string> =
       switch peek(parser) {
       | Some(Lexer.Else) =>
         let parser = advance(parser) // consume 'else' token
-        switch parseBlockStatement(parser) {
-        | Error(msg) => Error(msg)
-        | Ok((parser, elseBlock)) =>
-          Ok((parser, AST.createIfStatement(condition, thenBlock, Some(elseBlock))))
+        // Check if next token is 'if' for else if
+        switch peek(parser) {
+        | Some(Lexer.If) =>
+          // Parse else if as a nested if statement
+          let parser = advance(parser) // consume 'if' token
+          switch parseIfStatement(parser) {
+          | Error(msg) => Error(msg)
+          | Ok((parser, nestedIf)) =>
+            // Wrap nested if in array to make it a blockStatement
+            Ok((parser, AST.createIfStatement(condition, thenBlock, Some([nestedIf]))))
+          }
+        | _ =>
+          // Regular else block
+          switch parseBlockStatement(parser) {
+          | Error(msg) => Error(msg)
+          | Ok((parser, elseBlock)) =>
+            Ok((parser, AST.createIfStatement(condition, thenBlock, Some(elseBlock))))
+          }
         }
       | _ => Ok((parser, AST.createIfStatement(condition, thenBlock, None)))
       }

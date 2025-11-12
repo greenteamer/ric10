@@ -1,11 +1,13 @@
-move sp 2
+move sp 1
 define furnaceType HASH("StructureAdvancedFurnace")
 define furnaceName HASH("Furnace")
 define lcdType HASH("StructureLCD")
 define lcdName HASH("FurnaceLCD")
+define dialType HASH("StructureLogicDial")
+define dialTempName HASH("FurnaceDialTemp")
+define dialPressName HASH("FurnaceDialPress")
 define maxPressure 50000
 poke 0 0
-poke 1 1
 stopCmd:
 sbn furnaceType furnaceName SettingInput 0
 sbn furnaceType furnaceName SettingOutput 0
@@ -33,49 +35,68 @@ label0:
 lbn r0 furnaceType furnaceName Temperature Maximum
 lbn r1 furnaceType furnaceName Pressure Maximum
 l r2 d1 Temperature
-l r3 d0 Open
-bne r3 1 label2
-poke 1 0
+l r3 d3 Temperature
+l r4 d0 Open
+lbn r5 dialType dialTempName Setting Maximum
+lbn r6 dialType dialPressName Setting Maximum
+ble r1 55000 label2
+poke 0 3
 label2:
 sbn lcdType lcdName Setting r0
-get r4 db 0
-beq r4 0 match_case_4
-beq r4 3 match_case_5
+get r7 db 0
+beq r7 3 match_case_4
+beq r7 0 match_case_5
+beq r7 2 match_case_6
+beq r7 1 match_case_7
 j match_end_3
 match_case_4:
-get r5 db 1
-beq r5 0 match_case_7
-beq r5 1 match_case_8
-beq r5 2 match_case_9
-beq r5 3 match_case_10
-j match_end_6
-match_case_7:
-jal stopCmd
-poke 0 3
-j match_end_6
-match_case_8:
-jal stopCmd
+bne r4 0 label8
 poke 0 0
-j match_end_6
-match_case_9:
-jal pressurizeCmd
-poke 0 1
-j match_end_6
-match_case_10:
-jal depressurizeCmd
-poke 0 2
-j match_end_6
-match_end_6:
+label8:
 j match_end_3
 match_case_5:
-beq r1 1 label11
 jal stopCmd
-poke 0 0
+beq r4 1 label9
+bgt r1 r6 label11
+poke 0 1
 j label12
 label11:
-jal stopCmd
-poke 0 3
+poke 0 2
 label12:
+j label10
+label9:
+poke 0 3
+label10:
+j match_end_3
+match_case_6:
+blt r1 r6 label13
+bgt r0 r3 label15
+jal openAtmValveCmd
+jal depressurizeCmd
+j label16
+label15:
+jal openTankValveCmd
+jal depressurizeCmd
+label16:
+j label14
+label13:
+poke 0 0
+label14:
+j match_end_3
+match_case_7:
+bgt r2 r5 label17
+bgt r3 r5 label19
+poke 0 0
+j label20
+label19:
+jal openTankValveCmd
+jal pressurizeCmd
+label20:
+j label18
+label17:
+jal openAtmValveCmd
+jal pressurizeCmd
+label18:
 j match_end_3
 match_end_3:
 yield

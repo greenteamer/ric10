@@ -26,7 +26,7 @@ This compiler translates a subset of ReScript to IC10 assembly language for the 
 **Key Features:**
 - ✅ Variables and expressions
 - ✅ Arithmetic and comparison operations
-- ✅ If/else conditionals
+- ✅ If/else conditionals (including else if chains)
 - ✅ While loops (including infinite loops)
 - ✅ Mutable references
 - ✅ Variant types (enums)
@@ -166,6 +166,39 @@ label1:
 move r1 1
 label0:
 ```
+
+### Else If Chains
+
+You can chain multiple conditions using `else if`:
+
+```rescript
+let temperature = 75
+if temperature < 60 {
+  let mode = 0  // Heating
+} else if temperature < 80 {
+  let mode = 1  // Normal
+} else {
+  let mode = 2  // Cooling
+}
+```
+
+**Compiles to:**
+```assembly
+define temperature 75
+define mode 2
+define mode 1
+define mode 0
+blt temperature 60 label1
+blt temperature 80 label3
+j label2
+label3:
+label2:
+j label0
+label1:
+label0:
+```
+
+**Note:** `else if` is implemented as syntactic sugar for nested if-else statements. The compiler transforms `else if` into a nested structure automatically.
 
 ### Nested If Statements
 
