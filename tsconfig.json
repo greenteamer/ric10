@@ -2,10 +2,8 @@
   "compilerOptions": {
     "module": "commonjs",
     "target": "ES2020",
-    "outDir": "dist",
-    "lib": [
-      "ES2020"
-    ],
+    "outDir": "out",
+    "lib": ["ES2020"],
     "sourceMap": true,
     "rootDir": "src",
     "strict": true,
@@ -20,7 +18,8 @@
     ".vscode-test",
     "lib",
     "libbs",
-    "dist",
+    "out",
+    "tests",
     "**/*.res.js",
     "**/*.gen.ts"
   ]

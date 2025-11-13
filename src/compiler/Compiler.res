@@ -1,16 +1,35 @@
 @genType
-let compile = (source: string): result<string, string> => {
-  // Step 1: Lex - tokenize the source code
-  switch Lexer.tokenize(source) {
-  | Error(msg) => Error("Lexer error: " ++ msg)
-  | Ok(tokens) =>
-    // Step 2: Parse - build AST from tokens
-    switch Parser.parse(tokens) {
-    | Error(msg) => Error("Parser error: " ++ msg)
-    | Ok(_ast) =>
-      // Step 3: Code generation (TODO: implement Codegen)
-      // For now, return success message
-      Ok("Successfully parsed! (Code generation coming next)")
-    }
+let compile = (source: string, ~options: option<CodegenTypes.compilerOptions>=?, ()): result<
+  string,
+  string,
+> => {
+  Console.log(">>> Starting compilation process...")
+  // Default options: comments disabled for backward compatibility
+  let defaultOptions: CodegenTypes.compilerOptions = {
+    includeComments: false,
+    debugAST: false,
   }
+  let compilerOptions = switch options {
+  | Some(opts) => opts
+  | None => defaultOptions
+  }
+
+  // Standard compilation pipeline: Lex -> Parse -> AST Optimize -> IR -> IR Optimize -> IC10
+  source
+  ->Lexer.tokenize
+  ->Result.flatMap(Parser.parse)
+  ->Result.map(Optimizer.optimizeProgram)
+  ->Result.flatMap(IRGen.generate)
+  ->Result.map(ir => {
+    Console.log("=== IR (Before Optimization) ===")
+    Console.log(IRPrint.print(ir))
+    ir
+  })
+  ->Result.map(IROptimizer.optimize)
+  ->Result.map(ir => {
+    Console.log("\n=== IR (After Optimization) ===")
+    Console.log(IRPrint.print(ir))
+    ir
+  })
+  ->Result.flatMap(IRToIC10.generate)
 }

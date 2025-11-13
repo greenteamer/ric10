@@ -1,0 +1,103 @@
+move sp 1
+poke 0 0
+label0:
+lbn r0 HASH("StructureAdvancedFurnace") HASH("Furnace") Temperature Maximum
+lbn r1 HASH("StructureAdvancedFurnace") HASH("Furnace") Pressure Maximum
+l r2 d2 Temperature
+l r3 d4 Temperature
+l r4 d0 Open
+l r5 d1 Open
+lbn r6 HASH("StructureLogicDial") HASH("FurnaceDialTemp") Setting Maximum
+mul r7 r6 100
+lbn r8 HASH("StructureLogicDial") HASH("FurnaceDialPress") Setting Maximum
+mul r9 r8 1000
+ble r1 55000 label2
+poke 0 3
+label2:
+bne r4 1 label3
+poke 0 3
+label3:
+sbn HASH("StructureConsoleLED5") HASH("FurnaceLCD2") Setting r2
+get r10 db 0
+beq r10 3 match_case_5
+beq r10 0 match_case_6
+beq r10 1 match_case_7
+beq r10 2 match_case_8
+j match_end_4
+match_case_5:
+beq r4 0 label9
+bne r5 1 match_end_4
+jal openAtmValveCmd
+jal depressurizeCmd
+label9:
+poke 0 0
+match_case_6:
+jal stopCmd
+beq r4 1 label12
+bgt r1 r9 label14
+poke 0 1
+j match_end_4
+label14:
+bgt r0 r7 label16
+poke 0 2
+j label17
+label16:
+poke 0 0
+label17:
+label12:
+poke 0 3
+match_case_7:
+bgt r1 r9 label18
+bgt r2 r7 label20
+bgt r3 r7 label22
+poke 0 0
+j match_end_4
+label22:
+jal openTankValveCmd
+jal pressurizeCmd
+label20:
+jal openAtmValveCmd
+jal pressurizeCmd
+label18:
+poke 0 0
+match_case_8:
+blt r1 r9 label24
+bgt r0 r3 label26
+jal openAtmValveCmd
+jal depressurizeCmd
+j match_end_4
+label26:
+jal openTankValveCmd
+jal depressurizeCmd
+label24:
+poke 0 0
+match_end_4:
+yield
+j label0
+stopCmd:
+sbn HASH("StructureAdvancedFurnace") HASH("Furnace") SettingInput 0
+sbn HASH("StructureAdvancedFurnace") HASH("Furnace") SettingOutput 0
+sbn HASH("StructureDigitalValve") HASH("FurnaceTankValve") On 0
+sbn HASH("StructureDigitalValve") HASH("FurnaceAtmValve") On 0
+s d3 On 0
+j ra
+pressurizeCmd:
+sbn HASH("StructureAdvancedFurnace") HASH("Furnace") SettingInput 10
+sbn HASH("StructureAdvancedFurnace") HASH("Furnace") SettingOutput 0
+s d3 Mode 1
+j ra
+depressurizeCmd:
+sbn HASH("StructureAdvancedFurnace") HASH("Furnace") SettingInput 0
+sbn HASH("StructureAdvancedFurnace") HASH("Furnace") SettingOutput 10
+s d3 Mode 0
+j ra
+openTankValveCmd:
+sbn HASH("StructureDigitalValve") HASH("FurnaceTankValve") On 1
+sbn HASH("StructureDigitalValve") HASH("FurnaceAtmValve") On 0
+s d3 On 0
+j ra
+openAtmValveCmd:
+sbn HASH("StructureDigitalValve") HASH("FurnaceTankValve") On 0
+sbn HASH("StructureDigitalValve") HASH("FurnaceAtmValve") On 1
+s d3 On 1
+j ra
