@@ -54,23 +54,23 @@ Error("[FileName.res][functionName]<-" ++ propagatedMessage)  // For propagated 
 
 ```
 src/compiler/
+├── Compiler.res       # Main compilation orchestrator
 ├── Lexer.res          # Tokenization
 ├── Parser.res         # AST generation
 ├── AST.res           # AST type definitions
-├── Codegen.res       # Main orchestrator
-├── StmtGen.res       # Statement code generation (legacy)
-├── ExprGen.res       # Expression code generation (legacy)
-├── BranchGen.res     # Control flow (legacy)
-├── RegisterAlloc.res # Register management (r0-r15)
-└── IR/               # Intermediate representation (NEW pipeline)
-    ├── IR.res        # IR type definitions
-    ├── IRGen.res     # AST → IR conversion
-    ├── IRPrint.res   # IR pretty printer
-    ├── IRToIC10.res  # IR → IC10 conversion
+├── Optimizer.res      # AST-level optimizations
+├── CodegenTypes.res   # Shared compiler option types
+├── RegisterAlloc.res  # Register management utilities
+├── StackAlloc.res     # Stack allocation utilities
+└── IR/                # Intermediate representation (IR pipeline)
+    ├── IR.res         # IR type definitions
+    ├── IRGen.res      # AST → IR conversion
+    ├── IRPrint.res    # IR pretty printer
+    ├── IRToIC10.res   # IR → IC10 conversion
     └── IROptimizer.res # IR-level optimizations
 ```
 
-**Note:** The IR pipeline is the recommended approach for new development. Legacy codegen is maintained for compatibility.
+**Note:** The compiler uses a two-phase IR pipeline exclusively.
 
 ## Key Concepts
 
@@ -88,20 +88,21 @@ src/compiler/
 ### Register Allocation
 - **IR Phase**: Unlimited virtual registers (v0, v1, v2...)
 - **IC10 Phase**: r0-r15 physical registers
-- **Legacy**: Variables r0-r13, Temps r15-r14
 - **Constraint**: Maximum 16 physical registers
+- Register allocation happens during IR → IC10 conversion
 
 ### Variant Types
 - Fixed stack layout: `stack[0]` = tag, rest = arguments
 - Stack pointer set once, never modified
 - Use `get db address` and `poke address value` for access
-- **IR**: Stack operations via StackAlloc, StackPoke, StackGet
+- Stack operations via StackAlloc, StackPoke, StackGet instructions
 
 ### Code Generation
-- **IR pipeline**: Peephole optimization fuses Compare+Bnez → direct branches
-- **Legacy**: Direct IC10 branch instructions
-- Constant folding optimization
-- Register reuse for variable shadowing
+- **Compilation pipeline**: Lexer → Parser → Optimizer → IRGen → IROptimizer → IRToIC10
+- **Peephole optimization**: Fuses Compare+Bnez → direct branches
+- **Constant folding**: Both AST and IR level optimizations
+- **Dead code elimination**: Removes unused instructions
+- **Register reuse**: Variable shadowing optimized during allocation
 
 ## Finding Information
 

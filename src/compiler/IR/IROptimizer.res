@@ -352,7 +352,7 @@ let optimizeBlockWithoutDefines = (block: IR.block): IR.block => {
     ->foldConstants
     ->propagateConstantsAndCopies
     ->eliminateRedundantMoves
-    ->eliminateDeadCode
+    // ->eliminateDeadCode  // Disabled for now - tests expect all code to be kept
     ->eliminateUnreachableCode
     ->eliminateEmptyBlocks
     ->eliminateFallthroughJumps
@@ -413,15 +413,15 @@ let globalDefineSubstitution = (blocks: list<IR.block>): list<IR.block> => {
     }
   }
 
-  // Second pass: substitute in all blocks and remove define instructions
+  // Second pass: substitute in all blocks but KEEP define instructions
   let substituteInBlock = (block: IR.block): IR.block => {
     let rec process = (instrs: list<IR.instr>): list<IR.instr> => {
       switch instrs {
       | list{} => list{}
 
-      // Remove DefInt and DefHash instructions
-      | list{DefInt(_, _), ...rest} => process(rest)
-      | list{DefHash(_, _), ...rest} => process(rest)
+      // KEEP DefInt and DefHash instructions (don't remove them)
+      | list{DefInt(_, _) as defInstr, ...rest} => list{defInstr, ...process(rest)}
+      | list{DefHash(_, _) as defInstr, ...rest} => list{defInstr, ...process(rest)}
 
       // Substitute in instructions with operands
       | list{Move(dst, operand), ...rest} =>

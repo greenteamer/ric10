@@ -9,13 +9,10 @@ let resToIC10File = (src: string, dest: string) => {
   let options: CodegenTypes.compilerOptions = {
     includeComments: false,
     debugAST: false,
-    useIR: true,
   }
 
   switch Compiler.compile(content, ~options, ()) {
-  | Ok(Program(str)) => writeFileSync(dest, str, "utf8")
-  | Ok(ASTProgram(ast)) =>
-    writeFileSync("dest.ast.json", ast->JSON.stringifyAny->Option.getExn, "utf8")
+  | Ok(code) => writeFileSync(dest, code, "utf8")
   | Error(message) => Console.log(message)
   }
 }
