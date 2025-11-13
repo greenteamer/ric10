@@ -19,6 +19,7 @@ lib/bs/install.ninja
 
 # TypeScript / build outputs
 dist/
+out/
 build/
 *.js
 *.js.map
