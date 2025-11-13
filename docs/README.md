@@ -84,7 +84,7 @@ ReScript Source
 - **Hybrid ReScript/TypeScript**: Core compiler in ReScript, VSCode extension in TypeScript
 - **16 Registers**: r0-r15 with split allocation (variables vs temps)
 - **Fixed Stack Layout**: Variant types use pre-allocated stack regions
-- **IR Layer**: Optional intermediate representation for optimizations
+- **IR Layer**: Optional intermediate representation with 7 optimization passes (17% code reduction)
 
 ---
 
@@ -188,6 +188,8 @@ rescript-ic10-compiler/
 │   │   └── IR/            # Intermediate representation
 │   │       ├── IR.res     # IR definitions
 │   │       ├── IRGen.res  # AST → IR conversion
+│   │       ├── IROptimizer.res # IR-level optimizations
+│   │       ├── IRPrint.res # IR pretty printer
 │   │       └── IRToIC10.res # IR → IC10 lowering
 │   └── extension.ts       # VSCode extension (TypeScript)
 ├── tests/                 # Jest test suites
@@ -283,6 +285,6 @@ When adding new features or fixing bugs:
 
 ---
 
-**Last Updated**: 2025-11-12  
-**Documentation Version**: 2.0  
+**Last Updated**: 2025-11-13
+**Documentation Version**: 2.0
 **Compiler Version**: See package.json

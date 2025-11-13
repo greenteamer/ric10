@@ -221,6 +221,123 @@ let foldConstants = (instrs: list<IR.instr>): list<IR.instr> => {
   process(instrs)
 }
 
+// Optimization 5: Unreachable Code Elimination
+// Remove instructions after unconditional control flow (Goto, Return) until the next Label
+let eliminateUnreachableCode = (instrs: list<IR.instr>): list<IR.instr> => {
+  let rec process = (instrs: list<IR.instr>, afterUnconditional: bool): list<IR.instr> => {
+    switch instrs {
+    | list{} => list{}
+
+    // After an unconditional jump, skip instructions until we hit a label
+    | list{Label(_) as label, ...rest} =>
+      list{label, ...process(rest, false)}
+
+    | list{instr, ...rest} if afterUnconditional =>
+      // Skip this unreachable instruction
+      process(rest, afterUnconditional)
+
+    // Unconditional control flow instructions
+    | list{Goto(_) as goto, ...rest} =>
+      list{goto, ...process(rest, true)}
+
+    | list{Return as ret, ...rest} =>
+      list{ret, ...process(rest, true)}
+
+    // All other instructions
+    | list{instr, ...rest} =>
+      list{instr, ...process(rest, false)}
+    }
+  }
+
+  process(instrs, false)
+}
+
+// Optimization 6: Empty Basic Block Elimination
+// Redirect jumps to labels that immediately jump elsewhere
+let eliminateEmptyBlocks = (instrs: list<IR.instr>): list<IR.instr> => {
+  // First pass: build a map of labels that immediately jump to other labels
+  let rec buildRedirectMap = (instrs: list<IR.instr>, currentLabel: option<string>, redirects: Belt.Map.String.t<string>): Belt.Map.String.t<string> => {
+    switch instrs {
+    | list{} => redirects
+
+    // Label followed immediately by Goto → record this redirect
+    | list{Label(label), Goto(target), ...rest} =>
+      buildRedirectMap(list{Goto(target), ...rest}, Some(label), redirects->Belt.Map.String.set(label, target))
+
+    // Label followed by something other than Goto → not empty
+    | list{Label(label), ...rest} =>
+      buildRedirectMap(rest, Some(label), redirects)
+
+    // Other instructions
+    | list{_, ...rest} =>
+      buildRedirectMap(rest, currentLabel, redirects)
+    }
+  }
+
+  let redirectMap = buildRedirectMap(instrs, None, Belt.Map.String.empty)
+
+  // Follow redirect chain to find final target
+  let rec followRedirects = (label: string, visited: Belt.Set.String.t): string => {
+    if visited->Belt.Set.String.has(label) {
+      // Circular redirect, stop here
+      label
+    } else {
+      switch redirectMap->Belt.Map.String.get(label) {
+      | Some(target) => followRedirects(target, visited->Belt.Set.String.add(label))
+      | None => label
+      }
+    }
+  }
+
+  // Second pass: redirect all jumps and remove empty blocks
+  let rec process = (instrs: list<IR.instr>): list<IR.instr> => {
+    switch instrs {
+    | list{} => list{}
+
+    // Redirect Goto instructions
+    | list{Goto(target), ...rest} =>
+      let newTarget = followRedirects(target, Belt.Set.String.empty)
+      list{Goto(newTarget), ...process(rest)}
+
+    // Redirect Bnez instructions
+    | list{Bnez(operand, target), ...rest} =>
+      let newTarget = followRedirects(target, Belt.Set.String.empty)
+      list{Bnez(operand, newTarget), ...process(rest)}
+
+    // Remove empty blocks (Label immediately followed by Goto)
+    | list{Label(label), Goto(target), ...rest} =>
+      // Skip this empty block entirely
+      process(rest)
+
+    // Keep all other instructions
+    | list{instr, ...rest} =>
+      list{instr, ...process(rest)}
+    }
+  }
+
+  process(instrs)
+}
+
+// Optimization 7: Fall-through Optimization
+// Remove Goto instructions that jump to the immediately following label
+let eliminateFallthroughJumps = (instrs: list<IR.instr>): list<IR.instr> => {
+  let rec process = (instrs: list<IR.instr>): list<IR.instr> => {
+    switch instrs {
+    | list{} => list{}
+
+    // Goto immediately followed by its target label → remove Goto
+    | list{Goto(target), Label(label), ...rest} if target === label =>
+      list{Label(label), ...process(rest)}
+
+    // Keep all other instructions
+    | list{instr, ...rest} =>
+      list{instr, ...process(rest)}
+    }
+  }
+
+  process(instrs)
+}
+
 // Type definitions for define substitution
 type defineValue =
   | DefNum(int)
@@ -236,6 +353,9 @@ let optimizeBlockWithoutDefines = (block: IR.block): IR.block => {
     ->propagateConstantsAndCopies
     ->eliminateRedundantMoves
     ->eliminateDeadCode
+    ->eliminateUnreachableCode
+    ->eliminateEmptyBlocks
+    ->eliminateFallthroughJumps
 
   {...block, instructions: optimized}
 }

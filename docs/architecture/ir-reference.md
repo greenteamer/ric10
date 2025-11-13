@@ -1,6 +1,6 @@
 # IR (Intermediate Representation) Reference
 
-**Last Updated:** 2025-11-12
+**Last Updated:** 2025-11-13
 
 This document provides a comprehensive reference for the Intermediate Representation (IR) layer used in the ReScript to IC10 compiler.
 
@@ -382,18 +382,63 @@ add v2 v0 v1
 **Purpose:** Optimize IR before physical register allocation
 
 **Optimizations:**
+
 1. **Dead Code Elimination** - Remove unused Move instructions
+   - Analyzes which virtual registers are actually used
+   - Removes Move instructions whose destination is never read
+
 2. **Constant Propagation** - Replace variables with known constant values
+   - Tracks constant assignments through the program
+   - Substitutes known values where possible
+
 3. **Redundant Move Elimination** - Remove moves like `v0 = v0`
+   - Detects and removes self-assignments
+
 4. **Constant Folding** - Evaluate constant expressions at compile time
+   - Binary operations: `5 + 3` → `8`
+   - Comparisons: `10 > 5` → `1` (true)
+
+5. **Unreachable Code Elimination** - Remove code after unconditional branches
+   - Removes instructions after `Goto` or `Return` until next `Label`
+   - Example: Removes unreachable `j __end` after infinite loop
+
+6. **Empty Basic Block Elimination** - Redirect jumps through empty blocks
+   - Detects labels that immediately jump elsewhere
+   - Redirects all jumps to skip empty blocks
+   - Example: `label10: j match_end_4` → all jumps to `label10` become jumps to `match_end_4`
+   - Removes the empty block entirely after redirection
+
+7. **Fall-through Optimization** - Remove redundant jumps to next label
+   - Detects `Goto` immediately followed by its target label
+   - Removes the jump since execution falls through naturally
+   - Example: `j label5` + `label5:` → just `label5:`
 
 **Key Functions:**
-- `optimize(ir: IR.t) → IR.t` - Apply all optimizations
-- `eliminateDeadCode(instrs) → instrs` - Remove dead instructions
+- `optimize(ir: IR.t) → IR.t` - Apply all optimizations in multiple passes until convergence
+- `eliminateDeadCode(instrs) → instrs` - Remove dead move instructions
 - `propagateConstantsAndCopies(instrs) → instrs` - Propagate constants
 - `foldConstants(instrs) → instrs` - Fold constant expressions
+- `eliminateUnreachableCode(instrs) → instrs` - Remove unreachable code after branches
+- `eliminateEmptyBlocks(instrs) → instrs` - Redirect jumps and remove empty blocks
+- `eliminateFallthroughJumps(instrs) → instrs` - Remove redundant fall-through jumps
 
-**Recent Updates (2025-11-12):**
+**Optimization Results (Furnace Example):**
+- Original IC10: 123 lines
+- Optimized IC10: 102 lines
+- **Reduction: 21 lines (17% smaller)**
+- Eliminated ~10 empty label blocks
+- Removed unreachable code after infinite loop
+- Redirected jumps to final destinations
+
+**Recent Updates:**
+
+*2025-11-13:*
+- Added **Unreachable Code Elimination** - removes dead code after unconditional branches
+- Added **Empty Basic Block Elimination** - redirects jumps through empty blocks and removes them
+- Added **Fall-through Optimization** - removes jumps to immediately following labels
+- All three optimizations run in multiple passes until convergence for maximum effect
+
+*2025-11-12:*
 - Added support for `Name(_)` operand in dead code analysis
 - Added support for `Name(_)` operand in constant propagation
 

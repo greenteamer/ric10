@@ -26,21 +26,17 @@ beq r10 2 match_case_8
 j match_end_4
 match_case_5:
 beq r4 0 label9
-bne r5 1 label11
+bne r5 1 match_end_4
 jal openAtmValveCmd
 jal depressurizeCmd
-label11:
-j label10
 label9:
 poke 0 0
-label10:
-j match_end_4
 match_case_6:
 jal stopCmd
 beq r4 1 label12
 bgt r1 r9 label14
 poke 0 1
-j label15
+j match_end_4
 label14:
 bgt r0 r7 label16
 poke 0 2
@@ -48,53 +44,36 @@ j label17
 label16:
 poke 0 0
 label17:
-label15:
-j label13
 label12:
 poke 0 3
-label13:
-j match_end_4
 match_case_7:
 bgt r1 r9 label18
 bgt r2 r7 label20
 bgt r3 r7 label22
 poke 0 0
-j label23
+j match_end_4
 label22:
 jal openTankValveCmd
 jal pressurizeCmd
-label23:
-j label21
 label20:
 jal openAtmValveCmd
 jal pressurizeCmd
-label21:
-j label19
 label18:
 poke 0 0
-label19:
-j match_end_4
 match_case_8:
 blt r1 r9 label24
 bgt r0 r3 label26
 jal openAtmValveCmd
 jal depressurizeCmd
-j label27
+j match_end_4
 label26:
 jal openTankValveCmd
 jal depressurizeCmd
-label27:
-j label25
 label24:
 poke 0 0
-label25:
-j match_end_4
 match_end_4:
 yield
 j label0
-j __end
-__end:
-j __end
 stopCmd:
 sbn HASH("StructureAdvancedFurnace") HASH("Furnace") SettingInput 0
 sbn HASH("StructureAdvancedFurnace") HASH("Furnace") SettingOutput 0
