@@ -4,17 +4,18 @@ let compile = (source: string, ~options: option<CodegenTypes.compilerOptions>=?,
   string,
 > => {
   Console.log(">>> Starting compilation process...")
-  // Default options: comments disabled for backward compatibility
+  // Default options: IC10 backend, comments disabled for backward compatibility
   let defaultOptions: CodegenTypes.compilerOptions = {
     includeComments: false,
     debugAST: false,
+    backend: IC10,
   }
   let compilerOptions = switch options {
   | Some(opts) => opts
   | None => defaultOptions
   }
 
-  // Standard compilation pipeline: Lex -> Parse -> AST Optimize -> IR -> IR Optimize -> IC10
+  // Standard compilation pipeline: Lex -> Parse -> AST Optimize -> IR -> IR Optimize -> Backend
   source
   ->Lexer.tokenize
   ->Result.flatMap(Parser.parse)
@@ -31,5 +32,15 @@ let compile = (source: string, ~options: option<CodegenTypes.compilerOptions>=?,
     Console.log(IRPrint.print(ir))
     ir
   })
-  ->Result.flatMap(IRToIC10.generate)
+  ->Result.flatMap(ir => {
+    // Select backend based on compiler options
+    switch compilerOptions.backend {
+    | IC10 =>
+      Console.log("\n=== Generating IC10 Assembly ===")
+      IRToIC10.generate(ir)
+    | WASM =>
+      Console.log("\n=== Generating WebAssembly ===")
+      IRToWASM.generate(ir)
+    }
+  })
 }

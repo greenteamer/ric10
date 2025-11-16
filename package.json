@@ -26,7 +26,7 @@
     "res:build": "./node_modules/.bin/rescript",
     "res:dev": "./node_modules/.bin/rescript -w",
     "compile": "tsc -p ./",
-    "compile:res": "node src/commands.res.js",
+    "compile:res": "node scripts/commands.res.js",
     "watch": "tsc -watch -p ./",
     "dev": "npm run watch",
     "test": "jest"

@@ -7,7 +7,8 @@
       "Bash(npm test:*)",
       "Bash(node -e:*)",
       "Bash(node test-phase2.js:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(npm run compile:*)"
     ],
     "deny": [],
     "ask": []

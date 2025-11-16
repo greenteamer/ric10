@@ -33,26 +33,23 @@ async function compileReScriptToIC10() {
   const document = editor.document;
   const sourceCode = document.getText();
 
-  // Use the ReScript compiler (now using Lexer)
+  // Use the ReScript compiler with IC10 backend by default
   const compileResult = Compiler.compile(sourceCode, {
     includeComments: false,
     debugAST: false,
-    useIR: true,
+    backend: "IC10",
   });
-  switch (compileResult.TAG) {
-    case "Ok":
-      const content =
-        compileResult._0.TAG === "Program"
-          ? compileResult._0._0
-          : JSON.stringify(compileResult._0._0);
-      const doc = await vscode.workspace.openTextDocument({
-        content,
-        language: compileResult._0.TAG === "Program" ? "ic10" : "json", // You may need to configure IC10 language support later
-      });
-      await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
-    case "Error":
-      vscode.window.showErrorMessage(compileResult._0);
-      return;
+
+  if (compileResult.TAG === "Ok") {
+    const content = compileResult._0;
+    const doc = await vscode.workspace.openTextDocument({
+      content,
+      language: "ic10",
+    });
+    await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+  } else if (compileResult.TAG === "Error") {
+    vscode.window.showErrorMessage(compileResult._0);
+    return;
   }
 }
 

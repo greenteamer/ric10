@@ -58,6 +58,12 @@ New to the compiler? Start here:
 | [IR Migration Report](architecture/ir-migration-report.md) | Current migration status and progress |
 | [Device I/O Operations](architecture/device-io.md) | Platform-agnostic device I/O design for multi-backend support |
 
+### Backend Documentation
+
+| Document | Description |
+|----------|-------------|
+| [WASM Backend](backends/WASM.md) | WebAssembly backend documentation and usage |
+
 ### Compiler Pipeline
 
 ```
@@ -67,16 +73,23 @@ ReScript Source
       ↓
    Parser.res        → AST Generation
       ↓
+  Optimizer.res      → AST-level optimizations
+      ↓
    ┌────────────────┐
-   │  Code Generation│
+   │ IR Pipeline    │
    ├────────────────┤
-   │ StmtGen.res    │ → Statement generation
-   │ ExprGen.res    │ → Expression generation
-   │ BranchGen.res  │ → Control flow
-   │ RegisterAlloc  │ → Register management
+   │ IRGen.res      │ → IR generation
+   │ IROptimizer    │ → IR optimizations
    └────────────────┘
       ↓
-  IC10 Assembly
+   ┌────────────────┐
+   │   Backends     │
+   ├────────────────┤
+   │ IRToIC10.res   │ → IC10 assembly (default)
+   │ IRToWASM.res   │ → WebAssembly text format
+   └────────────────┘
+      ↓
+  Target Output (IC10 or WASM)
 ```
 
 ### Architecture Highlights

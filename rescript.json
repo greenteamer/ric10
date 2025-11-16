@@ -6,7 +6,7 @@
       "subdirs": true
     },
     {
-      "dir": "examples",
+      "dir": "scripts",
       "subdirs": true
     }
   ],
@@ -25,4 +25,3 @@
   },
   "bsc-flags": ["-open RescriptCore", "-open IC10"]
 }
-
