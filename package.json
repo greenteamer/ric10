@@ -1,14 +1,14 @@
 {
   "name": "rescript-ic10-compiler",
   "description": "ReScript to IC10 compiler for Stationeers",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "bin": {
     "ric10": "./bin/ric10.js"
   },
   "files": [
     "bin/",
     "scripts/*.js",
-    "src/compiler/*.js",
+    "src/compiler/**/*.js",
     "package.json",
     "README.md"
   ],

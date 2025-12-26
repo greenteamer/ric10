@@ -3,7 +3,7 @@
 
 
 function rescriptConfig(projectName) {
-  return "{\n  \"name\": \"" + projectName + "\",\n  \"sources\": [\n    {\n      \"dir\": \"src\",\n      \"subdirs\": true\n    }\n  ],\n  \"package-specs\": [\n    {\n      \"module\": \"commonjs\",\n      \"in-source\": true\n    }\n  ],\n  \"suffix\": \".res.js\",\n  \"bs-dependencies\": [\"@rescript/core\"],\n  \"bsc-flags\": [\"-open RescriptCore\", \"-open IC10\"]\n}\n";
+  return "{\n  \"name\": \"" + projectName + "\",\n  \"sources\": [\n    {\n      \"dir\": \"src\",\n      \"subdirs\": true\n    }\n  ],\n  \"package-specs\": [\n    {\n      \"module\": \"commonjs\",\n      \"in-source\": false\n    }\n  ],\n  \"suffix\": \".res.js\",\n  \"bs-dependencies\": [\"@rescript/core\"],\n  \"bsc-flags\": [\"-open RescriptCore\", \"-open IC10\"]\n}\n";
 }
 
 function packageJson(projectName) {

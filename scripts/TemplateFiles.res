@@ -123,7 +123,7 @@ let rescriptConfig = (projectName: string) => "{
   \"package-specs\": [
     {
       \"module\": \"commonjs\",
-      \"in-source\": true
+      \"in-source\": false
     }
   ],
   \"suffix\": \".res.js\",
