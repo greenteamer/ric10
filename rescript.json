@@ -18,10 +18,5 @@
   ],
   "suffix": ".res.js",
   "bs-dependencies": ["@rescript/core"],
-  "gentypeconfig": {
-    "module": "esmodule",
-    "moduleResolution": "node",
-    "generatedFileExtension": ".gen.ts"
-  },
   "bsc-flags": ["-open RescriptCore", "-open IC10"]
 }

@@ -1,4 +1,3 @@
-@genType
 let compile = (source: string, ~options: option<CodegenTypes.compilerOptions>=?, ()): result<
   string,
   string,

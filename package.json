@@ -1,34 +1,15 @@
 {
   "name": "rescript-ic10-compiler",
-  "displayName": "ReScript to IC10 Compiler",
-  "description": "Compile ReScript code to IC10 assembly language for Stationeers",
+  "description": "ReScript to IC10 compiler for Stationeers",
   "version": "0.1.0",
-  "engines": {
-    "vscode": "^1.74.0"
-  },
-  "categories": [
-    "Programming Languages"
-  ],
-  "activationEvents": [
-    "onCommand:rescript-ic10.compile"
-  ],
-  "main": "./out/extension.js",
-  "contributes": {
-    "commands": [
-      {
-        "command": "rescript-ic10.compile",
-        "title": "Compile ReScript to IC10"
-      }
-    ]
+  "bin": {
+    "ric10": "./bin/ric10.js"
   },
   "scripts": {
     "res:clean": "./node_modules/.bin/rescript clean",
     "res:build": "./node_modules/.bin/rescript",
     "res:dev": "./node_modules/.bin/rescript -w",
-    "compile": "tsc -p ./",
-    "compile:res": "node scripts/commands.res.js",
-    "watch": "tsc -watch -p ./",
-    "dev": "npm run watch",
+    "compile": "node scripts/compile.res.js",
     "test": "jest"
   },
   "dependencies": {
@@ -38,9 +19,6 @@
   "devDependencies": {
     "@rescript/language-server": "^1.66.0",
     "@types/node": "^18.0.0",
-    "@types/vscode": "^1.74.0",
-    "gentype": "^4.5.0",
-    "jest": "^30.2.0",
-    "typescript": "^5.0.0"
+    "jest": "^30.2.0"
   }
 }

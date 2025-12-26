@@ -8,7 +8,12 @@
       "Bash(node -e:*)",
       "Bash(node test-phase2.js:*)",
       "Bash(rm:*)",
-      "Bash(npm run compile:*)"
+      "Bash(npm run compile:*)",
+      "Bash(cat:*)",
+      "Bash(mkdir:*)",
+      "Bash(chmod:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []
