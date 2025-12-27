@@ -1,14 +1,13 @@
 {
   "name": "rescript-ic10-compiler",
   "description": "ReScript to IC10 compiler for Stationeers",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "bin": {
     "ric10": "./bin/ric10.js"
   },
   "files": [
     "bin/",
-    "scripts/*.js",
-    "src/compiler/**/*.js",
+    "dist/",
     "package.json",
     "README.md"
   ],
@@ -17,15 +16,18 @@
     "res:build": "./node_modules/.bin/rescript",
     "res:dev": "./node_modules/.bin/rescript -w",
     "compile": "node scripts/compile.res.js",
-    "test": "jest"
-  },
-  "dependencies": {
-    "@rescript/core": "^1.6.1",
-    "rescript": "^11.1.4"
+    "test": "jest",
+    "build:bundle": "npm run build:compile && npm run build:init",
+    "build:compile": "esbuild scripts/compile.res.js --bundle --platform=node --outfile=dist/compile.js --format=cjs --external:fs --external:path",
+    "build:init": "esbuild scripts/init.res.js --bundle --platform=node --outfile=dist/init.js --format=cjs --external:fs --external:path",
+    "prepublishOnly": "npm run res:build && npm run build:bundle"
   },
   "devDependencies": {
+    "@rescript/core": "^1.6.1",
     "@rescript/language-server": "^1.66.0",
     "@types/node": "^18.0.0",
-    "jest": "^30.2.0"
+    "esbuild": "^0.27.2",
+    "jest": "^30.2.0",
+    "rescript": "^11.1.4"
   }
 }

@@ -6,14 +6,14 @@ const command = process.argv[2];
 
 if (command === 'init') {
   // Project initialization
-  require('../scripts/init.res.js');
+  require('../dist/init.js');
 } else if (command === '--help' || command === '-h') {
   showHelp();
 } else if (command === '--version' || command === '-v') {
   showVersion();
 } else {
   // Default: compile command (backward compatible)
-  require('../scripts/compile.res.js');
+  require('../dist/compile.js');
 }
 
 function showHelp() {
