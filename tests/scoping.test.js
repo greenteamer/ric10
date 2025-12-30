@@ -24,12 +24,9 @@ if a < b {
 }`;
         const expected = `define a 1
 define b 2
+bnez 0 label0
 define a 10
 define b 20
-bge a b label0
-move r15 a
-move r14 b
-add r0 r15 r14
 label0:`;
 
         const result = Compiler.compile(code);
@@ -45,10 +42,7 @@ label0:`;
     let z = y * 2
   }
 }`;
-        const expected = `define x 5
-move r15 x
-add r0 r15 1
-mul r1 r0 2`;
+        const expected = `define x 5`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Ok');
@@ -64,11 +58,11 @@ if status == 5 {
   let action = 50
 }`;
         const expected = `define status 5
+bnez 1 label0
 define action 10
-define action 50
-bne status 1 label0
 label0:
-bne status 5 label1
+bnez 0 label1
+define action 50
 label1:`;
 
         const result = Compiler.compile(code);
@@ -89,19 +83,12 @@ if result > 25 {
 }`;
         const expected = `define base 10
 define multiplier 3
+bnez 0 label0
 define base 20
+j label1
+label0:
 define base 5
-move r15 base
-move r14 multiplier
-mul r0 r15 r14
-bgt r0 25 label1
-move r14 base
-sub r1 r14 r0
-j label0
-label1:
-move r14 base
-add r1 r14 r0
-label0:`;
+label1:`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Ok');

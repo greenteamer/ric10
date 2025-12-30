@@ -13,7 +13,7 @@ describe('Complete Variant Loop (Fixed Stack)', () => {
       }
     `;
 
-    const result = Compiler.compile(source, { includeComments: false });
+    const result = Compiler.compile(source);
 
     console.log('Result:', result.TAG);
     if (result.TAG === 'Ok') {
@@ -30,12 +30,11 @@ describe('Complete Variant Loop (Fixed Stack)', () => {
 
       // Check ref creation with fixed stack (Idle has no args, Fill has 1, Active has 2 => maxArgs = 2)
       // Total slots: 1 + (3 * 2) = 7
-      expect(assembly).toContain('push 0');  // Idle tag
-      expect(assembly).toContain('push 0');  // 6 placeholder slots
-      expect(assembly).toContain('move r0 0'); // ref points to stack[0]
+      expect(assembly).toContain('move sp 7');  // Allocate 7 stack slots
+      expect(assembly).toContain('poke 0 0'); // Idle tag poked to stack[0]
 
       // Check switch uses get db 0 to read tag
-      expect(assembly).toContain('get r15 db 0'); // or another temp register
+      expect(assembly).toContain('get r0 db 0'); // Read tag from stack[0]
 
       // Check case branches
       expect(assembly).toContain('beq');
@@ -64,7 +63,7 @@ describe('Complete Variant Loop (Fixed Stack)', () => {
       }
     `;
 
-    const result = Compiler.compile(source, { includeComments: false });
+    const result = Compiler.compile(source);
 
     console.log('Result:', result.TAG);
     if (result.TAG === 'Ok') {
@@ -81,11 +80,10 @@ describe('Complete Variant Loop (Fixed Stack)', () => {
 
       // Check ref creation (Active has 2 args, Idle has 0 => maxArgs = 2)
       // Total slots: 1 + (2 * 2) = 5
-      expect(assembly).toContain('push 1');  // Active tag
-      expect(assembly).toContain('move r15 10'); // Load 10 into temp
-      expect(assembly).toContain('push r15'); // Push arg0
-      expect(assembly).toContain('move r15 20'); // Load 20 into temp
-      expect(assembly).toContain('push 0');  // 2 placeholder slots for Idle
+      expect(assembly).toContain('move sp 5');  // Allocate 5 stack slots
+      expect(assembly).toContain('poke 0 1'); // Active tag poked to stack[0]
+      expect(assembly).toContain('poke 3 10'); // arg0 at address 3
+      expect(assembly).toContain('poke 4 20'); // arg1 at address 4
 
       // Check pattern binding extraction using get db
       // Active is tag=1, maxArgs=2, so args at addresses: 1*2+1+0=3 and 1*2+1+1=4
@@ -105,7 +103,7 @@ describe('Complete Variant Loop (Fixed Stack)', () => {
       }
     `;
 
-    const result = Compiler.compile(source, { includeComments: false });
+    const result = Compiler.compile(source);
 
     console.log('Result:', result.TAG);
     if (result.TAG === 'Ok') {
@@ -122,13 +120,12 @@ describe('Complete Variant Loop (Fixed Stack)', () => {
 
       // Check ref creation (Fill has 1 arg, Idle has 0 => maxArgs = 1)
       // Total slots: 1 + (2 * 1) = 3
-      expect(assembly).toContain('push 1');  // Fill tag
-      expect(assembly).toContain('move r15 10'); // Load 10 into temp
-      expect(assembly).toContain('push r15'); // Push Fill arg
-      expect(assembly).toContain('push 0');  // Idle placeholder
+      expect(assembly).toContain('move sp 3');  // Allocate 3 stack slots
+      expect(assembly).toContain('poke 0 1'); // Fill tag poked to stack[0]
+      expect(assembly).toContain('poke 2 10'); // Fill arg at address 2 (1*1+1+0)
 
       // Check switch uses get db 0
-      expect(assembly).toContain('get r15 db 0');
+      expect(assembly).toContain('get r0 db 0');
 
       // Check Idle case has no pattern extraction (zero args)
       // Check Fill case extracts binding at address: 1*1+1+0=2

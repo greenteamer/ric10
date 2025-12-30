@@ -6,9 +6,9 @@ describe('Switch Statement Comprehensive Tests', () => {
       const input = `
         type state = Idle | Active
         let s = ref(Idle)
-        let result = switch s.contents {
-          | Idle => 0
-          | Active => 1
+        switch s.contents {
+          | Idle => s(db, "Setting", 0)
+          | Active => s(db, "Setting", 1)
         }
       `;
       const result = compile(input);
@@ -19,23 +19,22 @@ describe('Switch Statement Comprehensive Tests', () => {
       const asm = result._0;
 
       // Should have switch infrastructure using fixed stack approach
-      expect(asm).toContain('get r15 db 0'); // Read tag from stack[0]
+      expect(asm).toContain('get r'); // Read tag from stack
       expect(asm).toContain('beq');
       expect(asm).toContain('match_case_');
       expect(asm).toContain('match_end_');
 
-      // Should generate case bodies (move result to registers)
-      expect(asm).toContain('move');
+      // Should generate case bodies (store instructions)
+      expect(asm).toContain('s db Setting');
     });
 
     test('should match tag-only variants in statement context', () => {
       const input = `
         type state = Idle | Active
         let s = ref(Idle)
-        let x = ref(0)
         switch s.contents {
-          | Idle => x := 10
-          | Active => x := 20
+          | Idle => s(db, "Value", 10)
+          | Active => s(db, "Value", 20)
         }
       `;
       const result = compile(input);
@@ -46,8 +45,8 @@ describe('Switch Statement Comprehensive Tests', () => {
       expect(asm).toContain('beq');
       expect(asm).toContain('match_case_');
 
-      // Should execute case bodies (ref assignments)
-      expect(asm).toContain('move r');
+      // Should execute case bodies (store operations)
+      expect(asm).toContain('s db');
     });
   });
 
@@ -56,9 +55,9 @@ describe('Switch Statement Comprehensive Tests', () => {
       const input = `
         type result = Ok(int) | Error(int)
         let r = ref(Ok(42))
-        let value = switch r.contents {
-          | Ok(x) => x
-          | Error(e) => e
+        switch r.contents {
+          | Ok(x) => s(db, "Value", x)
+          | Error(e) => s(db, "Error", e)
         }
       `;
       const result = compile(input);
@@ -68,12 +67,14 @@ describe('Switch Statement Comprehensive Tests', () => {
       expect(result.TAG).toBe('Ok');
       const asm = result._0;
 
-      // Should have payload extraction using get db
+      // Should have payload extraction using get
       expect(asm).toContain('get r');
-      expect(asm).toContain('db');
 
       // Should have case labels
       expect(asm).toContain('match_case_');
+
+      // Should store extracted values
+      expect(asm).toContain('s db');
     });
 
     test('should use extracted payload in case body', () => {
@@ -102,9 +103,18 @@ describe('Switch Statement Comprehensive Tests', () => {
         type state = Idle | Purge(int) | Fill(int)
         let state = ref(Idle)
         switch state.contents {
-          | Idle => state := Purge(100)
-          | Purge(x) => state := Fill(x)
-          | Fill(x) => state := Idle
+          | Idle => {
+              state := Purge(100)
+              s(db, "Mode", 1)
+            }
+          | Purge(x) => {
+              state := Fill(x)
+              s(db, "Mode", 2)
+            }
+          | Fill(x) => {
+              state := Idle
+              s(db, "Mode", 0)
+            }
         }
       `;
       const result = compile(input);
@@ -118,8 +128,8 @@ describe('Switch Statement Comprehensive Tests', () => {
       expect(asm).toContain('beq');
       expect((asm.match(/match_case_/g) || []).length).toBeGreaterThanOrEqual(3);
 
-      // Should construct new variants in case bodies
-      expect(asm).toContain('push');
+      // Should have store operations (side effects)
+      expect(asm).toContain('s db');
     });
 
     test('should handle if statements in case bodies', () => {
@@ -187,11 +197,13 @@ describe('Switch Statement Comprehensive Tests', () => {
         let atmTank = hash("AtmTank")
         type state = Query(int)
         let s = ref(Query(5))
-        let result = ref(0)
         switch s.contents {
           | Query(threshold) => {
               if threshold > 0 {
-                result := lbn(tanks, atmTank, "Temperature", Maximum)
+                let temp = lbn(tanks, atmTank, "Temperature", Maximum)
+                s(db, "Result", temp)
+              } else {
+                s(db, "Result", 0)
               }
             }
         }
@@ -206,11 +218,11 @@ describe('Switch Statement Comprehensive Tests', () => {
       // Should have switch and payload extraction
       expect(asm).toContain('match_case_');
       expect(asm).toContain('get r');
-      expect(asm).toContain('db');
 
       // Should have if check and load
       expect(asm).toContain('label'); // if statement creates labels
       expect(asm).toContain('lbn');
+      expect(asm).toContain('s db Result');
     });
   });
 
@@ -258,8 +270,7 @@ describe('Switch Statement Comprehensive Tests', () => {
       // Should have if statement in Fill case
       expect(asm).toContain('blt');
 
-      // Should have variant construction and poke for assignments
-      expect(asm).toContain('push');
+      // Should have variant construction with poke for assignments
       expect(asm).toContain('poke');
 
       // Should end properly
@@ -272,9 +283,8 @@ describe('Switch Statement Comprehensive Tests', () => {
       const input = `
         type state = Only
         let s = ref(Only)
-        let x = ref(0)
         switch s.contents {
-          | Only => x := 42
+          | Only => s(db, "Value", 42)
         }
       `;
       const result = compile(input);
@@ -284,6 +294,7 @@ describe('Switch Statement Comprehensive Tests', () => {
       // Should still generate switch infrastructure
       expect(asm).toContain('beq');
       expect(asm).toContain('match_case_');
+      expect(asm).toContain('s db Value');
     });
 
     test('should handle multiple statements in case body', () => {

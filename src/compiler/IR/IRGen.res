@@ -255,6 +255,16 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
 
           Ok((state, resultVReg))
 
+        | (Some(AST.ArgDevice(deviceName)), Some(AST.ArgString(property))) =>
+          // Direct device reference (d0, d1, db, etc.)
+          // Allocate vreg for result
+          let (state, resultVReg) = allocVReg(state)
+
+          // Emit DeviceLoad instruction - deviceName is already a string like "d0" or "db"
+          let state = emit(state, IR.DeviceLoad(resultVReg, IR.DevicePin(deviceName), property, None))
+
+          Ok((state, resultVReg))
+
         | (Some(AST.ArgExpr(AST.Identifier(deviceVar))), Some(AST.ArgString(property))) =>
           // Look up device variable in deviceMap
           switch state.deviceMap->Belt.Map.String.get(deviceVar) {
@@ -280,6 +290,14 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
         Error("[IRGen.res][generateExpr]: lb() expects 3 arguments: type hash, property, mode")
       } else {
         switch (args[0], args[1], args[2]) {
+        | (Some(AST.ArgExpr(AST.Identifier(typeHashVar))), Some(AST.ArgString(property)), Some(AST.ArgMode(mode))) =>
+          // Allocate vreg for result
+          let (state, resultVReg) = allocVReg(state)
+
+          // Emit DeviceLoad with DeviceType
+          let state = emit(state, IR.DeviceLoad(resultVReg, IR.DeviceType(typeHashVar), property, Some(mode)))
+
+          Ok((state, resultVReg))
         | (Some(AST.ArgExpr(AST.Identifier(typeHashVar))), Some(AST.ArgString(property)), Some(AST.ArgString(mode))) =>
           // Allocate vreg for result
           let (state, resultVReg) = allocVReg(state)
@@ -298,6 +316,19 @@ let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), 
         Error("[IRGen.res][generateExpr]: lbn() expects 4 arguments: type hash, name hash, property, mode")
       } else {
         switch (args[0], args[1], args[2], args[3]) {
+        | (
+            Some(AST.ArgExpr(AST.Identifier(typeHashVar))),
+            Some(AST.ArgExpr(AST.Identifier(nameHashVar))),
+            Some(AST.ArgString(property)),
+            Some(AST.ArgMode(mode))
+          ) =>
+          // Allocate vreg for result
+          let (state, resultVReg) = allocVReg(state)
+
+          // Emit DeviceLoad with DeviceNamed
+          let state = emit(state, IR.DeviceLoad(resultVReg, IR.DeviceNamed(typeHashVar, nameHashVar), property, Some(mode)))
+
+          Ok((state, resultVReg))
         | (
             Some(AST.ArgExpr(AST.Identifier(typeHashVar))),
             Some(AST.ArgExpr(AST.Identifier(nameHashVar))),
@@ -695,7 +726,7 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
       })
     }
 
-  // TypeDeclaration: allocate stack space and store metadata
+  // TypeDeclaration: store metadata but don't allocate yet
   | TypeDeclaration(typeName, constructors) => {
       // 1. Calculate maximum arguments across all constructors
       let maxArgs = getMaxArgsForVariantType(constructors)
@@ -704,7 +735,7 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
       let numConstructors = Array.length(constructors)
       let slotCount = 1 + numConstructors * maxArgs
 
-      // 3. Allocate stack segment
+      // 3. Reserve stack segment but don't emit StackAlloc yet
       let (stackAllocator, baseAddr) = allocateStackSegment(state.stackAllocator, slotCount)
 
       // 4. Build constructor tag mappings
@@ -714,17 +745,17 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
         index,
       ) => Belt.Map.String.set(tags, constructor.name, index))
 
-      // 5. Store type metadata
+      // 5. Store type metadata (allocated: false means no StackAlloc emitted yet)
       let typeInfo = {
         constructors,
         baseAddr,
         maxArgs,
-        allocated: false, // No ref created yet
+        allocated: false, // No StackAlloc emitted yet
       }
       let variantTypes = Belt.Map.String.set(state.variantTypes, typeName, typeInfo)
 
-      // 6. Emit StackAlloc instruction
-      let state = emit(state, IR.StackAlloc(slotCount))
+      // 6. Don't emit StackAlloc until a ref is created - this allows dead code elimination
+      //    to remove unused types completely
 
       Ok({
         ...state,
@@ -760,22 +791,26 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
             switch Belt.Map.String.get(state.variantTags, constructorName) {
             | None => Error(`Constructor tag not found: ${constructorName}`)
             | Some(tag) =>
-              // 5. Mark type as allocated
+              // 5. Emit StackAlloc now that the type is actually used
+              let slotCount = 1 + Array.length(typeInfo.constructors) * typeInfo.maxArgs
+              let state = emit(state, IR.StackAlloc(slotCount))
+
+              // 6. Mark type as allocated
               let updatedTypeInfo = {...typeInfo, allocated: true}
               let variantTypes = Belt.Map.String.set(state.variantTypes, typeName, updatedTypeInfo)
 
-              // 6. Store ref → type mapping
+              // 7. Store ref → type mapping
               let refToTypeName = Belt.Map.String.set(state.refToTypeName, name, typeName)
 
-              // 7. Allocate vreg for ref variable
+              // 8. Allocate vreg for ref variable
               let (state, refVReg) = allocVReg(state)
               let varMap = Belt.Map.String.set(state.varMap, name, {vreg: refVReg, isRef: true})
 
-              // 8. Initialize ref to point to base address
+              // 9. Initialize ref to point to base address
               let state = emit(state, IR.Move(refVReg, IR.Num(typeInfo.baseAddr)))
 
-              // 9. Initialize variant data on stack using StackPoke
-              // 9a. Poke tag
+              // 10. Initialize variant data on stack using StackPoke
+              // 10a. Poke tag
               let state = emit(state, IR.StackPoke(typeInfo.baseAddr, IR.Num(tag)))
 
               // 9b. Poke all arguments
@@ -827,6 +862,10 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
             switch Belt.Map.String.get(state.variantTags, constructorName) {
             | None => Error(`Constructor tag not found: ${constructorName}`)
             | Some(tag) =>
+              // Emit StackAlloc now that the type is actually used
+              let slotCount = 1 + Array.length(typeInfo.constructors) * typeInfo.maxArgs
+              let state = emit(state, IR.StackAlloc(slotCount))
+
               // Mark type as allocated
               let updatedTypeInfo = {...typeInfo, allocated: true}
               let variantTypes = Belt.Map.String.set(state.variantTypes, typeName, updatedTypeInfo)
@@ -1045,7 +1084,26 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
         )
       } else {
         switch (args[0], args[1], args[2]) {
-        // Case 1: s(identifier, "Property", value) - device variable
+        // Case 1: s(deviceRef, "Property", value) - ArgDevice direct device reference
+        | (
+            Some(AST.ArgDevice(deviceName)),
+            Some(AST.ArgString(property)),
+            Some(AST.ArgExpr(valueExpr)),
+          ) =>
+          // deviceName is already a string like "d0" or "db"
+          switch valueExpr {
+          | AST.Literal(n) =>
+            // Use immediate value directly
+            Ok(emit(state, IR.DeviceStore(IR.DevicePin(deviceName), property, IR.Num(n))))
+          | _ =>
+            // Generate value expression into a vreg
+            generateExpr(state, valueExpr)->Result.map(((state, valueVReg)) => {
+              // Emit DeviceStore instruction with vreg
+              emit(state, IR.DeviceStore(IR.DevicePin(deviceName), property, IR.VReg(valueVReg)))
+            })
+          }
+
+        // Case 2: s(identifier, "Property", value) - device variable
         | (
             Some(AST.ArgExpr(AST.Identifier(deviceVar))),
             Some(AST.ArgString(property)),
@@ -1071,7 +1129,7 @@ and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
             Error(`[IRGen.res][generateStmt]: Variable '${deviceVar}' is not a device. Use: let ${deviceVar} = device("d0")`)
           }
 
-        // Case 2: s(literal, "Property", value) - direct device pin
+        // Case 3: s(literal, "Property", value) - direct device pin
         | (
             Some(AST.ArgExpr(AST.Literal(devicePin))),
             Some(AST.ArgString(property)),

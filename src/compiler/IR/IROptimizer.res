@@ -352,7 +352,7 @@ let optimizeBlockWithoutDefines = (block: IR.block): IR.block => {
     ->foldConstants
     ->propagateConstantsAndCopies
     ->eliminateRedundantMoves
-    // ->eliminateDeadCode  // Disabled for now - tests expect all code to be kept
+    ->eliminateDeadCode
     ->eliminateUnreachableCode
     ->eliminateEmptyBlocks
     ->eliminateFallthroughJumps

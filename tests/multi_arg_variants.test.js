@@ -13,12 +13,12 @@ describe('Multi-Argument Variant Parsing', () => {
   test('should parse variant constructor with multiple arguments', () => {
     const source = `
       type state = Idle(int, int)
-      let x = Idle(10, 20)
+      let x = ref(Idle(10, 20))
     `;
 
     const result = Compiler.compile(source, { includeComments: false });
 
-    // Should not error during parsing
+    // Should not error during compilation
     expect(result.TAG).toBe('Ok');
   });
 

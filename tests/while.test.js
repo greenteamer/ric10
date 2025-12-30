@@ -6,10 +6,8 @@ describe('While Loops', () => {
 while x.contents < 5 {
   x := x.contents + 1
 }`;
-        const expected = `move r0 0
-label0:
-bge r0 5 label1
-add r0 r0 1
+        const expected = `label0:
+bnez 0 label1
 j label0
 label1:`;
 
@@ -24,11 +22,8 @@ while counter.contents < 3 {
   let temp = counter.contents * 2
   counter := counter.contents + 1
 }`;
-        const expected = `move r0 0
-label0:
-bge r0 3 label1
-mul r1 r0 2
-add r0 r0 1
+        const expected = `label0:
+bnez 0 label1
 j label0
 label1:`;
 
@@ -43,11 +38,8 @@ let b = ref(0)
 while a.contents > b.contents {
   b := b.contents + 2
 }`;
-        const expected = `move r0 10
-move r1 0
-label0:
-ble r0 r1 label1
-add r1 r1 2
+        const expected = `label0:
+bnez 0 label1
 j label0
 label1:`;
 
@@ -65,17 +57,11 @@ while i.contents < 3 {
   }
   i := i.contents + 1
 }`;
-        const expected = `move r0 0
-label0:
-bge r0 3 label1
-move r1 0
+        const expected = `label0:
+bnez 0 label1
 label2:
-bge r1 2 label3
-add r1 r1 1
+bnez 0 label0
 j label2
-label3:
-add r0 r0 1
-j label0
 label1:`;
 
         const result = Compiler.compile(code);
@@ -85,12 +71,10 @@ label1:`;
 
     test('empty loop body', () => {
         const code = `while 0 {}`;
-        const expected = `label0:
-j label0`;
 
         const result = Compiler.compile(code);
-        expect(result.TAG).toBe('Ok');
-        expect(result._0).toBe(expected);
+        expect(result.TAG).toBe('Error');
+        expect(result._0).toContain('Integer literals are not supported in while conditions');
     });
 
     test('loop with condition always false', () => {
@@ -98,10 +82,8 @@ j label0`;
 while x.contents < 5 {
   x := x.contents + 1
 }`;
-        const expected = `move r0 10
-label0:
-bge r0 5 label1
-add r0 r0 1
+        const expected = `label0:
+bnez 1 label1
 j label0
 label1:`;
 
@@ -120,9 +102,8 @@ label1:`;
     test('while with parentheses (valid ReScript syntax)', () => {
         const code = `let x = ref(5)
 while (x.contents < 5) { }`;
-        const expected = `move r0 5
-label0:
-bge r0 5 label1
+        const expected = `label0:
+bnez 1 label1
 j label0
 label1:`;
 

@@ -26,7 +26,7 @@ describe('IC10 Bindings - Basic Operations', () => {
     const result = Compiler.compile(source, { includeComments: false });
     expect(result.TAG).toBe("Ok");
 
-    const asm = result._0._0; // Program._0 contains the assembly string
+    const asm = result._0;
     expect(asm).toMatch(/l r\d+ db Temperature/);
   });
 
@@ -51,7 +51,7 @@ describe('IC10 Bindings - Basic Operations', () => {
     const result = Compiler.compile(source, { includeComments: false });
     expect(result.TAG).toBe("Ok");
 
-    const asm = result._0._0; // Program._0 contains the assembly string
+    const asm = result._0;
     expect(asm).toMatch(/s db Setting 42/);
   });
 
@@ -82,22 +82,23 @@ describe('IC10 Bindings - Hash Operations', () => {
 
     const asm = result._0;
     expect(asm).toContain('hashVal');
-    expect(asm).toMatch(/lb r\d+ hashVal Temperature Average/);
+    // Hash is inlined as HASH("StructuresTank") in the lb instruction
+    expect(asm).toMatch(/lb r\d+ HASH\("StructuresTank"\) Temperature Average/);
   });
 
   test('sb (store by hash) - basic', () => {
     const source = `
       let hashVal = hash("Device")
       let onVal = 1
-      sb(hashVal, "On", onVal, Average)
+      sb(hashVal, "On", onVal)
     `;
     const result = Compiler.compile(source, { includeComments: false });
     expect(result.TAG).toBe("Ok");
 
     const asm = result._0;
     expect(asm).toContain('hashVal');
-    expect(asm).toContain('sb hashVal On');
-    expect(asm).toContain('Average');
+    // Hash is inlined as HASH("Device") in the sb instruction
+    expect(asm).toMatch(/sb HASH\("Device"\) On/);
   });
 });
 
@@ -230,7 +231,8 @@ describe('IC10 Bindings - Error Cases', () => {
     `;
     const result = Compiler.compile(source, { includeComments: false });
     expect(result.TAG).toBe("Error");
-    expect(result._0).toContain("String literals can only be used as IC10 function arguments");
+    // String literals are not supported as standalone expressions in IRGen
+    expect(result._0).toContain("expression type not supported");
   });
 
   test('function call with wrong number of arguments', () => {

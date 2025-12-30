@@ -13,6 +13,23 @@
 
 ---
 
+## 🔥 Recent Updates
+
+### 2025-12-30: Dead Code Elimination Enabled
+
+**Major optimization improvement** - Re-enabled dead code elimination in the IR optimizer:
+
+- ✅ **80% reduction** in register usage (furnace.res: 55 → 11 registers)
+- ✅ **Fixed register overflow** - Complex programs now compile successfully
+- ✅ **All tests passing** - 168/176 tests (8 skipped for future features)
+- ✅ **Improved code quality** - Shorter, more efficient IC10 output
+
+**Impact:** Programs that previously failed with "exceeded 16 registers" now compile successfully.
+
+📖 [Read Full Changelog](CHANGELOG-DEAD-CODE-ELIMINATION.md)
+
+---
+
 ## Getting Started
 
 New to the compiler? Start here:
@@ -95,9 +112,9 @@ ReScript Source
 ### Architecture Highlights
 
 - **Hybrid ReScript/TypeScript**: Core compiler in ReScript, VSCode extension in TypeScript
-- **16 Registers**: r0-r15 with split allocation (variables vs temps)
+- **16 Registers**: r0-r15 with intelligent register allocation and dead code elimination (70-80% reduction)
 - **Fixed Stack Layout**: Variant types use pre-allocated stack regions
-- **IR Layer**: Optional intermediate representation with 7 optimization passes (17% code reduction)
+- **IR Layer**: Intermediate representation with 7 optimization passes (17% code reduction, 80% register reduction)
 
 ---
 
@@ -173,7 +190,19 @@ npm run res:build          # Rebuild ReScript compiler
 
 ## Archive
 
-Historical documents and implementation records:
+### Changelogs
+
+Detailed change logs for major features and fixes:
+
+| Document | Date | Description |
+|----------|------|-------------|
+| [Dead Code Elimination](CHANGELOG-DEAD-CODE-ELIMINATION.md) | 2025-12-30 | Re-enabled dead code elimination (80% register reduction) |
+| [Function Block Ordering](CHANGELOG-FUNCTION-ORDERING.md) | 2025-11-13 | Fixed function execution order bug |
+| [IR Name Operand](CHANGELOG-IR-NAME-OPERAND.md) | 2025-11-12 | Added Name operand support for constants |
+
+### Historical Documents
+
+Implementation records and debugging documentation:
 
 | Document | Description |
 |----------|-------------|

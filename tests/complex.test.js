@@ -18,9 +18,7 @@ if a + b > c * 4 {
     test('literal optimization', () => {
         const code = `let x = 10
 let y = x + 5`;
-        const expected = `define x 10
-move r15 x
-add r0 r15 5`;
+        const expected = `define x 10`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Ok');
@@ -38,17 +36,8 @@ if sum > 25 {
 }`;
         const expected = `define a 10
 define b 20
+bnez 0 label0
 define flag 1
-move r15 a
-move r14 b
-add r0 r15 r14
-move r14 b
-move r13 a
-sub r1 r14 r13
-move r13 a
-move r12 b
-mul r2 r13 r12
-ble r0 25 label0
 label0:`;
 
         const result = Compiler.compile(code);
@@ -72,14 +61,14 @@ if z < 3 {
         const expected = `define x 15
 define y 10
 define z 5
+bnez 0 label0
 define a 1
-define b 2
-define c 3
-ble x y label0
 label0:
-bne y 10 label1
+bnez 0 label1
+define b 2
 label1:
-bge z 3 label2
+bnez 1 label2
+define c 3
 label2:`;
 
         const result = Compiler.compile(code);

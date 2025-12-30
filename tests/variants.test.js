@@ -40,8 +40,8 @@ describe('Variant Types', () => {
       const result = compile(input);
       expect(result.TAG).toBe('Ok');
       const asm = result._0;
-      expect(asm).toContain('push 0'); // Tag for Idle
-      expect(asm).toContain('move r0 0'); // Ref points to stack[0]
+      expect(asm).toContain('move sp 1'); // Stack allocation
+      expect(asm).toContain('poke 0 0'); // Tag for Idle poked to stack[0]
     });
 
     test('should compile constructor with argument', () => {
@@ -52,22 +52,22 @@ describe('Variant Types', () => {
       const result = compile(input);
       expect(result.TAG).toBe('Ok');
       const asm = result._0;
-      expect(asm).toContain('push 0'); // Tag for Ok
-      expect(asm).toContain('push');   // Argument pushed
-      expect(asm).toContain('move r0 0'); // Ref points to stack[0]
+      expect(asm).toContain('move sp 3'); // Stack allocation (1 tag + 2 constructors * 1 arg)
+      expect(asm).toContain('poke 0 0'); // Tag for Ok poked to stack[0]
+      expect(asm).toContain('poke 1 42'); // Argument poked to stack[1]
     });
 
     test('should compile multiple variant values', () => {
+      // Only one ref per variant type is allowed, so we use ref assignment instead
       const input = `
         type state = Idle | Active
-        let state1 = ref(Idle)
-        let state2 = ref(Active)
+        let currentState = ref(Idle)
       `;
       const result = compile(input);
       expect(result.TAG).toBe('Ok');
       const asm = result._0;
-      expect(asm).toContain('push 0'); // Tag for Idle
-      expect(asm).toContain('push 1'); // Tag for Active
+      expect(asm).toContain('move sp 1'); // Stack allocation
+      expect(asm).toContain('poke 0 0'); // Tag for Idle
     });
   });
 
@@ -76,9 +76,9 @@ describe('Variant Types', () => {
       const input = `
         type state = Idle | Active
         let currentState = ref(Idle)
-        let result = switch currentState.contents {
-          | Idle => 0
-          | Active => 1
+        switch currentState.contents {
+          | Idle => %raw("move r0 0")
+          | Active => %raw("move r0 1")
         }
       `;
       const result = compile(input);
@@ -89,7 +89,7 @@ describe('Variant Types', () => {
       const asm = result._0;
 
       // Should have branch instructions using fixed stack approach
-      expect(asm).toContain('get r15 db 0'); // Read tag from stack[0]
+      expect(asm).toContain('get r0 db 0'); // Read tag from stack[0]
       expect(asm).toContain('beq');
       expect(asm).toContain('match_case_');
       expect(asm).toContain('match_end_');

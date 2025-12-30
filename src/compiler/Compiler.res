@@ -14,6 +14,19 @@ let compile = (source: string, ~options: option<CodegenTypes.compilerOptions>=?,
   | None => defaultOptions
   }
 
+  // Fix backend if undefined from JavaScript (defaults to 0 which is WASM)
+  // When JavaScript passes { includeComments: false } without backend, we want IC10
+  let compilerOptions = switch options {
+  | Some(opts) =>
+      // Check if backend field was actually provided
+      let backendUndefined = Js.typeof(Obj.magic(opts)["backend"]) == "undefined"
+      {
+        ...compilerOptions,
+        backend: backendUndefined ? IC10 : compilerOptions.backend
+      }
+  | None => compilerOptions
+  }
+
   // Standard compilation pipeline: Lex -> Parse -> AST Optimize -> IR -> IR Optimize -> Backend
   source
   ->Lexer.tokenize

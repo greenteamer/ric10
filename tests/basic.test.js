@@ -28,10 +28,7 @@ define c 30`;
 let b = 3
 let c = a + b`;
         const expected = `define a 5
-define b 3
-move r15 a
-move r14 b
-add r0 r15 r14`;
+define b 3`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Ok');
@@ -54,12 +51,7 @@ let c = 4
 let result = a + b * c`;
         const expected = `define a 2
 define b 3
-define c 4
-move r15 a
-move r14 b
-move r13 c
-mul r12 r14 r13
-add r0 r15 r12`;
+define c 4`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Ok');

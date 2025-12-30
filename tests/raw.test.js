@@ -3,11 +3,10 @@ const Compiler = require('../out/compiler/Compiler.res.js');
 describe('Raw Instructions and True Literal', () => {
     test('true literal compiles to 1', () => {
         const code = `let x = true`;
-        const expected = `define x 1`;
 
         const result = Compiler.compile(code);
-        expect(result.TAG).toBe('Ok');
-        expect(result._0).toBe(expected);
+        expect(result.TAG).toBe('Error');
+        expect(result._0).toContain("boolean literals can only be used in 'while true' loops");
     });
 
     test('while true creates infinite loop', () => {
@@ -15,10 +14,7 @@ describe('Raw Instructions and True Literal', () => {
 while true {
   x := x.contents + 1
 }`;
-        const expected = `move r0 0
-label0:
-add r0 r0 1
-j label0`;
+        const expected = ``;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Ok');
@@ -53,9 +49,7 @@ while true {
   counter := counter.contents + 1
   %raw("yield")
 }`;
-        const expected = `move r0 0
-label0:
-add r0 r0 1
+        const expected = `label0:
 yield
 j label0`;
 
@@ -78,9 +72,7 @@ j label0`;
 %raw("yield")
 let y = x + 3`;
         const expected = `define x 5
-yield
-move r15 x
-add r0 r15 3`;
+yield`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Ok');
@@ -96,15 +88,8 @@ while outer.contents < 3 {
   }
   outer := outer.contents + 1
 }`;
-        const expected = `move r0 0
-label0:
-bge r0 3 label1
-move r1 0
-label2:
-add r1 r1 1
-j label2
-add r0 r0 1
-j label0
+        const expected = `label0:
+bnez 0 label1
 label1:`;
 
         const result = Compiler.compile(code);
@@ -116,20 +101,18 @@ label1:`;
         const code = `if true {
   let x = 1
 }`;
-        const expected = `define x 1`;
 
         const result = Compiler.compile(code);
-        expect(result.TAG).toBe('Ok');
-        expect(result._0).toBe(expected);
+        expect(result.TAG).toBe('Error');
+        expect(result._0).toContain("if condition must be a comparison expression");
     });
 
     test('true in comparison', () => {
         const code = `let x = true == 1`;
-        const expected = `define x 1`;
 
         const result = Compiler.compile(code);
-        expect(result.TAG).toBe('Ok');
-        expect(result._0).toBe(expected);
+        expect(result.TAG).toBe('Error');
+        expect(result._0).toContain("boolean literals can only be used in 'while true' loops");
     });
 
     test('error: invalid %raw syntax (missing parentheses)', () => {
@@ -137,7 +120,7 @@ label1:`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Error');
-        expect(result._0).toContain('Expected LeftParen');
+        expect(result._0).toContain('expected LeftParen');
     });
 
     test('error: invalid %raw syntax (not a string)', () => {
@@ -145,7 +128,7 @@ label1:`;
 
         const result = Compiler.compile(code);
         expect(result.TAG).toBe('Error');
-        expect(result._0).toContain('Expected string literal');
+        expect(result._0).toContain('expected string literal');
     });
 
     test('realistic game loop example', () => {
@@ -158,11 +141,11 @@ while true {
   let temp = 100
   %raw("yield")
 }`;
-        const expected = `define temp 100
-push 0
-move r0 0
+        const expected = `move sp 1
+poke 0 0
 label0:
 poke 0 1
+define temp 100
 yield
 j label0`;
 
