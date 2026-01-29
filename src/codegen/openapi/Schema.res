@@ -1,25 +1,30 @@
 // Schema.res - JSON Schema AST types and parser
+// With @genType for Effect TS compatibility (_tag discriminant)
 
 // Field type for object properties
+@genType
 type rec field = {
   name: string,
-  type_: schemaType,
+  @as("type") type_: schemaType,
   required: bool,
 }
 
 // Variant case for poly variants (oneOf with _tag)
+@genType
 and variantCase = {
-  tag: string,
+  @as("_tag") tag: string,
   payload: schemaType,
 }
 
-// Output AST types
+// Output AST types - using @tag("_tag") for Effect TS compatibility
+@genType
+@tag("_tag")
 and schemaType =
-  | @as("String") String
-  | @as("Number") Number
-  | @as("Integer") Integer
-  | @as("Boolean") Boolean
-  | @as("Null") Null
+  | String
+  | Number
+  | Integer
+  | Boolean
+  | Null
   | Optional(schemaType)
   | Object(array<field>)
   | Array(schemaType)
