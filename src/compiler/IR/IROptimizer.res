@@ -232,7 +232,7 @@ let eliminateUnreachableCode = (instrs: list<IR.instr>): list<IR.instr> => {
     | list{Label(_) as label, ...rest} =>
       list{label, ...process(rest, false)}
 
-    | list{instr, ...rest} if afterUnconditional =>
+    | list{_instr, ...rest} if afterUnconditional =>
       // Skip this unreachable instruction
       process(rest, afterUnconditional)
 
@@ -305,7 +305,7 @@ let eliminateEmptyBlocks = (instrs: list<IR.instr>): list<IR.instr> => {
       list{Bnez(operand, newTarget), ...process(rest)}
 
     // Remove empty blocks (Label immediately followed by Goto)
-    | list{Label(label), Goto(target), ...rest} =>
+    | list{Label(_label), Goto(_target), ...rest} =>
       // Skip this empty block entirely
       process(rest)
 

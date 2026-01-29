@@ -17,7 +17,7 @@ while true {
   switch atmState.contents {
   | Day =>
     switch state.contents {
-    | Idle(t, p) =>
+    | Idle(_t, _p) =>
       if fTemp < 1000 {
         state := Fill(tankTemp, atmTemp)
       } else {

@@ -7,6 +7,12 @@ type rec field = {
   required: bool,
 }
 
+// Variant case for poly variants (oneOf with _tag)
+and variantCase = {
+  tag: string,
+  payload: schemaType,
+}
+
 // Output AST types
 and schemaType =
   | @as("String") String
@@ -17,6 +23,9 @@ and schemaType =
   | Optional(schemaType)
   | Object(array<field>)
   | Array(schemaType)
+  | Ref(string)
+  | Enum(array<string>)
+  | PolyVariant(array<variantCase>)
 
 // Helper: check if schema is null type
 let isNullType = (json: JSON.t): bool => {
@@ -27,6 +36,40 @@ let isNullType = (json: JSON.t): bool => {
     | _ => false
     }
   | _ => false
+  }
+}
+
+// Helper: extract type name from $ref path
+// "#/components/schemas/User" -> "User"
+let extractRefName = (refPath: string): string => {
+  let parts = refPath->String.split("/")
+  parts->Array.get(Array.length(parts) - 1)->Option.getOr(refPath)
+}
+
+// Helper: parse enum values from array
+let parseEnumValues = (arr: array<JSON.t>): option<array<string>> => {
+  let values = arr->Array.filterMap(item =>
+    switch item {
+    | String(s) => Some(s)
+    | _ => None
+    }
+  )
+  if Array.length(values) == Array.length(arr) {
+    Some(values)
+  } else {
+    None
+  }
+}
+
+// Helper: extract _tag value from const property
+let extractTagFromConst = (dict: Dict.t<JSON.t>): option<string> => {
+  switch dict->Dict.get("_tag") {
+  | Some(Object(tagDict)) =>
+    switch tagDict->Dict.get("const") {
+    | Some(String(tagValue)) => Some(tagValue)
+    | _ => None
+    }
+  | _ => None
   }
 }
 
@@ -41,7 +84,17 @@ let rec parseSchema = (json: JSON.t): result<schemaType, Errors.errors> => {
 // Helper: parse primitive type from object
 and parsePrimitiveType = (dict: Dict.t<JSON.t>): result<schemaType, Errors.errors> => {
   switch dict->Dict.get("type") {
-  | Some(String("string")) => Ok(String)
+  | Some(String("string")) =>
+    // Check for enum
+    switch dict->Dict.get("enum") {
+    | Some(Array(enumValues)) =>
+      switch parseEnumValues(enumValues) {
+      | Some(values) => Ok(Enum(values))
+      | None => Error([Errors.makeError(~kind=InvalidJson("enum values must be strings"), ())])
+      }
+    | Some(_) => Error([Errors.makeError(~kind=InvalidJson("enum must be an array"), ())])
+    | None => Ok(String)
+    }
   | Some(String("number")) => Ok(Number)
   | Some(String("integer")) => Ok(Integer)
   | Some(String("boolean")) => Ok(Boolean)
@@ -144,13 +197,146 @@ and parseObjectType = (dict: Dict.t<JSON.t>): result<schemaType, Errors.errors> 
   }
 }
 
+// Helper: parse allOf (merge object schemas)
+and parseAllOf = (items: array<JSON.t>): result<schemaType, Errors.errors> => {
+  // Parse each schema
+  let results = items->Array.map(parseSchema)
+
+  // Collect errors
+  let errors = results->Array.filterMap(r =>
+    switch r {
+    | Error(e) => Some(e)
+    | Ok(_) => None
+    }
+  )->Array.flat
+
+  if Array.length(errors) > 0 {
+    Error(errors)
+  } else {
+    // Extract fields from all Object types and merge
+    let allFields = results->Array.filterMap(r =>
+      switch r {
+      | Ok(Object(fields)) => Some(fields)
+      | _ => None
+      }
+    )->Array.flat
+
+    Ok(Object(allFields))
+  }
+}
+
+// Helper: parse oneOf (discriminated union with _tag)
+and parseOneOf = (items: array<JSON.t>): result<schemaType, Errors.errors> => {
+  let caseResults = items->Array.map(item => {
+    switch item {
+    | Object(dict) =>
+      switch dict->Dict.get("properties") {
+      | Some(Object(propsDict)) =>
+        // Extract _tag value
+        switch extractTagFromConst(propsDict) {
+        | Some(tag) =>
+          // Get required fields for filtering
+          let requiredFields = switch dict->Dict.get("required") {
+          | Some(Array(arr)) =>
+            arr->Array.filterMap(i =>
+              switch i {
+              | String(s) => Some(s)
+              | _ => None
+              }
+            )
+          | _ => []
+          }
+
+          // Parse properties excluding _tag
+          let entries = propsDict->Dict.toArray->Array.filter(((name, _)) => name != "_tag")
+          let fieldResults = entries->Array.map(((name, propSchema)) => {
+            switch parseSchema(propSchema) {
+            | Ok(propType) =>
+              Ok({
+                name,
+                type_: propType,
+                required: requiredFields->Array.includes(name),
+              })
+            | Error(e) => Error(e)
+            }
+          })
+
+          // Collect errors
+          let errors = fieldResults->Array.filterMap(r =>
+            switch r {
+            | Error(e) => Some(e)
+            | Ok(_) => None
+            }
+          )->Array.flat
+
+          if Array.length(errors) > 0 {
+            Error(errors)
+          } else {
+            let fields = fieldResults->Array.filterMap(r =>
+              switch r {
+              | Ok(f) => Some(f)
+              | Error(_) => None
+              }
+            )
+            Ok({tag, payload: Object(fields)})
+          }
+        | None =>
+          Error([Errors.makeError(~kind=MissingRequiredField("_tag with const"), ())])
+        }
+      | _ =>
+        Error([Errors.makeError(~kind=InvalidJson("oneOf item must have properties"), ())])
+      }
+    | _ =>
+      Error([Errors.makeError(~kind=InvalidJson("oneOf item must be object"), ())])
+    }
+  })
+
+  // Collect all errors
+  let errors = caseResults->Array.filterMap(r =>
+    switch r {
+    | Error(e) => Some(e)
+    | Ok(_) => None
+    }
+  )->Array.flat
+
+  if Array.length(errors) > 0 {
+    Error(errors)
+  } else {
+    let cases = caseResults->Array.filterMap(r =>
+      switch r {
+      | Ok(c) => Some(c)
+      | Error(_) => None
+      }
+    )
+    Ok(PolyVariant(cases))
+  }
+}
+
 // Main parse object dispatcher
 and parseObject = (dict: Dict.t<JSON.t>): result<schemaType, Errors.errors> => {
-  // Check for anyOf first
-  switch dict->Dict.get("anyOf") {
-  | Some(Array(items)) => parseAnyOf(items)
-  | Some(_) => Error([Errors.makeError(~kind=InvalidJson("anyOf must be an array"), ())])
-  | None => parsePrimitiveType(dict)
+  // Check for $ref first
+  switch dict->Dict.get("$ref") {
+  | Some(String(refPath)) => Ok(Ref(extractRefName(refPath)))
+  | Some(_) => Error([Errors.makeError(~kind=InvalidJson("$ref must be a string"), ())])
+  | None =>
+    // Check for oneOf (discriminated union)
+    switch dict->Dict.get("oneOf") {
+    | Some(Array(items)) => parseOneOf(items)
+    | Some(_) => Error([Errors.makeError(~kind=InvalidJson("oneOf must be an array"), ())])
+    | None =>
+      // Check for allOf
+      switch dict->Dict.get("allOf") {
+      | Some(Array(items)) => parseAllOf(items)
+      | Some(_) => Error([Errors.makeError(~kind=InvalidJson("allOf must be an array"), ())])
+      | None =>
+        // Check for anyOf
+        switch dict->Dict.get("anyOf") {
+        | Some(Array(items)) => parseAnyOf(items)
+        | Some(_) => Error([Errors.makeError(~kind=InvalidJson("anyOf must be an array"), ())])
+        | None => parsePrimitiveType(dict)
+        }
+      }
+    }
   }
 }
 
