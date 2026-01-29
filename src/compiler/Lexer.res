@@ -1,5 +1,6 @@
 // Simple lexer for ReScript → IC10 compiler
 // Tokenizes ReScript source code into a stream of tokens
+type lexer2<'a, 'b> = 'a => ('a, 'b)
 
 // Token type definitions
 type token =

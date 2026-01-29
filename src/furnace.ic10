@@ -1,3 +1,14 @@
+define furnaceType HASH("StructureAdvancedFurnace")
+define furnaceName HASH("Furnace")
+define lcdType HASH("StructureConsoleLED5")
+define lcd1Name HASH("FurnaceLCD1")
+define lcd2Name HASH("FurnaceLCD2")
+define dialType HASH("StructureLogicDial")
+define dialTempName HASH("FurnaceDialTemp")
+define dialPressName HASH("FurnaceDialPress")
+define valveType HASH("StructureDigitalValve")
+define tankValveName HASH("FurnaceTankValve")
+define atmValveName HASH("FurnaceAtmValve")
 move sp 1
 poke 0 0
 label0:

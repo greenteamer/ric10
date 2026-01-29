@@ -1,0 +1,558 @@
+module Schema = JSONSchema
+module Arrayable = Schema.Arrayable
+
+let escapeString = str => {
+  str
+  ->String.replaceAll("\\", "\\\\")
+  ->String.replaceAll("\"", "\\\"")
+  ->String.replaceAll("\n", "\\n")
+}
+
+let toValidIdentifier = str => {
+  let result = str->String.replaceRegExp(%re("/[^a-zA-Z0-9_]/g"), "_")
+  if result->String.charAt(0)->String.match(%re("/\\d/"))->Option.isSome {
+    "_" ++ result
+  } else {
+    result
+  }
+}
+
+let toModuleName = name => name->String.replaceRegExp(%re("/[^a-zA-Z0-9_]/g"), "_")
+
+let definitionToSchema = (def: Schema.definition): option<Schema.t> => {
+  switch def {
+  | Schema(s) => Some(s)
+  | Never | Any => None
+  }
+}
+
+let getTypeName = (schema: Schema.t): option<Schema.typeName> => {
+  schema.type_->Option.flatMap(t => {
+    switch Arrayable.classify(t) {
+    | Single(name) => Some(name)
+    | Array(arr) => arr[0]
+    }
+  })
+}
+
+let isNullType = (schema: Schema.t) => getTypeName(schema) == Some(#null)
+
+let extractRefName = (ref: string): option<string> => {
+  let parts = ref->String.split("/")
+  parts[parts->Array.length - 1]
+}
+
+let isNullableAnyOf = (schema: Schema.t) => {
+  switch schema.anyOf {
+  | Some(anyOf) =>
+    let schemas = anyOf->Array.filterMap(definitionToSchema)
+    schemas->Array.length == 2 && schemas->Array.some(isNullType)
+  | None => false
+  }
+}
+
+let isNullableSchema = (schema: Schema.t) => {
+  schema.nullable == Some(true) || isNullableAnyOf(schema)
+}
+
+let isPrimitiveType = (schema: Schema.t) => {
+  switch getTypeName(schema) {
+  | Some(#string) | Some(#number) | Some(#integer) | Some(#boolean) | Some(#null) => true
+  | _ => false
+  }
+}
+
+let allSameType = (schemas: array<Schema.t>) => {
+  switch schemas[0] {
+  | None => true
+  | Some(first) =>
+    let firstType = getTypeName(first)
+    schemas->Array.every(s => getTypeName(s) == firstType)
+  }
+}
+
+let allPrimitivesOfSameType = schemas => {
+  schemas->Array.every(isPrimitiveType) && allSameType(schemas)
+}
+
+let allAreRefs = (schemas: array<Schema.t>) => {
+  schemas->Array.every(s => s.ref->Option.isSome)
+}
+
+let partitionNull = (schemas: array<Schema.t>) => {
+  let nonNull = schemas->Array.filter(s => !isNullType(s))
+  let hasNull = schemas->Array.some(isNullType)
+  (nonNull, hasNull)
+}
+
+let rec jsonSchemaToType = (schema: Schema.t): string => {
+  switch schema.ref {
+  | Some(ref) =>
+    let refName = extractRefName(ref)->Option.getOr("JSON.t")
+    let moduleName = toModuleName(refName)
+    `${moduleName}.t`
+  | None =>
+    if schema.nullable == Some(true) {
+      let withoutNullable: Schema.t = {...schema, nullable: ?None}
+      `option<${jsonSchemaToType(withoutNullable)}>`
+    } else {
+      switch schema.anyOf {
+      | Some(anyOf) => handleAnyOfType(anyOf)
+      | None =>
+        switch schema.oneOf {
+        | Some(oneOf) if oneOf->Array.length == 1 =>
+          oneOf[0]->Option.flatMap(definitionToSchema)->Option.mapOr("JSON.t", jsonSchemaToType)
+        | Some(_) => "JSON.t"
+        | None =>
+          switch schema.allOf {
+          | Some(allOf) if allOf->Array.length == 1 =>
+            allOf[0]->Option.flatMap(definitionToSchema)->Option.mapOr("JSON.t", jsonSchemaToType)
+          | Some(_) => "JSON.t"
+          | None =>
+            switch schema.enum {
+            | Some(values) => handleEnumType(values)
+            | None =>
+              switch schema.const {
+              | Some(c) => handleConstType(c)
+              | None => handlePrimitiveType(schema)
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+and handleAnyOfType = (anyOf: array<Schema.definition>) => {
+  let schemas = anyOf->Array.filterMap(definitionToSchema)
+  let (nonNull, hasNull) = partitionNull(schemas)
+
+  let innerType = switch nonNull->Array.length {
+  | 0 => "JSON.t"
+  | 1 => nonNull[0]->Option.mapOr("JSON.t", jsonSchemaToType)
+  | _ =>
+    if allAreRefs(nonNull) {
+      nonNull
+      ->Array.filterMap(s => s.ref->Option.flatMap(extractRefName))
+      ->Array.map(refName => {
+        let moduleName = toModuleName(refName)
+        `#${moduleName}(${moduleName}.t)`
+      })
+      ->Array.join(" | ")
+      ->((variants) => `[${variants}]`)
+    } else if allPrimitivesOfSameType(nonNull) {
+      nonNull[0]->Option.mapOr("JSON.t", jsonSchemaToType)
+    } else {
+      "JSON.t"
+    }
+  }
+
+  if hasNull {
+    `option<${innerType}>`
+  } else {
+    innerType
+  }
+}
+
+and handleEnumType = (values: array<JSON.t>) => {
+  let allStrings = values->Array.every(v => v->JSON.Decode.string->Option.isSome)
+  if allStrings {
+    values
+    ->Array.filterMap(v => v->JSON.Decode.string)
+    ->Array.map(v => `@as("${escapeString(v)}") #${toValidIdentifier(v)}`)
+    ->Array.join(" | ")
+  } else {
+    "JSON.t"
+  }
+}
+
+and handleConstType = (value: JSON.t) => {
+  switch value->JSON.Decode.string {
+  | Some(_) => "string"
+  | None =>
+    switch value->JSON.Decode.float {
+    | Some(_) => "float"
+    | None =>
+      switch value->JSON.Decode.bool {
+      | Some(_) => "bool"
+      | None => "JSON.t"
+      }
+    }
+  }
+}
+
+and handlePrimitiveType = (schema: Schema.t) => {
+  switch getTypeName(schema) {
+  | Some(#string) => "string"
+  | Some(#number) => "float"
+  | Some(#integer) => "int"
+  | Some(#boolean) => "bool"
+  | Some(#null) => "Js.null<unit>"
+  | Some(#array) =>
+    switch schema.items {
+    | Some(items) =>
+      switch Arrayable.classify(items) {
+      | Single(def) => def->definitionToSchema->Option.mapOr("array<JSON.t>", s => `array<${jsonSchemaToType(s)}>`)
+      | Array(_) => "array<JSON.t>"
+      }
+    | None => "array<JSON.t>"
+    }
+  | Some(#object) => generateObjectType(schema)
+  | None => "JSON.t"
+  }
+}
+
+and generateObjectType = (schema: Schema.t) => {
+  switch schema.properties {
+  | None => handleAdditionalProperties(schema.additionalProperties)
+  | Some(props) if props->Dict.toArray->Array.length == 0 => handleAdditionalProperties(schema.additionalProperties)
+  | Some(properties) =>
+    let required = schema.required->Option.getOr([])
+    let fields =
+      properties
+      ->Dict.toArray
+      ->Array.filterMap(((key, def)) => {
+        def->definitionToSchema->Option.map(propSchema => {
+          let isRequired = required->Array.includes(key)
+          let hasDefault = propSchema.default->Option.isSome
+          let isNullable = isNullableSchema(propSchema)
+          let propType = jsonSchemaToType(propSchema)
+          let fieldType = isRequired || hasDefault || isNullable ? propType : `option<${propType}>`
+          `  "${key}": ${fieldType}`
+        })
+      })
+      ->Array.join(",\n")
+    `{\n${fields},\n}`
+  }
+}
+
+and handleAdditionalProperties = (ap: option<Schema.definition>) => {
+  switch ap {
+  | Some(Schema(s)) => `dict<${jsonSchemaToType(s)}>`
+  | _ => "unit"
+  }
+}
+
+let rec jsonSchemaToRescript = (schema: Schema.t): string => {
+  switch schema.ref {
+  | Some(ref) =>
+    let refName = extractRefName(ref)->Option.getOr("JSON.t")
+    let moduleName = toModuleName(refName)
+    `${moduleName}.schema`
+  | None =>
+    if schema.nullable == Some(true) {
+      let withoutNullable: Schema.t = {...schema, nullable: ?None}
+      `S.null(${jsonSchemaToRescript(withoutNullable)})`
+    } else {
+      switch schema.anyOf {
+      | Some(anyOf) => handleAnyOfSchema(anyOf)
+      | None =>
+        switch schema.oneOf {
+        | Some(oneOf) => handleOneOfSchema(oneOf)
+        | None =>
+          switch schema.allOf {
+          | Some(allOf) if allOf->Array.length == 1 =>
+            allOf[0]->Option.flatMap(definitionToSchema)->Option.mapOr("S.json", jsonSchemaToRescript)
+          | Some(_) => "S.json"
+          | None =>
+            switch schema.enum {
+            | Some(values) => handleEnumSchema(values)
+            | None =>
+              switch schema.const {
+              | Some(c) => handleConstSchema(c)
+              | None => handlePrimitiveSchema(schema)
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+and handleAnyOfSchema = (anyOf: array<Schema.definition>) => {
+  let schemas = anyOf->Array.filterMap(definitionToSchema)
+  let (nonNull, hasNull) = partitionNull(schemas)
+
+  let innerSchema = switch nonNull->Array.length {
+  | 0 => "S.json"
+  | 1 => nonNull[0]->Option.mapOr("S.json", jsonSchemaToRescript)
+  | _ =>
+    if allAreRefs(nonNull) {
+      let variants = nonNull
+        ->Array.filterMap(s => s.ref->Option.flatMap(extractRefName))
+        ->Array.map(refName => {
+          let moduleName = toModuleName(refName)
+          `S.schema(s => #${moduleName}(s.tag("${refName}", ${moduleName}.schema)))`
+        })
+        ->Array.join(", ")
+      `S.union([${variants}])`
+    } else if allPrimitivesOfSameType(nonNull) {
+      let schemaStrs = nonNull->Array.map(jsonSchemaToRescript)->Array.join(", ")
+      `S.union([${schemaStrs}])`
+    } else {
+      "S.json"
+    }
+  }
+
+  if hasNull {
+    `S.null(${innerSchema})`
+  } else {
+    innerSchema
+  }
+}
+
+and handleOneOfSchema = (oneOf: array<Schema.definition>) => {
+  let schemas = oneOf->Array.filterMap(definitionToSchema)
+  switch schemas->Array.length {
+  | 1 => schemas[0]->Option.mapOr("S.json", jsonSchemaToRescript)
+  | _ =>
+    if allPrimitivesOfSameType(schemas) {
+      let schemaStrs = schemas->Array.map(jsonSchemaToRescript)->Array.join(", ")
+      `S.union([${schemaStrs}])`
+    } else {
+      "S.json"
+    }
+  }
+}
+
+and handleEnumSchema = (values: array<JSON.t>) => {
+  let allStrings = values->Array.every(v => v->JSON.Decode.string->Option.isSome)
+  if allStrings {
+    let literals =
+      values
+      ->Array.filterMap(v => v->JSON.Decode.string)
+      ->Array.map(v => `S.literal("${escapeString(v)}")`)
+      ->Array.join(", ")
+    `S.union([${literals}])`
+  } else {
+    let literals =
+      values
+      ->Array.map(v => {
+        switch v->JSON.Decode.string {
+        | Some(s) => `S.literal("${escapeString(s)}")`
+        | None =>
+          switch v->JSON.Decode.float {
+          | Some(n) => `S.literal(${Float.toString(n)})`
+          | None =>
+            switch v->JSON.Decode.bool {
+            | Some(b) => `S.literal(${b ? "true" : "false"})`
+            | None =>
+              if v == JSON.Encode.null {
+                "S.literal(%raw(`null`))"
+              } else {
+                "S.json"
+              }
+            }
+          }
+        }
+      })
+      ->Array.join(", ")
+    `S.union([${literals}])`
+  }
+}
+
+and handleConstSchema = (value: JSON.t) => {
+  switch value->JSON.Decode.string {
+  | Some(s) => `S.literal("${escapeString(s)}")`
+  | None =>
+    switch value->JSON.Decode.float {
+    | Some(n) => `S.literal(${Float.toString(n)})`
+    | None =>
+      switch value->JSON.Decode.bool {
+      | Some(b) => `S.literal(${b ? "true" : "false"})`
+      | None =>
+        if value == JSON.Encode.null {
+          "S.literal(%raw(`null`))"
+        } else {
+          "S.json"
+        }
+      }
+    }
+  }
+}
+
+and handlePrimitiveSchema = (schema: Schema.t) => {
+  switch getTypeName(schema) {
+  | Some(#string) => handleStringSchema(schema)
+  | Some(#number) => handleNumberSchema(schema)
+  | Some(#integer) => handleIntegerSchema(schema)
+  | Some(#boolean) => "S.bool"
+  | Some(#null) => "S.literal(%raw(`null`))"
+  | Some(#array) => handleArraySchema(schema)
+  | Some(#object) => handleObjectSchema(schema)
+  | None => "S.json"
+  }
+}
+
+and handleStringSchema = (schema: Schema.t) => {
+  let result = ref("S.string")
+  switch schema.format {
+  | Some("date-time") => result := result.contents ++ "->S.datetime"
+  | Some("email") => result := result.contents ++ "->S.email"
+  | Some("uri") => result := result.contents ++ "->S.url"
+  | Some("uuid") => result := result.contents ++ "->S.uuid"
+  | _ => ()
+  }
+  switch schema.minLength {
+  | Some(n) => result := result.contents ++ `->S.stringMinLength(${Int.toString(n)})`
+  | None => ()
+  }
+  switch schema.maxLength {
+  | Some(n) => result := result.contents ++ `->S.stringMaxLength(${Int.toString(n)})`
+  | None => ()
+  }
+  switch schema.pattern {
+  | Some(p) => result := result.contents ++ `->S.pattern(%re("/${p}/"))`
+  | None => ()
+  }
+  result.contents
+}
+
+and handleNumberSchema = (schema: Schema.t) => {
+  let result = ref("S.float")
+  switch schema.minimum {
+  | Some(n) => result := result.contents ++ `->S.floatMin(${Float.toString(n)}.)`
+  | None =>
+    switch schema.exclusiveMinimum {
+    | Some(n) =>
+      let adjusted = n +. Float.Constants.epsilon
+      result := result.contents ++ `->S.floatMin(${Float.toString(adjusted)}.)`
+    | None => ()
+    }
+  }
+  switch schema.maximum {
+  | Some(n) => result := result.contents ++ `->S.floatMax(${Float.toString(n)}.)`
+  | None =>
+    switch schema.exclusiveMaximum {
+    | Some(n) =>
+      let adjusted = n -. Float.Constants.epsilon
+      result := result.contents ++ `->S.floatMax(${Float.toString(adjusted)}.)`
+    | None => ()
+    }
+  }
+  result.contents
+}
+
+and handleIntegerSchema = (schema: Schema.t) => {
+  let result = ref("S.int")
+  switch schema.minimum {
+  | Some(n) => result := result.contents ++ `->S.intMin(${Int.toString(Float.toInt(n))})`
+  | None =>
+    switch schema.exclusiveMinimum {
+    | Some(n) => result := result.contents ++ `->S.intMin(${Int.toString(Float.toInt(n) + 1)})`
+    | None => ()
+    }
+  }
+  switch schema.maximum {
+  | Some(n) => result := result.contents ++ `->S.intMax(${Int.toString(Float.toInt(n))})`
+  | None =>
+    switch schema.exclusiveMaximum {
+    | Some(n) => result := result.contents ++ `->S.intMax(${Int.toString(Float.toInt(n) - 1)})`
+    | None => ()
+    }
+  }
+  result.contents
+}
+
+and handleArraySchema = (schema: Schema.t) => {
+  let itemSchema = switch schema.items {
+  | Some(items) =>
+    switch Arrayable.classify(items) {
+    | Single(def) => def->definitionToSchema->Option.mapOr("S.json", jsonSchemaToRescript)
+    | Array(_) => "S.json"
+    }
+  | None => "S.json"
+  }
+  let result = ref(`S.array(${itemSchema})`)
+  switch schema.minItems {
+  | Some(n) => result := result.contents ++ `->S.arrayMinLength(${Int.toString(n)})`
+  | None => ()
+  }
+  switch schema.maxItems {
+  | Some(n) => result := result.contents ++ `->S.arrayMaxLength(${Int.toString(n)})`
+  | None => ()
+  }
+  result.contents
+}
+
+and handleObjectSchema = (schema: Schema.t) => {
+  switch schema.properties {
+  | None => handleAdditionalPropertiesSchema(schema.additionalProperties)
+  | Some(props) if props->Dict.toArray->Array.length == 0 =>
+    handleAdditionalPropertiesSchema(schema.additionalProperties)
+  | Some(properties) =>
+    let required = schema.required->Option.getOr([])
+    let fields =
+      properties
+      ->Dict.toArray
+      ->Array.filterMap(((key, def)) => {
+        def->definitionToSchema->Option.map(propSchema => {
+          let isRequired = required->Array.includes(key)
+          // _tag with default is always treated as required literal
+          let isTagWithDefault = key == "_tag" && propSchema.default->Option.isSome
+          if isRequired || isTagWithDefault {
+            let fieldSchema = if isTagWithDefault {
+              switch propSchema.default {
+              | Some(v) =>
+                switch v->JSON.Decode.string {
+                | Some(s) => `S.literal("${escapeString(s)}")`
+                | None => jsonSchemaToRescript(propSchema)
+                }
+              | None => jsonSchemaToRescript(propSchema)
+              }
+            } else {
+              jsonSchemaToRescript(propSchema)
+            }
+            `    "${key}": s.field("${key}", ${fieldSchema})`
+          } else {
+            let fieldSchema = jsonSchemaToRescript(propSchema)
+            let isNullable = isNullableSchema(propSchema)
+            switch propSchema.default {
+            | Some(defaultValue) =>
+              let defaultStr = defaultValue->JSON.stringify
+              `    "${key}": s.field("${key}", S.option(${fieldSchema})->S.Option.getOr(%raw(\`${defaultStr}\`)))`
+            | None =>
+              if isNullable {
+                `    "${key}": s.field("${key}", ${fieldSchema})`
+              } else {
+                `    "${key}": s.field("${key}", S.option(${fieldSchema}))`
+              }
+            }
+          }
+        })
+      })
+      ->Array.join(",\n")
+
+    let result = `S.object(s =>
+  {
+${fields},
+  }
+)`
+    switch schema.additionalProperties {
+    | Some(Never) => result ++ "->S.strict"
+    | _ => result
+    }
+  }
+}
+
+and handleAdditionalPropertiesSchema = (ap: option<Schema.definition>) => {
+  switch ap {
+  | Some(Schema(s)) => `S.dict(${jsonSchemaToRescript(s)})`
+  | _ => "S.object(_s => ())"
+  }
+}
+
+let generateModule = (name: string, schema: Schema.t): string => {
+  let typeCode = jsonSchemaToType(schema)
+  let schemaCode = jsonSchemaToRescript(schema)
+
+  `// Generated from: ${name}
+module S = Sury
+
+type t = ${typeCode}
+
+let schema: S.t<t> = ${schemaCode}
+`
+}

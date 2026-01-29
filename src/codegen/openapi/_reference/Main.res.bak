@@ -1,0 +1,72 @@
+@val external process: 'a = "process"
+
+module Fs = {
+  @module("fs/promises") external readFile: (string, string) => promise<string> = "readFile"
+  @module("fs/promises") external writeFile: (string, string) => promise<unit> = "writeFile"
+  @module("fs/promises") external mkdir: (string, {..}) => promise<unit> = "mkdir"
+}
+
+module Path = {
+  @module("path") external join: (string, string) => string = "join"
+}
+
+module Schema = JSONSchema
+
+type openApiComponents = {schemas?: dict<Schema.t>}
+type openApi = {components?: openApiComponents}
+
+let config = {
+  "openApiPath": "./openapi.json",
+  "outputDir": "./src/__generated__/rescript-native",
+}
+
+let getSchemas = (json: JSON.t): dict<Schema.t> => {
+  json
+  ->JSON.Decode.object
+  ->Option.flatMap(obj => obj->Dict.get("components"))
+  ->Option.flatMap(JSON.Decode.object)
+  ->Option.flatMap(comp => comp->Dict.get("schemas"))
+  ->Option.flatMap(JSON.Decode.object)
+  ->Option.map(schemas => schemas->Obj.magic)
+  ->Option.getOr(Dict.make())
+}
+
+let main = async () => {
+  Console.log("OpenAPI to ReScript Generator (ReScript)\n")
+
+  let openapiContent = await Fs.readFile(config["openApiPath"], "utf-8")
+  let json = openapiContent->JSON.parseExn
+  let schemas = getSchemas(json)
+  let schemaEntries = schemas->Dict.toArray
+
+  Console.log(`Found ${schemaEntries->Array.length->Int.toString} schemas\n`)
+
+  await Fs.mkdir(config["outputDir"], {"recursive": true})
+
+  let successCount = ref(0)
+  let errorCount = ref(0)
+
+  for i in 0 to schemaEntries->Array.length - 1 {
+    switch schemaEntries[i] {
+    | Some((name, schema)) =>
+      try {
+        let moduleName = CodeGen.toModuleName(name)
+        let content = CodeGen.generateModule(name, schema)
+        let filePath = Path.join(config["outputDir"], `${moduleName}.res`)
+
+        await Fs.writeFile(filePath, content)
+        Console.log(`  + ${moduleName}.res`)
+        successCount := successCount.contents + 1
+      } catch {
+      | JsExn(e) =>
+        Console.error(`  x ${name}: ${JsExn.message(e)->Option.getOr("Unknown error")}`)
+        errorCount := errorCount.contents + 1
+      }
+    | None => ()
+    }
+  }
+
+  Console.log(`\nDone: ${successCount.contents->Int.toString} generated, ${errorCount.contents->Int.toString} errors`)
+}
+
+main()->Promise.done

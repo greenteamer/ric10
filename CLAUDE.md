@@ -16,6 +16,32 @@
 - **VSCode Extension**: TypeScript (`src/extension.ts`)
 - **Target**: IC10 assembly with 16 registers (r0-r15)
 
+## Project Isolation Rules
+
+This repository contains **two independent projects**. They share no code dependencies.
+
+| Project | Path | Purpose |
+|---------|------|---------|
+| IC10 Compiler | `src/compiler/` | ReScript → IC10 assembly |
+| OpenAPI Codegen | `src/codegen/` | JSON Schema → ReScript types |
+
+### Isolation Rules
+
+1. **Never modify both projects in the same task**
+2. **No imports between projects** - `compiler/` and `codegen/` never import each other
+3. **Use as reference only** - read other project for architecture ideas, don't modify
+4. **Separate tests** - each project has its own test suite
+
+### When working on IC10 Compiler (`src/compiler/`)
+- ❌ Do not touch `src/codegen/`
+- ✅ Read `src/codegen/` for reference only
+
+### When working on OpenAPI Codegen (`src/codegen/`)
+- ❌ Do not touch `src/compiler/`
+- ✅ Read `src/compiler/` for reference only
+
+---
+
 ## Working with This Codebase
 
 ### ⚠️ Important Rules
@@ -33,7 +59,8 @@
 ### File Modifications
 
 ✅ **ONLY modify**:
-- ReScript files in `src/compiler/` (*.res)
+- ReScript files in `src/compiler/` (*.res) - IC10 compiler
+- ReScript files in `src/codegen/` (*.res) - OpenAPI codegen
 - Test files in `tests/` (*.test.js)
 - Documentation in `docs/`
 
@@ -53,24 +80,33 @@ Error("[FileName.res][functionName]<-" ++ propagatedMessage)  // For propagated 
 ## Code Structure
 
 ```
-src/compiler/
-├── Compiler.res       # Main compilation orchestrator
-├── Lexer.res          # Tokenization
-├── Parser.res         # AST generation
-├── AST.res           # AST type definitions
-├── Optimizer.res      # AST-level optimizations
-├── CodegenTypes.res   # Shared compiler option types
-├── RegisterAlloc.res  # Register management utilities
-├── StackAlloc.res     # Stack allocation utilities
-└── IR/                # Intermediate representation (IR pipeline)
-    ├── IR.res         # IR type definitions
-    ├── IRGen.res      # AST → IR conversion
-    ├── IRPrint.res    # IR pretty printer
-    ├── IRToIC10.res   # IR → IC10 conversion
-    └── IROptimizer.res # IR-level optimizations
+src/
+├── compiler/              # IC10 Compiler (ReScript → IC10)
+│   ├── Compiler.res       # Main compilation orchestrator
+│   ├── Lexer.res          # Tokenization
+│   ├── Parser.res         # AST generation
+│   ├── AST.res            # AST type definitions
+│   ├── Optimizer.res      # AST-level optimizations
+│   ├── CodegenTypes.res   # Shared compiler option types
+│   ├── RegisterAlloc.res  # Register management utilities
+│   ├── StackAlloc.res     # Stack allocation utilities
+│   └── IR/                # Intermediate representation
+│       ├── IR.res         # IR type definitions
+│       ├── IRGen.res      # AST → IR conversion
+│       ├── IRPrint.res    # IR pretty printer
+│       ├── IRToIC10.res   # IR → IC10 conversion
+│       └── IROptimizer.res # IR-level optimizations
+│
+└── codegen/               # Code Generators (independent projects)
+    └── openapi/           # OpenAPI → ReScript types
+        ├── CLAUDE.md      # Project-specific instructions
+        ├── Schema.res     # JSON Schema AST
+        ├── Parser.res     # JSON → SchemaAST
+        ├── TypeGenerator.res # SchemaAST → ReScript
+        └── Printer.res    # Pretty print .res/.resi
 ```
 
-**Note:** The compiler uses a two-phase IR pipeline exclusively.
+**Note:** `compiler/` and `codegen/` are independent. No shared imports.
 
 ## Key Concepts
 
