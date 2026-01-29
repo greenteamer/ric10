@@ -26,6 +26,7 @@ and schemaType =
   | Ref(string)
   | Enum(array<string>)
   | PolyVariant(array<variantCase>)
+  | Dict(schemaType)
 
 // Helper: check if schema is null type
 let isNullType = (json: JSON.t): bool => {
@@ -145,55 +146,65 @@ and parseAnyOf = (items: array<JSON.t>): result<schemaType, Errors.errors> => {
 
 // Helper: parse object type with properties
 and parseObjectType = (dict: Dict.t<JSON.t>): result<schemaType, Errors.errors> => {
-  // Get required fields array
-  let requiredFields = switch dict->Dict.get("required") {
-  | Some(Array(arr)) =>
-    arr->Array.filterMap(item =>
-      switch item {
-      | String(s) => Some(s)
-      | _ => None
-      }
-    )
-  | _ => []
-  }
-
-  // Get properties
-  switch dict->Dict.get("properties") {
-  | Some(Object(propsDict)) =>
-    let entries = propsDict->Dict.toArray
-    let results = entries->Array.map(((name, propSchema)) => {
-      switch parseSchema(propSchema) {
-      | Ok(propType) =>
-        Ok({
-          name,
-          type_: propType,
-          required: requiredFields->Array.includes(name),
-        })
-      | Error(e) => Error(e)
-      }
-    })
-
-    // Collect all errors or all successes
-    let errors = results->Array.filterMap(r =>
-      switch r {
-      | Error(e) => Some(e)
-      | Ok(_) => None
-      }
-    )->Array.flat
-
-    if Array.length(errors) > 0 {
-      Error(errors)
-    } else {
-      let fields = results->Array.filterMap(r =>
-        switch r {
-        | Ok(f) => Some(f)
-        | Error(_) => None
+  // Check for additionalProperties first (Dict type)
+  switch dict->Dict.get("additionalProperties") {
+  | Some(Object(_) as valueSchema) =>
+    switch parseSchema(valueSchema) {
+    | Ok(valueType) => Ok(Dict(valueType))
+    | Error(e) => Error(e)
+    }
+  | Some(Boolean(true)) =>
+    // additionalProperties: true means any value
+    Ok(Dict(String))  // Default to string, could be Any type
+  | _ =>
+    // No additionalProperties, parse as regular object with properties
+    let requiredFields = switch dict->Dict.get("required") {
+    | Some(Array(arr)) =>
+      arr->Array.filterMap(item =>
+        switch item {
+        | String(s) => Some(s)
+        | _ => None
         }
       )
-      Ok(Object(fields))
+    | _ => []
     }
-  | Some(_) => Error([Errors.makeError(~kind=InvalidJson("properties must be an object"), ())])
-  | None => Ok(Object([]))  // Empty object
+
+    switch dict->Dict.get("properties") {
+    | Some(Object(propsDict)) =>
+      let entries = propsDict->Dict.toArray
+      let results = entries->Array.map(((name, propSchema)) => {
+        switch parseSchema(propSchema) {
+        | Ok(propType) =>
+          Ok({
+            name,
+            type_: propType,
+            required: requiredFields->Array.includes(name),
+          })
+        | Error(e) => Error(e)
+        }
+      })
+
+      let errors = results->Array.filterMap(r =>
+        switch r {
+        | Error(e) => Some(e)
+        | Ok(_) => None
+        }
+      )->Array.flat
+
+      if Array.length(errors) > 0 {
+        Error(errors)
+      } else {
+        let fields = results->Array.filterMap(r =>
+          switch r {
+          | Ok(f) => Some(f)
+          | Error(_) => None
+          }
+        )
+        Ok(Object(fields))
+      }
+    | Some(_) => Error([Errors.makeError(~kind=InvalidJson("properties must be an object"), ())])
+    | None => Ok(Object([]))
+    }
   }
 }
 
