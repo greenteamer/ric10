@@ -14,11 +14,121 @@ function readme(projectName) {
   return "# " + projectName + "\n\nIC10 assembly project using ReScript\n\n## Quick Start\n\n1. Install dependencies:\n   ```bash\n   npm install\n   ```\n\n2. Compile Example.res to IC10:\n   ```bash\n   ric10 src/Example.res\n   # Creates src/Example.ic10\n   ```\n\n3. Watch mode (auto-compile on changes):\n   ```bash\n   npm run dev\n   ```\n\n## Project Structure\n\n- `src/IC10.res` - IC10 bindings (device functions)\n- `src/Example.res` - Example code (edit this!)\n- `rescript.json` - ReScript compiler config\n\n## Available IC10 Functions\n\n- `device(ref)` - Create device reference\n- `l(device, property)` - Load from device\n- `s(device, property, value)` - Store to device\n- `lb/lbn` - Batch load operations\n- `sb/sbn` - Batch store operations\n- `hash(string)` - Generate hash constant\n\n## IC10 Property Constants\n\nUse `Property.temperature`, `Property.pressure`, `Property.on`, etc.\n\nSee `src/IC10.res` for full API documentation.\n\n## Resources\n\n- [Stationeers IC10 Documentation](https://stationeers-wiki.com/IC10)\n- [ReScript Documentation](https://rescript-lang.org)\n";
 }
 
-var ic10Bindings = "// IC10.res - ReScript bindings for IC10 assembly instructions\n// These are stub implementations that exist purely for type checking.\n// The actual compiler recognizes these function names and generates IC10 assembly instead.\n\n// Device references (d0-d5, db)\ntype device = int\n\n// Bulk operation modes for lb/lbn operations\nmodule Mode = {\n  // String constants for bulk operations\n  let maximum = \"Maximum\"\n  let minimum = \"Minimum\"\n  let average = \"Average\"\n  let sum = \"Sum\"\n}\n\n// Device reference - creates a device reference from a device string\n// Examples:\n//   let furnace = device(\"d0\")   // Device pin 0\n//   let pump = device(\"d1\")      // Device pin 1\n//   let housing = device(\"db\")   // Database device\n//   let sensor = device(\"d2\")    // Device pin 2\n//\n// Use descriptive variable names for better code clarity:\n//   let mainFurnace = device(\"d0\")\n//   let backupFurnace = device(\"d1\")\n//   let tempSensor = device(\"d2\")\nlet device = (_deviceRef: string): device => {\n  0\n}\n\n// Load operations - read from devices\n// l r0 d0 Temperature\nlet l = (_device: device, _property: string): int => {\n  0\n}\n\n// lb r0 typeHash Temperature Maximum\n// typeHash should be a variable from hash(\"StructureTank\")\nlet lb = (_typeHash: string, _property: string, _mode: string): int => {\n  0\n}\n\n// lbn r0 typeHash nameHash Property Mode\n// typeHash and nameHash should be variables from hash()\nlet lbn = (_typeHash: string, _nameHash: string, _property: string, _mode: string): int => {\n  0\n}\n\n// Store operations - write to devices\n// s d0 Setting 1\nlet s = (_device: device, _property: string, _value: int): unit => {\n  () // Stub - never executed\n}\n\n// sb typeHash Setting 1\n// typeHash should be a variable from hash(\"StructureTank\")\nlet sb = (_typeHash: string, _property: string, _value: int): unit => {\n  ()\n}\n\n// sbn typeHash nameHash Property Value\n// typeHash and nameHash should be variables from hash()\nlet sbn = (_typeHash: string, _nameHash: string, _property: string, _value: int): unit => {\n  ()\n}\n\n// hash(\"StructureTank\") -> defines a hash constant\n// Usage: let typeHash = hash(\"StructureTank\")\nlet hash = (_string: string): string => {\n  \"\" // Returns the variable name (compiler recognizes this)\n}\n\n// Common IC10 properties for convenience and documentation\nmodule Property = {\n  // Environmental\n  let temperature = \"Temperature\"\n  let pressure = \"Pressure\"\n  let volume = \"Volume\"\n\n  // Power\n  let setting = \"Setting\"\n  let on = \"On\"\n  let power = \"Power\"\n  let mode = \"Mode\"\n\n  // Logic\n  let activate = \"Activate\"\n  let open_ = \"Open\" // 'open' is reserved keyword\n  let lock = \"Lock\"\n}\n";
+let ic10Bindings = `// IC10.res - ReScript bindings for IC10 assembly instructions
+// These are stub implementations that exist purely for type checking.
+// The actual compiler recognizes these function names and generates IC10 assembly instead.
 
-var exampleCode = "let furnace = device(\"d0\")\nlet sensor = device(\"d1\")\n\nwhile true {\n  let temp = l(sensor, \"Temperature\")\n\n  if temp < 500 {\n    s(furnace, \"On\", 1)\n  } else {\n    s(furnace, \"On\", 0)\n  }\n\n  %raw(\"yield\")\n}\n";
+// Device references (d0-d5, db)
+type device = int
 
-var gitignore = "node_modules/\nlib/\n*.js\n*.js.map\n!.gitkeep\n";
+// Bulk operation modes for lb/lbn operations
+module Mode = {
+  // String constants for bulk operations
+  let maximum = "Maximum"
+  let minimum = "Minimum"
+  let average = "Average"
+  let sum = "Sum"
+}
+
+// Device reference - creates a device reference from a device string
+// Examples:
+//   let furnace = device("d0")   // Device pin 0
+//   let pump = device("d1")      // Device pin 1
+//   let housing = device("db")   // Database device
+//   let sensor = device("d2")    // Device pin 2
+//
+// Use descriptive variable names for better code clarity:
+//   let mainFurnace = device("d0")
+//   let backupFurnace = device("d1")
+//   let tempSensor = device("d2")
+let device = (_deviceRef: string): device => {
+  0
+}
+
+// Load operations - read from devices
+// l r0 d0 Temperature
+let l = (_device: device, _property: string): int => {
+  0
+}
+
+// lb r0 typeHash Temperature Maximum
+// typeHash should be a variable from hash("StructureTank")
+let lb = (_typeHash: string, _property: string, _mode: string): int => {
+  0
+}
+
+// lbn r0 typeHash nameHash Property Mode
+// typeHash and nameHash should be variables from hash()
+let lbn = (_typeHash: string, _nameHash: string, _property: string, _mode: string): int => {
+  0
+}
+
+// Store operations - write to devices
+// s d0 Setting 1
+let s = (_device: device, _property: string, _value: int): unit => {
+  () // Stub - never executed
+}
+
+// sb typeHash Setting 1
+// typeHash should be a variable from hash("StructureTank")
+let sb = (_typeHash: string, _property: string, _value: int): unit => {
+  ()
+}
+
+// sbn typeHash nameHash Property Value
+// typeHash and nameHash should be variables from hash()
+let sbn = (_typeHash: string, _nameHash: string, _property: string, _value: int): unit => {
+  ()
+}
+
+// hash("StructureTank") -> defines a hash constant
+// Usage: let typeHash = hash("StructureTank")
+let hash = (_string: string): string => {
+  "" // Returns the variable name (compiler recognizes this)
+}
+
+// Common IC10 properties for convenience and documentation
+module Property = {
+  // Environmental
+  let temperature = "Temperature"
+  let pressure = "Pressure"
+  let volume = "Volume"
+
+  // Power
+  let setting = "Setting"
+  let on = "On"
+  let power = "Power"
+  let mode = "Mode"
+
+  // Logic
+  let activate = "Activate"
+  let open_ = "Open" // 'open' is reserved keyword
+  let lock = "Lock"
+}
+`;
+
+let exampleCode = `let furnace = device("d0")
+let sensor = device("d1")
+
+while true {
+  let temp = l(sensor, "Temperature")
+
+  if temp < 500 {
+    s(furnace, "On", 1)
+  } else {
+    s(furnace, "On", 0)
+  }
+
+  %raw("yield")
+}
+`;
+
+let gitignore = `node_modules/
+lib/
+*.js
+*.js.map
+!.gitkeep
+`;
 
 exports.ic10Bindings = ic10Bindings;
 exports.exampleCode = exampleCode;

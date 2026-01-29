@@ -17,8 +17,9 @@
     }
   ],
   "suffix": ".res.js",
-  "bs-dependencies": ["@rescript/core"],
-  "bsc-flags": ["-open RescriptCore", "-open IC10"],
+  "dependencies": ["@rescript/core", "sury"],
+  "compiler-flags": ["-open RescriptCore", "-open IC10"],
+  "ppx-flags": ["sury-ppx/bin"],
   "gentypeconfig": {
     "language": "typescript",
     "shims": {},

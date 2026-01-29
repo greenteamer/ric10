@@ -59,14 +59,14 @@ and generatePolyVariant = (cases: array<Schema.variantCase>): string => {
 }
 
 // Generate type definition from named schema
-let generateTypeDef = (namedSchema: OpenAPI.namedSchema): string => {
+let generateTypeDef = (namedSchema: OpenAPIParser.namedSchema): string => {
   let typeName = lcFirst(namedSchema.name)
   let typeBody = generateType(namedSchema.schema)
   `type ${typeName} = ${typeBody}`
 }
 
 // Generate full module from array of schemas
-let generateModule = (schemas: array<OpenAPI.namedSchema>): string => {
+let generateModule = (schemas: array<OpenAPIParser.namedSchema>): string => {
   let typeDefs = schemas->Array.map(generateTypeDef)
   typeDefs->Array.join("\n\n")
 }
