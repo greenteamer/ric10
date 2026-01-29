@@ -16,6 +16,7 @@ and schemaType =
   | @as("Null") Null
   | Optional(schemaType)
   | Object(array<field>)
+  | Array(schemaType)
 
 // Helper: check if schema is null type
 let isNullType = (json: JSON.t): bool => {
@@ -46,9 +47,23 @@ and parsePrimitiveType = (dict: Dict.t<JSON.t>): result<schemaType, Errors.error
   | Some(String("boolean")) => Ok(Boolean)
   | Some(String("null")) => Ok(Null)
   | Some(String("object")) => parseObjectType(dict)
+  | Some(String("array")) => parseArrayType(dict)
   | Some(String(unknown)) => Error([Errors.unknownType(~value=unknown, ())])
   | Some(_) => Error([Errors.makeError(~kind=InvalidJson("type must be a string"), ())])
   | None => Error([Errors.missingField(~field="type", ())])
+  }
+}
+
+// Helper: parse array type
+and parseArrayType = (dict: Dict.t<JSON.t>): result<schemaType, Errors.errors> => {
+  switch dict->Dict.get("items") {
+  | Some(itemSchema) =>
+    switch parseSchema(itemSchema) {
+    | Ok(itemType) => Ok(Array(itemType))
+    | Error(e) => Error(e)
+    }
+  | None =>
+    Error([Errors.missingField(~field="items", ~hint=Some("array type requires items schema"), ())])
   }
 }
 
