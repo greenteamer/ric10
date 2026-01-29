@@ -12,9 +12,9 @@
     "README.md"
   ],
   "scripts": {
-    "res:clean": "./node_modules/.bin/rescript clean",
-    "res:build": "./node_modules/.bin/rescript",
-    "res:dev": "./node_modules/.bin/rescript -w",
+    "res:clean": "rescript clean",
+    "res:build": "rescript",
+    "res:dev": "rescript watch",
     "compile": "node scripts/compile.res.js",
     "test": "jest",
     "build:bundle": "npm run build:compile && npm run build:init",
