@@ -38,6 +38,11 @@ to type-check against the new bindings (see "Breaking changes").
   game via ic10lsp) is test data: every emitted opcode is checked against it and the
   emulator rejects anything outside it. `ld`, `sd`, `clr`, `poke` and `lerp` are no longer
   game instructions and are not emitted.
+- Labeled function parameters and arguments (`(~weight, x) => ...`, `f(~weight=2., x)`).
+- Stdlib coverage: `Math.pow`, `log10`, `log2`, `cbrt`, `sign`, `hypot`, `Float.clamp`,
+  `Int.clamp`, `Float.mod`, `Int.mod`, `Float.isNaN`, `Float.equal`, `Int.bitwise*`,
+  `Int.shift*`, `Math.Constants.pi/e`; game bindings `approx`, `approxZero`, `hcf`.
+- Conditions on `isSet`, `Float.isNaN`, `approx` compile to `bdse`/`bdns`/`bnan`/`bap`/`bna`.
 - Diagnostics with line and column, hints, warnings for >128 lines and long lines.
 - CLI: `-o`, `--stdout`, `--debug`, exit code 1 on errors.
 - Test suite: IC10 emulator, differential tests against the real ReScript compiler,

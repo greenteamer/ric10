@@ -143,6 +143,36 @@ describe("math builtins", () => {
     ["Int.toFloat(3)", 3],
     ["select(true, 1, 2)", 1],
     ["lerp(10., 20., 0.25)", 12.5],
+    ["Math.pow(2., ~exp=10.)", 1024],
+    ["Math.Int.pow(3, ~exp=3)", 27],
+    ["Math.log10(1000.)", 3],
+    ["Math.log2(8.)", 3],
+    ["Math.cbrt(27.)", 3],
+    ["Math.cbrt(-8.)", -2],
+    ["Math.sign(-7.)", -1],
+    ["Math.sign(0.)", 0],
+    ["Math.hypot(3., 4.)", 5],
+    ["Float.clamp(~min=0., ~max=1., 2.5)", 1],
+    ["Float.clamp(~min=0., -2.5)", 0],
+    ["Float.clamp(~max=1., -2.5)", -2.5],
+    ["Int.clamp(~min=0, ~max=5, 7)", 5],
+    ["Float.mod(7.5, 2.)", 1.5],
+    ["Int.mod(7, 3)", 1],
+    ["mod(7, 3)", 1],
+    ["Float.isNaN(1.)", 0],
+    ["Float.isNaN(0. /. 0.)", 1],
+    ["Float.equal(1.5, 1.5)", 1],
+    ["Int.bitwiseAnd(12, 10)", 8],
+    ["Int.bitwiseOr(12, 10)", 14],
+    ["Int.bitwiseXor(12, 10)", 6],
+    ["Int.bitwiseNot(0)", -1],
+    ["Int.shiftLeft(1, 4)", 16],
+    ["Int.shiftRight(-16, 2)", -4],
+    ["land(12, 10)", 8],
+    ["Math.Constants.pi", Math.PI],
+    ["approx(1., 1.0000001, 1e-6)", 1],
+    ["approx(1., 1.1, 1e-6)", 0],
+    ["approxZero(0., 1e-9)", 1],
   ])("%s = %p", (expr, expected) => {
     expect(evaluate(expr)).toBeCloseTo(expected, 10);
   });
@@ -153,6 +183,18 @@ describe("math builtins", () => {
     expect(evaluate("Math.sqrt(x *. 8.)", prelude, devices)).toBe(4);
     expect(evaluate("Math.atan2(x, x)", prelude, devices)).toBeCloseTo(Math.PI / 4, 10);
     expect(evaluate("x->Math.max(5.)", prelude, devices)).toBe(5);
+  });
+});
+
+describe("labeled arguments to builtins", () => {
+  test("unknown label", () => {
+    expect(compileError(`let x = Math.sqrt(~foo=1.)`)).toMatch(/has no labeled argument ~foo/);
+  });
+  test("pow without ~exp", () => {
+    expect(compileError(`let x = Math.pow(2.)`)).toMatch(/needs ~exp/);
+  });
+  test("labels outside calls", () => {
+    expect(compileError(`let x = ~a`)).toMatch(/unexpected/);
   });
 });
 

@@ -123,6 +123,19 @@ let print = (ir: IR.t, ~reg: IR.vreg => string): array<string> => {
       } else {
         Some(`b${cmpSuffix(c)} ${op(a)} ${op(b)} ${l}`)
       }
+    | BranchIf(opcode, args, l) =>
+      let parts = [opcode]
+      args->Array.forEach(a =>
+        parts->Array.push(
+          switch a {
+          | AOp(o) => op(o)
+          | ATok(t) => t
+          | ADev(p) => p
+          },
+        )
+      )
+      parts->Array.push(l)
+      Some(parts->Array.join(" "))
     | Call(l) => Some(`jal ${l}`)
     | Return => Some("j ra")
     | ReturnVia(v) => Some(`j ${reg(v)}`)

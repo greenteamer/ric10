@@ -353,17 +353,38 @@ and parsePrefix = (p): expr => {
   }
 }
 
+// One call argument: `expr`, `~name=expr`, or the pun `~name`
+and parseArg = (p, ~fn): expr => {
+  if isOp(p, "~") {
+    let l = loc(p)
+    bump(p)
+    let name = expectIdent(p, ~fn)
+    if isOp(p, "?") {
+      fail(p, ~fn, "optional argument passing (~name?) is not supported")
+    }
+    let value = if isOp(p, "=") {
+      bump(p)
+      parseExpr(p)
+    } else {
+      mk(Ident(name), l)
+    }
+    mk(Labeled(name, value), l)
+  } else {
+    parseExpr(p)
+  }
+}
+
 and parseArgs = (p, ~fn): array<expr> => {
   expectOp(p, ~fn, "(")
   let args = []
   if isOp(p, ")") {
     bump(p)
   } else {
-    args->Array.push(parseExpr(p))
+    args->Array.push(parseArg(p, ~fn))
     while isOp(p, ",") {
       bump(p)
       if !isOp(p, ")") {
-        args->Array.push(parseExpr(p))
+        args->Array.push(parseArg(p, ~fn))
       }
     }
     expectOp(p, ~fn, ")")
@@ -448,14 +469,20 @@ and parseLambda = (p): expr => {
   let params = []
   switch tok(p) {
   | Ident(name) =>
-    params->Array.push({pname: name, ptype: None, paramLoc: loc(p)})
+    params->Array.push({pname: name, ptype: None, labeled: false, paramLoc: loc(p)})
     bump(p)
   | _ =>
     expectOp(p, ~fn, "(")
     let parseParam = () => {
       let paramLoc = loc(p)
+      let labeled = if isOp(p, "~") {
+        bump(p)
+        true
+      } else {
+        false
+      }
       switch tok(p) {
-      | Op(")") => ()
+      | Op(")") if !labeled => ()
       | Ident(name) =>
         bump(p)
         let ptype = if isOp(p, ":") {
@@ -464,8 +491,13 @@ and parseLambda = (p): expr => {
         } else {
           None
         }
-        params->Array.push({pname: name, ptype, paramLoc})
-      | Op("~") => fail(p, ~fn, "labeled arguments are not supported")
+        if isOp(p, "=") {
+          fail(p, ~fn, "default parameter values are not supported")
+        }
+        if isOp(p, "?") {
+          fail(p, ~fn, "optional parameters are not supported")
+        }
+        params->Array.push({pname: name, ptype, labeled, paramLoc})
       | other => fail(p, ~fn, `expected a parameter name but found ${describe(other)}`)
       }
     }

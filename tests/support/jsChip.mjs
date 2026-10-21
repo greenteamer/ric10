@@ -93,6 +93,15 @@ export class JsChip {
   getd(id, a) { return this.idStack(id)[a]; }
   putd(id, a, v) { this.idStack(id)[a] = num(v); }
 
+  hcf() {
+    throw new StopSimulation();
+  }
+  approx(a, b, c) {
+    return Math.abs(a - b) <= Math.max(c * Math.max(Math.abs(a), Math.abs(b)), 1.401298e-45 * 8);
+  }
+  approxZero(a, c) {
+    return Math.abs(a) <= Math.max(c * Math.abs(a), 1.401298e-45 * 8);
+  }
   yield() {
     this.ticks++;
     if (this.ticks >= this.maxTicks) throw new StopSimulation();

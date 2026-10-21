@@ -236,6 +236,10 @@ export class IC10 {
       if (cond) next = this.target(a[ti], ins);
     };
     const cmp = { lt: (x, y) => x < y, gt: (x, y) => x > y, le: (x, y) => x <= y, ge: (x, y) => x >= y, eq: (x, y) => x === y, ne: (x, y) => x !== y };
+    // approximate equality as the game defines it (C# float.Epsilon * 8)
+    const EPS8 = 1.401298e-45 * 8;
+    const ap = (x, y, c) => Math.abs(x - y) <= Math.max(c * Math.max(Math.abs(x), Math.abs(y)), EPS8);
+    const apz = (x, c) => Math.abs(x) <= Math.max(c * Math.abs(x), EPS8);
     let m;
     if ((m = /^s(lt|gt|le|ge|eq|ne)(z?)$/.exec(ins.op))) {
       out(cmp[m[1]](v(1), m[2] ? 0 : v(2)) ? 1 : 0);
@@ -243,6 +247,16 @@ export class IC10 {
       const ok = cmp[m[1]](v(0), m[2] ? 0 : v(1));
       if (ok && m[3]) this.regs[17] = this.pc + 1;
       jump(ok, m[2] ? 1 : 2);
+    } else if ((m = /^b(ap|na)(z?)(al)?$/.exec(ins.op))) {
+      const ok = m[2] ? apz(v(0), v(1)) : ap(v(0), v(1), v(2));
+      const take = m[1] === "ap" ? ok : !ok;
+      if (take && m[3]) this.regs[17] = this.pc + 1;
+      jump(take, m[2] ? 2 : 3);
+    } else if ((m = /^b(dse|dns)(al)?$/.exec(ins.op))) {
+      const set = this.devices[this.pin(a[0], ins)] !== undefined || this.pin(a[0], ins) === "db";
+      const take = m[1] === "dse" ? set : !set;
+      if (take && m[2]) this.regs[17] = this.pc + 1;
+      jump(take, 1);
     } else {
       switch (ins.op) {
         case "define": break;
@@ -274,12 +288,20 @@ export class IC10 {
         case "and": out(fromLong(toLong(v(1)) & toLong(v(2)))); break;
         case "or": out(fromLong(toLong(v(1)) | toLong(v(2)))); break;
         case "xor": out(fromLong(toLong(v(1)) ^ toLong(v(2)))); break;
-        case "nor": out(fromLong(~(toLong(v(1)) | toLong(v(2))))); break;
         case "not": out(fromLong(~toLong(v(1)))); break;
         case "sll": case "sla": out(fromLong(toLong(v(1)) << BigInt(v(2)))); break;
         case "sra": out(fromLong(toLong(v(1)) >> BigInt(v(2)))); break;
         case "srl": out(fromLong(BigInt.asUintN(64, toLong(v(1))) >> BigInt(v(2)))); break;
         case "select": out(v(1) !== 0 ? v(2) : v(3)); break;
+        case "sap": out(ap(v(1), v(2), v(3)) ? 1 : 0); break;
+        case "sna": out(ap(v(1), v(2), v(3)) ? 0 : 1); break;
+        case "sapz": out(apz(v(1), v(2)) ? 1 : 0); break;
+        case "snaz": out(apz(v(1), v(2)) ? 0 : 1); break;
+        case "snan": out(Number.isNaN(v(1)) ? 1 : 0); break;
+        case "snanz": out(Number.isNaN(v(1)) ? 0 : 1); break;
+        case "bnan": jump(Number.isNaN(v(0)), 1); break;
+        case "brnan": if (Number.isNaN(v(0))) next = this.pc + v(1); break;
+        case "nor": out(fromLong(~(toLong(v(1)) | toLong(v(2))))); break;
         case "j": next = this.target(a[0], ins); break;
         case "jal": this.regs[17] = this.pc + 1; next = this.target(a[0], ins); break;
         case "jr": next = this.pc + v(0); break;
@@ -329,7 +351,7 @@ export class IC10 {
         case "sdns": out(this.devices[this.pin(a[1], ins)] ? 0 : 1); break;
         case "yield": this.pc = next; return "yield";
         case "sleep": this.pc = next; this.ticks += Math.max(0, Math.ceil(v(0) / 0.5) - 1); return "yield";
-        case "hcf": this.fail(ins, "hcf");
+        case "hcf": this.halted = true; return "halt";
         default: this.fail(ins, `unknown instruction '${ins.op}'`);
       }
     }

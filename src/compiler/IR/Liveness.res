@@ -78,7 +78,8 @@ let analyze = (ir: IR.t): t => {
         let next = idx + 1 < stop ? liveIn->Array.getUnsafe(idx + 1) : IntSet.empty
         let out = switch instr {
         | Goto(l) => liveIn->Array.getUnsafe(target(l, ~fn="solveBlock"))
-        | Branch(_, _, _, l) => IntSet.union(next, liveIn->Array.getUnsafe(target(l, ~fn="solveBlock")))
+        | Branch(_, _, _, l) | BranchIf(_, _, l) =>
+          IntSet.union(next, liveIn->Array.getUnsafe(target(l, ~fn="solveBlock")))
         | Return | ReturnVia(_) => exitSet
         | _ => next
         }

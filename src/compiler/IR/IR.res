@@ -79,6 +79,7 @@ type instr =
   | Label(string)
   | Goto(string)
   | Branch(cmpOp, operand, operand, string) // blt/bgt/... (bXXz when rhs is 0)
+  | BranchIf(string, array<arg>, string) // other conditional jumps: bdse/bdns/bnan/bap/bna ... label
   | Call(string) // jal
   | Return // j ra
   | ReturnVia(vreg) // j rX (ra saved in a register by non-leaf functions)
@@ -114,6 +115,13 @@ let deviceVRegs = (d: device): array<vreg> =>
 let uses = (i: instr): array<vreg> =>
   switch i {
   | DefNum(_) | DefHash(_) | Label(_) | Goto(_) | Call(_) | Return | Raw(_) => []
+  | BranchIf(_, args, _) =>
+    args->Array.flatMap(a =>
+      switch a {
+      | AOp(op) => operandVRegs(op)
+      | ATok(_) | ADev(_) => []
+      }
+    )
   | Move(_, a) | Unary(_, _, a) => operandVRegs(a)
   | Binary(_, _, a, b) | Compare(_, _, a, b) | Branch(_, a, b, _) =>
     Array.concat(operandVRegs(a), operandVRegs(b))
@@ -146,6 +154,7 @@ let def = (i: instr): option<vreg> =>
   | Label(_)
   | Goto(_)
   | Branch(_)
+  | BranchIf(_)
   | Call(_)
   | Return
   | ReturnVia(_)
@@ -165,6 +174,7 @@ let isPure = (i: instr): bool =>
   | Label(_)
   | Goto(_)
   | Branch(_)
+  | BranchIf(_)
   | Call(_)
   | Return
   | ReturnVia(_)
@@ -181,7 +191,7 @@ let isTerminator = (i: instr): bool =>
 
 let branchTarget = (i: instr): option<string> =>
   switch i {
-  | Goto(l) | Branch(_, _, _, l) => Some(l)
+  | Goto(l) | Branch(_, _, _, l) | BranchIf(_, _, l) => Some(l)
   | _ => None
   }
 
@@ -220,6 +230,17 @@ let mapUses = (i: instr, f: operand => operand): instr => {
   | Compare(d, op, a, b) => Compare(d, op, f(a), f(b))
   | Select(d, c, a, b) => Select(d, f(c), f(a), f(b))
   | Branch(op, a, b, l) => Branch(op, f(a), f(b), l)
+  | BranchIf(op, args, l) =>
+    BranchIf(
+      op,
+      args->Array.map(a =>
+        switch a {
+        | AOp(o) => AOp(f(o))
+        | ATok(_) | ADev(_) => a
+        }
+      ),
+      l,
+    )
   | DeviceLoad(d, dev, p, m) => DeviceLoad(d, mapDev(dev), p, m)
   | DeviceStore(dev, p, v) => DeviceStore(mapDev(dev), p, f(v))
   | Native(op, d, args, se) =>
@@ -254,6 +275,7 @@ let mapDef = (i: instr, d: vreg): instr =>
   | Label(_)
   | Goto(_)
   | Branch(_)
+  | BranchIf(_)
   | Call(_)
   | Return
   | ReturnVia(_)

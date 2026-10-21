@@ -207,7 +207,7 @@ let rec astSize = (e: expr): int =>
   switch e.desc {
   | Number(_) | Bool(_) | String(_) | Unit | Ident(_) | Raw(_) => 1
   | Constructor(_, args) | Call(_, args) => 1 + args->Array.reduce(0, (acc, a) => acc + astSize(a))
-  | Unary(_, a) | Deref(a) | Fun(_, a) => 1 + astSize(a)
+  | Unary(_, a) | Deref(a) | Fun(_, a) | Labeled(_, a) => 1 + astSize(a)
   | Binary(_, a, b) | Assign(a, b) | While(a, b) => 1 + astSize(a) + astSize(b)
   | If(c, t, el) => 1 + astSize(c) + astSize(t) + el->Option.mapOr(0, astSize)
   | For(_, a, b, _, c) => 1 + astSize(a) + astSize(b) + astSize(c)
@@ -230,7 +230,7 @@ let rec countCalls = (counts: Dict.t<int>, e: expr) => {
     args->Array.forEach(go)
   | Number(_) | Bool(_) | String(_) | Unit | Ident(_) | Raw(_) => ()
   | Constructor(_, args) => args->Array.forEach(go)
-  | Unary(_, a) | Deref(a) | Fun(_, a) => go(a)
+  | Unary(_, a) | Deref(a) | Fun(_, a) | Labeled(_, a) => go(a)
   | Binary(_, a, b) | Assign(a, b) | While(a, b) =>
     go(a)
     go(b)
@@ -291,6 +291,25 @@ let pureBuiltins = [
   "lerp",
   "toFloat",
   "toInt",
+  "pow",
+  "log10",
+  "log2",
+  "cbrt",
+  "sign",
+  "hypot",
+  "clamp",
+  "mod",
+  "isNaN",
+  "equal",
+  "bitAnd",
+  "bitOr",
+  "bitXor",
+  "bitNot",
+  "shiftLeft",
+  "shiftRight",
+  "shiftRightUnsigned",
+  "approx",
+  "approxZero",
 ]
 
 // Strip module qualifiers the bindings may be called through
@@ -316,6 +335,27 @@ let normalizeBuiltin = (name: string): string =>
   | "Math.random" => "rand"
   | "Int.toFloat" | "Float.fromInt" => "toFloat"
   | "Float.toInt" | "Int.fromFloat" => "toInt"
+  | "Math.Int.floor" => "floor"
+  | "Math.Int.ceil" => "ceil"
+  | "Math.Int.round" => "round"
+  | "Math.Int.trunc" => "trunc"
+  | "Math.pow" | "Math.Int.pow" => "pow"
+  | "Math.log10" => "log10"
+  | "Math.log2" => "log2"
+  | "Math.cbrt" => "cbrt"
+  | "Math.sign" => "sign"
+  | "Math.hypot" => "hypot"
+  | "Float.clamp" | "Int.clamp" => "clamp"
+  | "Float.mod" | "Int.mod" | "mod" => "mod"
+  | "Float.isNaN" => "isNaN"
+  | "Float.equal" | "Int.equal" => "equal"
+  | "Int.bitwiseAnd" | "land" => "bitAnd"
+  | "Int.bitwiseOr" | "lor" => "bitOr"
+  | "Int.bitwiseXor" | "lxor" => "bitXor"
+  | "Int.bitwiseNot" | "lnot" => "bitNot"
+  | "Int.shiftLeft" | "lsl" => "shiftLeft"
+  | "Int.shiftRight" | "asr" => "shiftRight"
+  | "Int.shiftRightUnsigned" | "lsr" => "shiftRightUnsigned"
   | other =>
     if other->String.startsWith("IC10.") {
       other->String.sliceToEnd(~start=5)
@@ -329,7 +369,7 @@ let rec isPure = (env: env, e: expr): bool => {
   switch e.desc {
   | Number(_) | Bool(_) | String(_) | Unit | Ident(_) => true
   | Constructor(_, args) => args->Array.every(go)
-  | Unary(_, a) | Deref(a) => go(a)
+  | Unary(_, a) | Deref(a) | Labeled(_, a) => go(a)
   | Binary(_, a, b) => go(a) && go(b)
   | If(c, t, Some(el)) => go(c) && go(t) && go(el)
   | Block([Expr(x)]) => go(x)
@@ -429,6 +469,8 @@ let rec gen = (ctx, env: env, e: expr, ~want: bool): value => {
     VUnit
   | Fun(_) =>
     fail(~fn, ~loc=e.loc, "anonymous functions are only supported as `let name = (...) => ...`")
+  | Labeled(name, _) =>
+    fail(~fn, ~loc=e.loc, `labeled argument ~${name} is only allowed inside a function call`)
   | Raw(text) =>
     emit(ctx, Raw(text))
     VUnit
@@ -441,6 +483,8 @@ and lookup = (env: env, name: string, loc): value =>
   | None =>
     switch name {
     | "d0" | "d1" | "d2" | "d3" | "d4" | "d5" | "db" => VDevice(Pin(name))
+    | "Math.Constants.pi" => VScalar(Num(Math.Constants.pi), KFloat)
+    | "Math.Constants.e" => VScalar(Num(Math.Constants.e), KFloat)
     | _ =>
       let hint = if pureBuiltins->Array.includes(normalizeBuiltin(name)) {
         Some(`'${name}' is a builtin function; call it with arguments`)
@@ -714,9 +758,53 @@ and genCond = (ctx, env, e: expr, falseLabel: string) => {
   | Binary((Lt | Le | Gt | Ge | Eq | Ne) as op, a, b) =>
     let (c, oa, ob) = comparison(ctx, env, op, a, b, e.loc)
     emit(ctx, Branch(IR.invertCmp(c), oa, ob, falseLabel))
+  | Call(_) if specialBranch(ctx, env, e, ~negate=true, falseLabel) => ()
   | _ =>
     let (o, _) = scalar(gen(ctx, env, e, ~want=true), ~fn, ~loc=e.loc, ~what="condition")
     emit(ctx, Branch(Eq, o, Num(0.), falseLabel))
+  }
+}
+
+// Conditions with a dedicated IC10 branch: isSet/isNotSet (bdse/bdns), isNaN (bnan),
+// approx (bap/bna), approxZero (bapz/bnaz). `negate`: jump when the condition is false.
+// Returns false when `e` is not such a call (nothing emitted).
+and specialBranch = (ctx, env, e: expr, ~negate: bool, label: string): bool => {
+  let fn = "specialBranch"
+  switch e.desc {
+  | Call(name, args) if env->Belt.Map.String.get(name) == None =>
+    let positional = args->Array.filter(a =>
+      switch a.desc {
+      | Labeled(_) => false
+      | _ => true
+      }
+    )
+    let pinOf = a =>
+      switch gen(ctx, env, a, ~want=true) {
+      | VDevice(Pin(p)) => p
+      | other => fail(~fn, ~loc=a.loc, `expected a device pin, got ${describeValue(other)}`)
+      }
+    let num = a => fst(scalar(gen(ctx, env, a, ~want=true), ~fn, ~loc=a.loc))
+    switch (normalizeBuiltin(name), positional) {
+    | ("isSet", [d]) =>
+      emit(ctx, BranchIf(negate ? "bdns" : "bdse", [ADev(pinOf(d))], label))
+      true
+    | ("isNotSet", [d]) =>
+      emit(ctx, BranchIf(negate ? "bdse" : "bdns", [ADev(pinOf(d))], label))
+      true
+    | ("isNaN", [x]) if !negate =>
+      emit(ctx, BranchIf("bnan", [AOp(num(x))], label))
+      true
+    | ("approx", [a, b, eps]) =>
+      let (oa, ob, oe) = (num(a), num(b), num(eps))
+      emit(ctx, BranchIf(negate ? "bna" : "bap", [AOp(oa), AOp(ob), AOp(oe)], label))
+      true
+    | ("approxZero", [a, eps]) =>
+      let (oa, oe) = (num(a), num(eps))
+      emit(ctx, BranchIf(negate ? "bnaz" : "bapz", [AOp(oa), AOp(oe)], label))
+      true
+    | _ => false
+    }
+  | _ => false
   }
 }
 
@@ -738,6 +826,7 @@ and genCondTrue = (ctx, env, e: expr, trueLabel: string) => {
   | Binary((Lt | Le | Gt | Ge | Eq | Ne) as op, a, b) =>
     let (c, oa, ob) = comparison(ctx, env, op, a, b, e.loc)
     emit(ctx, Branch(c, oa, ob, trueLabel))
+  | Call(_) if specialBranch(ctx, env, e, ~negate=false, trueLabel) => ()
   | _ =>
     let (o, _) = scalar(gen(ctx, env, e, ~want=true), ~fn, ~loc=e.loc, ~what="condition")
     emit(ctx, Branch(Ne, o, Num(0.), trueLabel))
@@ -1126,8 +1215,62 @@ and genCall = (ctx, env, name, args: array<expr>, loc, ~want): value => {
   }
 }
 
+// Put call arguments in parameter order: labeled ones by name, the rest positionally
+and matchArguments = (info: funInfo, args: array<expr>, loc): array<expr> => {
+  let fn = "callUser"
+  let labeled = Dict.make()
+  let positional = []
+  args->Array.forEach(a =>
+    switch a.desc {
+    | Labeled(name, e) =>
+      if labeled->Dict.get(name) != None {
+        fail(~fn, ~loc=a.loc, `argument ~${name} is given twice`)
+      }
+      if !(info.params->Array.some(p => p.labeled && p.pname == name)) {
+        fail(~fn, ~loc=a.loc, `function '${info.fname}' has no labeled parameter ~${name}`)
+      }
+      labeled->Dict.set(name, e)
+    | _ => positional->Array.push(a)
+    }
+  )
+  let next = ref(0)
+  let out = info.params->Array.map(p =>
+    if p.labeled {
+      switch labeled->Dict.get(p.pname) {
+      | Some(e) => e
+      | None => fail(~fn, ~loc, `function '${info.fname}' needs argument ~${p.pname}`)
+      }
+    } else {
+      switch positional[next.contents] {
+      | Some(e) =>
+        next := next.contents + 1
+        e
+      | None =>
+        fail(
+          ~fn,
+          ~loc,
+          `function '${info.fname}' expects ${Int.toString(
+              info.params->Array.filter(p => !p.labeled)->Array.length,
+            )} positional argument(s), got ${Int.toString(Array.length(positional))}`,
+        )
+      }
+    }
+  )
+  if next.contents < Array.length(positional) {
+    fail(
+      ~fn,
+      ~loc,
+      `function '${info.fname}' expects ${Int.toString(next.contents)} positional argument(s), got ${Int.toString(
+          Array.length(positional),
+        )}`,
+    )
+  }
+  out
+}
+
 and callUser = (ctx, env, info: funInfo, args: array<expr>, loc, ~want): value => {
   let fn = "callUser"
+  let args = matchArguments(info, args, loc)
   let arity = Array.length(info.params)
   if Array.length(args) != arity {
     fail(
@@ -1260,8 +1403,31 @@ and ensureCompiled = (ctx, info: funInfo, argVals: array<value>, loc): compiledF
 // ---------------------------------------------------------------------------
 // Builtins (IC10 instructions exposed through src/compiler/IC10.res)
 
-and genBuiltin = (ctx, env, name: string, args: array<expr>, loc): option<value> => {
+and genBuiltin = (ctx, env, name: string, allArgs: array<expr>, loc): option<value> => {
   let fn = "genBuiltin"
+  // labeled arguments are only meaningful for a few stdlib functions
+  let labeled = Dict.make()
+  let args = allArgs->Array.filter(a =>
+    switch a.desc {
+    | Labeled(l, e) =>
+      labeled->Dict.set(l, e)
+      false
+    | _ => true
+    }
+  )
+  let labeledArg = l => labeled->Dict.get(l)
+  let allowedLabels = switch name {
+  | "clamp" => ["min", "max"]
+  | "pow" => ["exp"]
+  | _ => []
+  }
+  labeled
+  ->Dict.keysToArray
+  ->Array.forEach(l =>
+    if !(allowedLabels->Array.includes(l)) {
+      fail(~fn, ~loc, `${name}() has no labeled argument ~${l}`)
+    }
+  )
   let expectArgs = n =>
     if Array.length(args) != n {
       fail(
@@ -1534,6 +1700,139 @@ and genBuiltin = (ctx, env, name: string, args: array<expr>, loc): option<value>
   | "min" => binary(Min)
   | "max" => binary(Max)
   | "atan2" => binary(Atan2)
+  | "mod" => binary(Mod)
+  | "bitAnd" => binary(And)
+  | "bitOr" => binary(Or)
+  | "bitXor" => binary(Xor)
+  | "shiftLeft" => binary(Sll)
+  | "shiftRight" => binary(Sra)
+  | "shiftRightUnsigned" => binary(Srl)
+  | "bitNot" => unary(BitNot, Some(KInt))
+  | "equal" =>
+    expectArgs(2)
+    let a = argScalar(0)
+    let b = argScalar(1)
+    let d = dst()
+    emit(ctx, Compare(d, Eq, a, b))
+    Some(VScalar(VReg(d), KInt))
+  | "isNaN" =>
+    expectArgs(1)
+    let a = argScalar(0)
+    let r = native("snan", ~out=true, ~effects=false, [AOp(a)])
+    Some(
+      switch r {
+      | VScalar(o, _) => VScalar(o, KInt)
+      | v => v
+      },
+    )
+  | "approx" =>
+    // sap: |a - b| <= max(eps * max(|a|, |b|), float.epsilon * 8)
+    expectArgs(3)
+    let a = argScalar(0)
+    let b = argScalar(1)
+    let eps = argScalar(2)
+    let r = native("sap", ~out=true, ~effects=false, [AOp(a), AOp(b), AOp(eps)])
+    Some(
+      switch r {
+      | VScalar(o, _) => VScalar(o, KInt)
+      | v => v
+      },
+    )
+  | "approxZero" =>
+    expectArgs(2)
+    let a = argScalar(0)
+    let eps = argScalar(1)
+    let r = native("sapz", ~out=true, ~effects=false, [AOp(a), AOp(eps)])
+    Some(
+      switch r {
+      | VScalar(o, _) => VScalar(o, KInt)
+      | v => v
+      },
+    )
+  | "hcf" =>
+    expectArgs(0)
+    Some(native("hcf", ~out=false, ~effects=true, []))
+  | "pow" =>
+    // Math.pow(x, ~exp)
+    expectArgs(1)
+    let (base, kb) = argScalarK(0)
+    let (exponent, ke) = switch labeledArg("exp") {
+    | Some(e) => scalar(gen(ctx, env, e, ~want=true), ~fn, ~loc=e.loc, ~what="~exp of pow()")
+    | None => fail(~fn, ~loc, "pow() needs ~exp")
+    }
+    Some(genPow(ctx, base, exponent, combine(kb, ke)))
+  | "log10" | "log2" =>
+    expectArgs(1)
+    let a = argScalar(0)
+    let lg = dst()
+    emit(ctx, Unary(lg, Log, a))
+    let d = dst()
+    emit(ctx, Binary(d, Div, VReg(lg), Num(name == "log10" ? Math.log(10.) : Math.log(2.))))
+    Some(VScalar(VReg(d), KFloat))
+  | "cbrt" =>
+    // sign(x) * |x| ** (1/3)
+    expectArgs(1)
+    let a = argScalar(0)
+    let ab = dst()
+    emit(ctx, Unary(ab, Abs, a))
+    let lg = dst()
+    emit(ctx, Unary(lg, Log, VReg(ab)))
+    let m = dst()
+    emit(ctx, Binary(m, Div, VReg(lg), Num(3.)))
+    let r = dst()
+    emit(ctx, Unary(r, Exp, VReg(m)))
+    let neg = dst()
+    emit(ctx, Binary(neg, Sub, Num(0.), VReg(r)))
+    let lt = dst()
+    emit(ctx, Compare(lt, Lt, a, Num(0.)))
+    let d = dst()
+    emit(ctx, Select(d, VReg(lt), VReg(neg), VReg(r)))
+    Some(VScalar(VReg(d), KFloat))
+  | "sign" =>
+    expectArgs(1)
+    let (a, k) = argScalarK(0)
+    let gt = dst()
+    emit(ctx, Compare(gt, Gt, a, Num(0.)))
+    let lt = dst()
+    emit(ctx, Compare(lt, Lt, a, Num(0.)))
+    let d = dst()
+    emit(ctx, Binary(d, Sub, VReg(gt), VReg(lt)))
+    Some(VScalar(VReg(d), k))
+  | "hypot" =>
+    expectArgs(2)
+    let a = argScalar(0)
+    let b = argScalar(1)
+    let aa = dst()
+    emit(ctx, Binary(aa, Mul, a, a))
+    let bb = dst()
+    emit(ctx, Binary(bb, Mul, b, b))
+    let sum = dst()
+    emit(ctx, Binary(sum, Add, VReg(aa), VReg(bb)))
+    let d = dst()
+    emit(ctx, Unary(d, Sqrt, VReg(sum)))
+    Some(VScalar(VReg(d), KFloat))
+  | "clamp" =>
+    // Float.clamp(~min=?, ~max=?, x)
+    expectArgs(1)
+    let (x, k) = argScalarK(0)
+    let cur = ref(x)
+    switch labeledArg("max") {
+    | Some(e) =>
+      let (hi, _) = scalar(gen(ctx, env, e, ~want=true), ~fn, ~loc=e.loc, ~what="~max of clamp()")
+      let d = dst()
+      emit(ctx, Binary(d, Min, cur.contents, hi))
+      cur := VReg(d)
+    | None => ()
+    }
+    switch labeledArg("min") {
+    | Some(e) =>
+      let (lo, _) = scalar(gen(ctx, env, e, ~want=true), ~fn, ~loc=e.loc, ~what="~min of clamp()")
+      let d = dst()
+      emit(ctx, Binary(d, Max, cur.contents, lo))
+      cur := VReg(d)
+    | None => ()
+    }
+    Some(VScalar(cur.contents, k))
   | "rand" =>
     expectArgs(0)
     Some(native("rand", ~out=true, ~effects=true, []))

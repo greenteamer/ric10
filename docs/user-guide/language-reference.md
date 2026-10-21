@@ -107,8 +107,10 @@ let y = l(d0, "Setting")->Math.max(5.)
   registers chosen by the allocator; values the caller still needs are never overwritten.
   Functions that call other functions save `ra` in a register.
 - Functions can read and assign top-level refs (closures).
+- Labeled parameters: `let mix = (~weight, ~bias, x) => ...`, called as
+  `mix(x, ~bias=1., ~weight=2.)` or with punning `mix(~weight, ~bias, x)`.
 - Recursion is rejected: IC10 has no stack frames.
-- `let rec`, labeled and optional arguments are not supported.
+- `let rec`, default values and optional (`~x=?`) arguments are not supported.
 
 Annotate a parameter with a variant type (`(s: state) => ...`) to pass variants to a
 function that is not inlined.
@@ -167,6 +169,13 @@ long-lived state are limited by the 128-line budget rather than by registers.
 Spill slots are taken from address 511 downwards; user `push`/`pop` grow from 0. The CLI
 reports how many values were spilled.
 
+## Conditions with dedicated branches
+
+`isSet(d)`, `isNotSet(d)`, `Float.isNaN(x)`, `approx(a, b, eps)` and `approxZero(x, eps)`
+compile to a single branch instruction when used as a condition (`bdse`, `bdns`, `bnan`,
+`bap`/`bna`, `bapz`/`bnaz`), and to `sdse`/`snan`/`sap`/`sapz` when used as a value.
+Batch reads over an empty network return NaN, so `Float.isNaN` is the way to guard them.
+
 ## Raw assembly
 
 ```rescript
@@ -179,7 +188,7 @@ allocation for the whole program.
 ## Not supported
 
 Records, tuples, arrays, lists, strings as values, `option`/`result`, modules, exceptions,
-recursion, labeled arguments, `as` patterns, nested patterns inside payloads.
+recursion, optional arguments, `as` patterns, nested patterns inside payloads.
 
 ## Diagnostics
 

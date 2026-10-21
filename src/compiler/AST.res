@@ -41,6 +41,7 @@ and desc =
   | Unary(unop, expr)
   | Binary(binop, expr, expr)
   | Call(string, array<expr>) // f(a, b); also `a->f(b)` and `Math.sqrt(x)`
+  | Labeled(string, expr) // ~name=expr as a call argument (only directly inside Call args)
   | If(expr, expr, option<expr>) // also `c ? a : b`
   | Block(array<stmt>)
   | Switch(expr, array<matchCase>)
@@ -75,6 +76,7 @@ and pdesc =
 and param = {
   pname: string,
   ptype: option<string>, // head of the type annotation, e.g. "state" in `(s: state)`
+  labeled: bool, // ~name parameter
   paramLoc: loc,
 }
 

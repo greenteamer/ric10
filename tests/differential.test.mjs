@@ -166,6 +166,23 @@ for i in 0 to 5 {
     devices: { d0: { Setting: 2 }, d1: {} },
   },
   {
+    name: "StdlibMath",
+    src: `
+let x = l(d0, "Setting")
+let y = l(d1, "Setting")
+s(d2, "A", Float.clamp(~min=-10., ~max=10., x *. y))
+s(d2, "B", Math.pow(Math.abs(x), ~exp=1.5))
+s(d2, "C", Math.hypot(x, y) +. Math.sign(x) +. Math.log10(Math.abs(y) +. 1.))
+s(d2, "D", Math.cbrt(x) +. Math.log2(Math.abs(x) +. 2.))
+s(d2, "E", Float.isNaN(x /. y) ? 1 : 0)
+s(d2, "F", approx(x, y, 0.5) ? 1 : 0)
+s(d2, "G", Int.bitwiseAnd(Float.toInt(x), 6) + Int.shiftLeft(Float.toInt(y), 1))
+let scale = (~by, v) => v *. by
+s(d2, "H", scale(~by=3., x) +. scale(y, ~by=0.5))
+if Float.isNaN(y /. 0.) || approxZero(x -. y, 1e-9) { s(d2, "I", 1) } else { s(d2, "I", 0) }`,
+    devices: { d0: { Setting: -3 }, d1: { Setting: 4 }, d2: {} },
+  },
+  {
     name: "Bitwise",
     src: `
 let v = Float.toInt(l(d0, "Setting"))

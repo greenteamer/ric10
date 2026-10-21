@@ -61,7 +61,17 @@ Use the standard library; ric10 maps these to single instructions:
 `Math.abs`, `Math.sqrt`, `Math.floor`, `Math.ceil`, `Math.round`, `Math.trunc`,
 `Math.sin`, `Math.cos`, `Math.tan`, `Math.asin`, `Math.acos`, `Math.atan`, `Math.atan2`,
 `Math.exp`, `Math.log`, `Math.min`, `Math.max`, `Math.Int.min`, `Math.Int.max`,
-`Math.Int.abs`, `Math.random` (`rand`), `Float.toInt` (`trunc`), `Int.toFloat` (no code).
+`Math.Int.abs`, `Math.Int.floor/ceil/round/trunc`, `Math.random` (`rand`),
+`Float.toInt` (`trunc`), `Int.toFloat` (no code), `Float.mod`, `Int.mod`, `mod`,
+`Float.equal`, `Int.equal`, `Int.bitwiseAnd/Or/Xor/Not`, `Int.shiftLeft/Right/RightUnsigned`
+(and the deprecated `land`/`lor`/`lxor`/`lnot`/`lsl`/`lsr`/`asr`), `Math.Constants.pi`,
+`Math.Constants.e`.
+
+Composed from several instructions: `Math.pow(x, ~exp)`, `Math.log10`, `Math.log2`,
+`Math.cbrt`, `Math.sign`, `Math.hypot`, `Float.clamp(~min=?, ~max=?, x)`, `Int.clamp`.
+
+Game-specific: `Float.isNaN` (`snan`), `approx(a, b, eps)` (`sap`), `approxZero(x, eps)`
+(`sapz`), `hcf()` (`hcf`). In conditions these become `bnan`, `bap`/`bna`, `bapz`/`bnaz`.
 
 Also from `IC10.res`: `select(cond, a, b)` (`select`), `lerp(a, b, t)` (three arithmetic
 instructions; the game has no `lerp`), `rand()`.

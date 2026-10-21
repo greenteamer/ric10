@@ -182,7 +182,7 @@ let referencedLabels = (ir: IR.t): Dict.t<bool> => {
   ir->Array.forEach(b =>
     b.instructions->Array.forEach(i =>
       switch i {
-      | Goto(l) | Branch(_, _, _, l) | Call(l) => refs->Dict.set(l, true)
+      | Goto(l) | Branch(_, _, _, l) | BranchIf(_, _, l) | Call(l) => refs->Dict.set(l, true)
       | _ => ()
       }
     )
@@ -219,6 +219,7 @@ let mergeLabels = (instrs: array<IR.instr>): array<IR.instr> => {
     switch i {
     | Goto(l) => IR.Goto(rename(l))
     | Branch(op, a, b, l) => Branch(op, a, b, rename(l))
+    | BranchIf(op, args, l) => BranchIf(op, args, rename(l))
     | _ => i
     }
   )
@@ -258,6 +259,7 @@ let simplifyBlock = (instrs: array<IR.instr>): array<IR.instr> => {
     switch i {
     | Goto(l) => IR.Goto(resolve(l, 0))
     | Branch(op, a, b, l) => Branch(op, a, b, resolve(l, 0))
+    | BranchIf(op, args, l) => BranchIf(op, args, resolve(l, 0))
     | _ => i
     }
   )
@@ -280,7 +282,7 @@ let simplifyBlock = (instrs: array<IR.instr>): array<IR.instr> => {
     | (Branch(op, a, b, l1), Some(Goto(l2)), Some(Label(l3))) if l1 == l3 =>
       out->Array.push(IR.Branch(IR.invertCmp(op), a, b, l2))
       i := i.contents + 2
-    | ((Goto(l) | Branch(_, _, _, l)), _, _) if fallsInto(retargeted, i.contents, l) =>
+    | ((Goto(l) | Branch(_, _, _, l) | BranchIf(_, _, l)), _, _) if fallsInto(retargeted, i.contents, l) =>
       i := i.contents + 1
     | _ =>
       out->Array.push(cur)
@@ -339,7 +341,7 @@ let branchesToSelect = (ir: IR.t): IR.t => {
   ir->Array.forEach(b =>
     b.instructions->Array.forEach(i =>
       switch i {
-      | Goto(l) | Branch(_, _, _, l) | Call(l) =>
+      | Goto(l) | Branch(_, _, _, l) | BranchIf(_, _, l) | Call(l) =>
         refCount->Dict.set(l, refCount->Dict.get(l)->Option.getOr(0) + 1)
       | _ => ()
       }

@@ -129,12 +129,32 @@ s(db, "Setting", 1)`;
     expect(code.split("\n").at(-1)).toBe("__end:");
   });
 
+  test("labeled parameters match by name, in any order, with punning", () => {
+    const p = `
+let mix = (~weight, ~bias, x) => x *. weight +. bias
+let bias = 100.
+let x = l(d0, "Setting")
+s(db, "Setting", mix(x, ~bias=1., ~weight=2.))
+s(db, "Mode", mix(~weight=0.5, ~bias, x))`;
+    const out = run(p, { devices: { d0: { Setting: 10 } } }).devices.db;
+    expect(out).toEqual({ Setting: 21, Mode: 105 });
+  });
+
+  test("labeled argument errors", () => {
+    const def = `let f = (~a, b) => a +. b\n`;
+    expect(compileError(def + `let x = f(~a=1., ~c=2., 3.)`)).toMatch(/no labeled parameter ~c/);
+    expect(compileError(def + `let x = f(1., 2.)`)).toMatch(/needs argument ~a/);
+    expect(compileError(def + `let x = f(~a=1., ~a=2., 3.)`)).toMatch(/given twice/);
+    expect(compileError(def + `let x = f(~a=1.)`)).toMatch(/expects 1 positional argument/);
+    expect(compileError(`let f = (~a=1., b) => a +. b`)).toMatch(/default parameter values/);
+  });
+
   test("recursion is rejected", () => {
     expect(compileError(`let rec f = x => f(x)`)).toMatch(/recursive functions are not supported/);
     expect(compileError(`let f = x => x\nlet g = x => g(x)\ng(1)`)).toMatch(/unknown function 'g'/);
   });
 
   test("arity mismatch", () => {
-    expect(compileError(`let f = (a, b) => a + b\nlet x = f(1)`)).toMatch(/expects 2 argument/);
+    expect(compileError(`let f = (a, b) => a + b\nlet x = f(1)`)).toMatch(/expects 2 positional argument/);
   });
 });

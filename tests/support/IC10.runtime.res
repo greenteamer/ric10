@@ -44,6 +44,9 @@ let put: (device, int, 'a) => unit = %raw(`(d, a, v) => globalThis.__ic10.put(d,
 let getd: (float, int) => float = %raw(`(id, a) => globalThis.__ic10.getd(id, a)`)
 let putd: (float, int, 'a) => unit = %raw(`(id, a, v) => globalThis.__ic10.putd(id, a, v)`)
 
+let hcf: unit => unit = %raw(`() => globalThis.__ic10.hcf()`)
+let approx: (float, float, float) => bool = %raw(`(a, b, c) => globalThis.__ic10.approx(a, b, c)`)
+let approxZero: (float, float) => bool = %raw(`(a, c) => globalThis.__ic10.approxZero(a, c)`)
 let select = (cond: bool, a: 'a, b: 'a): 'a => cond ? a : b
 let lerp = (a: float, b: float, t: float): float => a +. (b -. a) *. t
 let rand: unit => float = %raw(`() => 0.5`)

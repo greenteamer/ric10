@@ -71,6 +71,36 @@ ss(sorter, 1, "Lock", occupied)`;
     expect(run(p, { devices: {} }).devices.db.Setting).toBe(0);
   });
 
+  test("device presence in conditions uses bdse/bdns", () => {
+    const p = `
+if isSet(d1) { s(db, "Setting", 1) } else { s(db, "Setting", 0) }
+if isNotSet(d2) || l(d0, "Setting") > 5. { s(db, "Mode", 1) }`;
+    const { code, devices } = run(p, { devices: { d0: { Setting: 1 }, d1: {} } });
+    expect(code).toMatch(/^bdns d1 /m);
+    expect(code).toMatch(/^bdns d2 /m);
+    expect(code).not.toMatch(/sdse|sdns/);
+    expect(devices.db).toEqual({ Setting: 1, Mode: 1 });
+  });
+
+  test("NaN and approximate comparisons use bnan/bap/bna", () => {
+    const p = `
+let avg = lb(hash("StructureTankSmall"), "Pressure", Average)
+if !Float.isNaN(avg) { s(db, "Mode", -1) }
+if approx(avg, 100., 0.01) { s(db, "Setting", 1) } else { s(db, "Setting", 0) }
+while !approxZero(l(d0, "Setting"), 0.001) { s(d0, "Setting", 0) }`;
+    const { code } = run(p, { devices: { d0: { Setting: 3 } }, network: [] });
+    // there is no "branch if not NaN": `if !isNaN` jumps with bnan, `if isNaN` uses snan + beqz
+    expect(code).toMatch(/^bnan r0 /m);
+    expect(code).toMatch(/^bna r0 100 0.01 /m);
+    expect(code).toMatch(/^bapz r\d+ 0.001 /m);
+  });
+
+  test("hcf halts the chip", () => {
+    const { emu, devices } = run(`s(db, "Setting", 1)\nhcf()\ns(db, "Setting", 2)`);
+    expect(devices.db.Setting).toBe(1);
+    expect(emu.halted).toBe(true);
+  });
+
   test("stack builtins", () => {
     const p = `
 push(10)

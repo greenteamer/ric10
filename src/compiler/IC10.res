@@ -79,6 +79,12 @@ let putd = (_referenceId: float, _address: int, _value: 'a): unit => ()
 
 // --- misc -----------------------------------------------------------------
 
+// Halt and catch fire: stops the chip
+let hcf = (): unit => ()
+// Approximate equality as the game computes it (sap): |a - b| <= eps * max(|a|, |b|)
+let approx = (a: float, b: float, eps: float): bool => Math.abs(a -. b) <= eps *. Math.max(Math.abs(a), Math.abs(b))
+// |a| <= eps (sapz)
+let approxZero = (a: float, eps: float): bool => Math.abs(a) <= eps *. Math.abs(a)
 // Branch-free conditional: select r? cond a b
 let select = (cond: bool, a: 'a, b: 'a): 'a => cond ? a : b
 // Linear interpolation, compiled to arithmetic (not clamped)
