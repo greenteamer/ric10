@@ -45,6 +45,8 @@ to type-check against the new bindings (see "Breaking changes").
 - Devices are `device("d0")` or `d0`..`d5`/`db`; integers are no longer devices.
 - The WASM backend was removed (it had no control flow support and its tests ran against
   a stale build).
+- The unfinished OpenAPI codegen experiment was removed from this repository (it lives on
+  as the separate osury project).
 - Generated JavaScript is ES modules (`*.res.mjs`); `@rescript/runtime` 12.1's CommonJS
   build does not load under Node or esbuild.
 

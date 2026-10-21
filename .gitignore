@@ -28,7 +28,6 @@ build/
 !tests/**/*.js
 !bin/**/*.js
 !scripts/**/*.js
-!legacy/**/*.js
 
 # VSCode
 .vscode/
@@ -63,4 +62,3 @@ coverage/
 
 # differential test workspace
 tests/.work/
-!legacy/**/*.mjs

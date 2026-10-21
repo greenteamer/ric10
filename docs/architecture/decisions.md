@@ -63,7 +63,7 @@ function with branches were miscompiled.
 ## D9. WASM backend removed
 
 It had no structured control flow, used i32 values and its tests ran against a stale build.
-The code is in `legacy/` for reference.
+It was deleted; the 0.1 code is in the version history (before 0.2.0).
 
 ## Known limitations (tech debt)
 

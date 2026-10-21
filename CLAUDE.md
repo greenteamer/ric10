@@ -43,7 +43,6 @@ User programs are valid ReScript: the official compiler type-checks them against
 
 ❌ **NEVER modify**:
 - Generated files (`*.res.mjs`, `dist/`)
-- `legacy/` (0.1 code kept for reference only)
 - Configuration files (unless explicitly requested)
 
 ### Error Message Format
