@@ -76,8 +76,8 @@ A subset of ReScript 12, all of it valid ReScript:
   higher-order functions (inlined)
 - variants with payloads, `switch` with or-patterns, guards, literal and wildcard patterns
 - IC10 bindings: `l`, `s`, `ls`, `ss`, `lb`, `lbn`, `sb`, `sbn`, `lbs`, `lbns`, `sbs`,
-  `deviceId` (`ld`/`sd`), `hash`, `isSet`, `yield`, `sleep`, stack (`push`, `pop`,
-  `peek`, `poke`, `get`, `put`, `clr`), `select`, `lerp`, `Math.*`
+  `hash`, `isSet`, `yield`, `sleep`, stack (`push`, `pop`, `peek`, `get`, `put`,
+  `getd`, `putd`), `select`, `lerp`, `Math.*`
 - `%raw("...")` for anything else; registers it mentions are left alone
 
 Not supported (yet): records, tuples, arrays, strings beyond logic-type names, recursion.
@@ -91,7 +91,7 @@ Lexer → Pratt parser → IRGen → optimizer (passes run to a fixpoint) → wh
 liveness → register allocation with copy coalescing → IC10. Functions called once are
 inlined; others are called with `jal`, and liveness keeps callee registers away from
 values the caller still needs. When more than 16 values are alive at once, long-lived
-state (variant and ref cells) moves to the top of the stack (`poke`/`get`) and the
+state (variant and ref cells) moves to the top of the stack (`put`/`get`) and the
 registers stay with short-lived temporaries. See [docs/architecture/compiler-overview.md](docs/architecture/compiler-overview.md).
 
 ## Testing

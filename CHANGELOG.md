@@ -26,14 +26,18 @@ to type-check against the new bindings (see "Breaking changes").
   exhaustiveness warnings.
 - Register allocation based on whole-program liveness with copy coalescing; registers are
   reused as soon as values die. When more than 16 values are alive at once, long-lived
-  state (variant and ref cells) is spilled to the top of the stack (`poke`/`get`) and
+  state (variant and ref cells) is spilled to the top of the stack (`put`/`get`) and
   temporaries keep their registers; the CLI reports the number of spilled values.
 - Optimizer: constant folding, copy propagation, dead code elimination, jump threading,
   branch-free `select`/`sXX` for value-picking `if`s, removal of unused functions and
   defines. `bXXz`/`sXXz` forms for comparisons with zero.
-- Bindings: `ls`, `ss`, `lbs`, `lbns`, `sbs`, `lr`, `deviceId` (`ld`/`sd`), `isSet`,
-  `yield`, `sleep`, stack operations, `select`, `lerp`, `Math.*`, `Float.toInt`,
+- Bindings: `ls`, `ss`, `lbs`, `lbns`, `sbs`, `lr`, `isSet`, `yield`, `sleep`, stack
+  operations including `getd`/`putd`, `select`, `lerp`, `Math.*`, `Float.toInt`,
   `Int.toFloat`.
+- The IC10 instruction table (`tests/fixtures/ic10-instructions.json`, exported from the
+  game via ic10lsp) is test data: every emitted opcode is checked against it and the
+  emulator rejects anything outside it. `ld`, `sd`, `clr`, `poke` and `lerp` are no longer
+  game instructions and are not emitted.
 - Diagnostics with line and column, hints, warnings for >128 lines and long lines.
 - CLI: `-o`, `--stdout`, `--debug`, exit code 1 on errors.
 - Test suite: IC10 emulator, differential tests against the real ReScript compiler,

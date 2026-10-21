@@ -26,9 +26,6 @@ let d4: device = Obj.magic(4)
 let d5: device = Obj.magic(5)
 let db: device = Obj.magic(-1)
 
-// Device by ReferenceId (uses ld / sd)
-let deviceId = (_referenceId: float): device => Obj.magic(0)
-
 // HASH("StructureVolumePump")
 let hash = (_name: string): int => 0
 
@@ -74,14 +71,16 @@ let sleep = (_seconds: float): unit => ()
 let push = (_value: 'a): unit => ()
 let pop = (): float => 0.0
 let peek = (): float => 0.0
-let poke = (_address: int, _value: 'a): unit => ()
 let get = (_device: device, _address: int): float => 0.0
 let put = (_device: device, _address: int, _value: 'a): unit => ()
-let clr = (_device: device): unit => ()
+// Stack memory of a device addressed by ReferenceId (getd / putd)
+let getd = (_referenceId: float, _address: int): float => 0.0
+let putd = (_referenceId: float, _address: int, _value: 'a): unit => ()
 
 // --- misc -----------------------------------------------------------------
 
 // Branch-free conditional: select r? cond a b
 let select = (cond: bool, a: 'a, b: 'a): 'a => cond ? a : b
+// Linear interpolation, compiled to arithmetic (not clamped)
 let lerp = (a: float, b: float, t: float): float => a +. (b -. a) *. t
 let rand = (): float => 0.0

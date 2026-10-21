@@ -85,7 +85,7 @@ live after it, except the source of a move), coalesces non-interfering move pair
 colours greedily in program order, preferring a move partner's register. Registers named by
 `%raw` are reserved. If colouring fails it retries without coalescing, then spills: the vreg
 with the lowest (loop-weighted accesses / live-range length) gets a stack slot from 511
-downwards, its definitions are followed by `poke` and its uses preceded by `get` into
+downwards, its definitions are followed by `put db` and its uses preceded by `get` into
 fresh short-lived vregs, and allocation starts over. Long-lived loop state is evicted
 first. After 64 spills the error names the values alive at the point of highest pressure.
 

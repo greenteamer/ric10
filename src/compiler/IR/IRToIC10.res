@@ -89,7 +89,7 @@ let print = (ir: IR.t, ~reg: IR.vreg => string): array<string> => {
   let dev = (d: IR.device) =>
     switch d {
     | Pin(p) => p
-    | ById(o) | Batch(o) => op(o)
+    | Batch(o) => op(o)
     | BatchNamed(a, b) => `${op(a)} ${op(b)}`
     }
   let isZero = (o: IR.operand) =>
@@ -129,7 +129,6 @@ let print = (ir: IR.t, ~reg: IR.vreg => string): array<string> => {
     | DeviceLoad(d, device, prop, mode) =>
       let opcode = switch device {
       | Pin(_) => "l"
-      | ById(_) => "ld"
       | Batch(_) => "lb"
       | BatchNamed(_) => "lbn"
       }
@@ -138,7 +137,6 @@ let print = (ir: IR.t, ~reg: IR.vreg => string): array<string> => {
     | DeviceStore(device, prop, v) =>
       let opcode = switch device {
       | Pin(_) => "s"
-      | ById(_) => "sd"
       | Batch(_) => "sb"
       | BatchNamed(_) => "sbn"
       }

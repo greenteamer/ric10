@@ -1,0 +1,2275 @@
+{
+ "source": "https://github.com/Xandaros/ic10lsp/blob/master/src/instructions.rs (derived from the game's instruction database)",
+ "retrieved": "2026-10-21",
+ "sourceCommitDate": "2026-08-02",
+ "operandKinds": {
+  "Register": "r0..r15, sp, ra",
+  "Device": "d0..d5, db",
+  "Number": "literal or define",
+  "LogicType": "e.g. Temperature",
+  "SlotLogicType": "e.g. Occupied",
+  "BatchMode": "Average|Sum|Minimum|Maximum",
+  "ReagentMode": "Contents|Required|Recipe|TotalContents",
+  "Name": "identifier being defined"
+ },
+ "batchModes": [
+  "Average",
+  "Sum",
+  "Minimum",
+  "Maximum"
+ ],
+ "reagentModes": [
+  "Contents",
+  "Required",
+  "Recipe"
+ ],
+ "logicTypes": [
+  "Power",
+  "Open",
+  "Mode",
+  "Error",
+  "Lock",
+  "Pressure",
+  "Temperature",
+  "PressureExternal",
+  "PressureInternal",
+  "Activate",
+  "Charge",
+  "Setting",
+  "Reagents",
+  "RatioOxygen",
+  "RatioCarbonDioxide",
+  "RatioNitrogen",
+  "RatioPollutant",
+  "RatioVolatiles",
+  "RatioWater",
+  "Horizontal",
+  "Vertical",
+  "SolarAngle",
+  "Maximum",
+  "Ratio",
+  "PowerPotential",
+  "PowerActual",
+  "Quantity",
+  "On",
+  "ImportQuantity",
+  "ImportSlotOccupant",
+  "ExportQuantity",
+  "ExportSlotOccupant",
+  "RequiredPower",
+  "HorizontalRatio",
+  "VerticalRatio",
+  "PowerRequired",
+  "Idle",
+  "Color",
+  "ElevatorSpeed",
+  "ElevatorLevel",
+  "RecipeHash",
+  "ExportSlotHash",
+  "ImportSlotHash",
+  "PlantHealth1",
+  "PlantHealth2",
+  "PlantHealth3",
+  "PlantHealth4",
+  "PlantGrowth1",
+  "PlantGrowth2",
+  "PlantGrowth3",
+  "PlantGrowth4",
+  "PlantEfficiency1",
+  "PlantEfficiency2",
+  "PlantEfficiency3",
+  "PlantEfficiency4",
+  "PlantHash1",
+  "PlantHash2",
+  "PlantHash3",
+  "PlantHash4",
+  "RequestHash",
+  "CompletionRatio",
+  "ClearMemory",
+  "ExportCount",
+  "ImportCount",
+  "PowerGeneration",
+  "TotalMoles",
+  "Volume",
+  "Plant",
+  "Harvest",
+  "Output",
+  "PressureSetting",
+  "TemperatureSetting",
+  "TemperatureExternal",
+  "Filtration",
+  "AirRelease",
+  "PositionX",
+  "PositionY",
+  "PositionZ",
+  "VelocityMagnitude",
+  "VelocityRelativeX",
+  "VelocityRelativeY",
+  "VelocityRelativeZ",
+  "RatioNitrousOxide",
+  "PrefabHash",
+  "ForceWrite",
+  "SignalStrength",
+  "SignalID",
+  "TargetX",
+  "TargetY",
+  "TargetZ",
+  "SettingInput",
+  "SettingOutput",
+  "CurrentResearchPodType",
+  "ManualResearchRequiredPod",
+  "MineablesInVicinity",
+  "MineablesInQueue",
+  "NextWeatherEventTime",
+  "Combustion",
+  "Fuel",
+  "ReturnFuelCost",
+  "CollectableGoods",
+  "Time",
+  "Bpm",
+  "EnvironmentEfficiency",
+  "WorkingGasEfficiency",
+  "PressureInput",
+  "TemperatureInput",
+  "RatioOxygenInput",
+  "RatioCarbonDioxideInput",
+  "RatioNitrogenInput",
+  "RatioPollutantInput",
+  "RatioVolatilesInput",
+  "RatioWaterInput",
+  "RatioNitrousOxideInput",
+  "TotalMolesInput",
+  "PressureInput2",
+  "TemperatureInput2",
+  "RatioOxygenInput2",
+  "RatioCarbonDioxideInput2",
+  "RatioNitrogenInput2",
+  "RatioPollutantInput2",
+  "RatioVolatilesInput2",
+  "RatioWaterInput2",
+  "RatioNitrousOxideInput2",
+  "TotalMolesInput2",
+  "PressureOutput",
+  "TemperatureOutput",
+  "RatioOxygenOutput",
+  "RatioCarbonDioxideOutput",
+  "RatioNitrogenOutput",
+  "RatioPollutantOutput",
+  "RatioVolatilesOutput",
+  "RatioWaterOutput",
+  "RatioNitrousOxideOutput",
+  "TotalMolesOutput",
+  "PressureOutput2",
+  "TemperatureOutput2",
+  "RatioOxygenOutput2",
+  "RatioCarbonDioxideOutput2",
+  "RatioNitrogenOutput2",
+  "RatioPollutantOutput2",
+  "RatioVolatilesOutput2",
+  "RatioWaterOutput2",
+  "RatioNitrousOxideOutput2",
+  "TotalMolesOutput2",
+  "CombustionInput",
+  "CombustionInput2",
+  "CombustionOutput",
+  "CombustionOutput2",
+  "OperationalTemperatureEfficiency",
+  "TemperatureDifferentialEfficiency",
+  "PressureEfficiency",
+  "CombustionLimiter",
+  "Throttle",
+  "Rpm",
+  "Stress",
+  "InterrogationProgress",
+  "TargetPadIndex",
+  "SizeX",
+  "SizeY",
+  "SizeZ",
+  "MinimumWattsToContact",
+  "WattsReachingContact"
+ ],
+ "slotLogicTypes": [
+  "Occupied",
+  "OccupantHash",
+  "Quantity",
+  "Damage",
+  "Efficiency",
+  "Health",
+  "Growth",
+  "Pressure",
+  "Temperature",
+  "Charge",
+  "ChargeRatio",
+  "Class",
+  "PressureWaste",
+  "PressureAir",
+  "MaxQuantity",
+  "Mature",
+  "PrefabHash",
+  "Seeding"
+ ],
+ "instructions": {
+  "alias": {
+   "operands": [
+    [
+     "Name"
+    ],
+    [
+     "Register",
+     "Device"
+    ]
+   ],
+   "doc": "Labels register or device reference with name, device references also affect what shows on the screws on the IC base."
+  },
+  "label": {
+   "operands": [
+    [
+     "Name"
+    ],
+    [
+     "Register",
+     "Device"
+    ]
+   ],
+   "doc": "DEPRECATED - Use alias instead"
+  },
+  "define": {
+   "operands": [
+    [
+     "Name"
+    ],
+    [
+     "Number"
+    ]
+   ],
+   "doc": "Creates a label that will be replaced throughout the program with the provided value."
+  },
+  "bdns": {
+   "operands": [
+    [
+     "Device"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line a if device d isn't set"
+  },
+  "bdnsal": {
+   "operands": [
+    [
+     "Device"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Jump execution to line a and store next line number if device is not set"
+  },
+  "bdse": {
+   "operands": [
+    [
+     "Device"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line a if device d is set"
+  },
+  "bdseal": {
+   "operands": [
+    [
+     "Device"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Jump execution to line a and store next line number if device is set"
+  },
+  "brdns": {
+   "operands": [
+    [
+     "Device"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative jump to line a if device is not set"
+  },
+  "brdse": {
+   "operands": [
+    [
+     "Device"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative jump to line a if device is set"
+  },
+  "l": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Device"
+    ],
+    [
+     "LogicType"
+    ]
+   ],
+   "doc": "Loads device var to register."
+  },
+  "lb": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "LogicType"
+    ],
+    [
+     "BatchMode",
+     "Number",
+     "Register"
+    ]
+   ],
+   "doc": "Loads var from all output network devices with provided type hash using the provide batch mode. Average (0), Sum (1), Minimum (2), Maximum (3). Can use either the word, or the number."
+  },
+  "lr": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Device"
+    ],
+    [
+     "ReagentMode",
+     "Number",
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Loads reagent of device's reagentMode to register. Contents (0), Required (1), Recipe (2). Can use either the word, or the number."
+  },
+  "ls": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Device"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "SlotLogicType"
+    ]
+   ],
+   "doc": "Loads slot var on device to register."
+  },
+  "s": {
+   "operands": [
+    [
+     "Device"
+    ],
+    [
+     "LogicType"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Stores register value to var on device."
+  },
+  "sb": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "LogicType"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Stores register value to var on all output network devices with provided type hash."
+  },
+  "bap": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line d if abs(a - b) <= max(c * max(abs(a), abs(b)), float.epsilon * 8)"
+  },
+  "bapal": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line d if abs(a - b) <= max(c * max(abs(a), abs(b)), float.epsilon * 8) and store next line number in ra"
+  },
+  "bapz": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line c if abs(a) <= float.epsilon * 8"
+  },
+  "bapzal": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line c if abs(a) <= float.epsilon * 8"
+  },
+  "beq": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line c if a == b"
+  },
+  "beqal": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line c if a == b and store next line number in ra"
+  },
+  "beqz": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line b if a == 0"
+  },
+  "beqzal": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line b if a == 0 and store next line number in ra"
+  },
+  "bge": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line c if a >= b"
+  },
+  "bgeal": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line c if a >= b and store next line number in ra"
+  },
+  "bgez": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line b if a >= 0"
+  },
+  "bgezal": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line b if a >= 0 and store next line number in ra"
+  },
+  "bgt": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line c if a > b"
+  },
+  "bgtal": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line c if a > b and store next line number in ra"
+  },
+  "bgtz": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line b if a > 0"
+  },
+  "bgtzal": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line b if a > 0 and store next line number in ra"
+  },
+  "ble": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line c if a <= b"
+  },
+  "bleal": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line c if a <= b and store next line number in ra"
+  },
+  "blez": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line b if a <= 0"
+  },
+  "blezal": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line b if a <= 0 and store next line number in ra"
+  },
+  "blt": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line c if a < b"
+  },
+  "bltal": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line c if a < b and store next line number in ra"
+  },
+  "bltz": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line b if a < 0"
+  },
+  "bltzal": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line b if a < 0 and store next line number in ra"
+  },
+  "bna": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line d if abs(a - b) > max(c * max(abs(a), abs(b)), float.epsilon * 8)"
+  },
+  "bnaal": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line d if abs(a - b) <= max(c * max(abs(a), abs(b)), float.epsilon * 8) and store next line number in ra"
+  },
+  "bnaz": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line c if abs(a) > float.epsilon * 8"
+  },
+  "bnazal": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line c if abs(a) > float.epsilon * 8"
+  },
+  "bne": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line c if a != b"
+  },
+  "bneal": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line c if a != b and store next line number in ra"
+  },
+  "bnez": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line b if a != 0"
+  },
+  "bnezal": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line b if a != 0 and store next line number in ra"
+  },
+  "brap": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative branch to line d if abs(a - b) <= max(c * max(abs(a), abs(b)), float.epsilon * 8)"
+  },
+  "brapz": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative branch to line c if abs(a) <= float.epsilon * 8"
+  },
+  "brnaz": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative branch to line c if abs(a) > float.epsilon * 8"
+  },
+  "breq": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative branch to line c if a == b"
+  },
+  "breqz": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative branch to line b if a == 0"
+  },
+  "brge": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative jump to line c if a >= b"
+  },
+  "brgez": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative branch to line b if a >= 0"
+  },
+  "brgt": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative jump to line c if a > b"
+  },
+  "brgtz": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative branch to line b if a > 0"
+  },
+  "brle": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative jump to line c if a <= b"
+  },
+  "brlez": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative branch to line b if a <= 0"
+  },
+  "brlt": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative jump to line c if a < b"
+  },
+  "brltz": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative branch to line b if a < 0"
+  },
+  "brna": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative branch to line d if abs(a - b) > max(c * max(abs(a), abs(b)), float.epsilon * 8)"
+  },
+  "brne": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative branch to line c if a != b"
+  },
+  "brnez": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative branch to line b if a != 0"
+  },
+  "j": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Jump execution to line a"
+  },
+  "jal": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Jump execution to line a and store next line number in ra"
+  },
+  "jr": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative jump to line a"
+  },
+  "sap": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if abs(a - b) <= max(c * max(abs(a), abs(b)), float.epsilon * 8), otherwise 0"
+  },
+  "sapz": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if abs(a) <= max(b * abs(a), float.epsilon * 8), otherwise 0"
+  },
+  "sdns": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Device"
+    ]
+   ],
+   "doc": "Register = 1 if device is not set, otherwise 0"
+  },
+  "sdse": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Device"
+    ]
+   ],
+   "doc": "Register = 1 if device is set, otherwise 0."
+  },
+  "select": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = b if a is non-zero, otherwise c"
+  },
+  "seq": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if a == b, otherwise 0"
+  },
+  "seqz": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if a == 0, otherwise 0"
+  },
+  "sge": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if a >= b, otherwise 0"
+  },
+  "sgez": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if a >= 0, otherwise 0"
+  },
+  "sgt": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if a > b, otherwise 0"
+  },
+  "sgtz": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if a > 0, otherwise 0"
+  },
+  "sle": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if a <= b, otherwise 0"
+  },
+  "slez": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if a <= 0, otherwise 0"
+  },
+  "slt": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if a < b, otherwise 0"
+  },
+  "sltz": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if a < 0, otherwise 0"
+  },
+  "sna": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if abs(a - b) > max(c * max(abs(a), abs(b)), float.epsilon * 8), otherwise 0"
+  },
+  "snaz": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if abs(a) > max(b * abs(a), float.epsilon * 8), otherwise 0"
+  },
+  "sne": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if a != b, otherwise 0"
+  },
+  "snez": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if a != 0, otherwise 0"
+  },
+  "abs": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = the absolute value of a"
+  },
+  "acos": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Returns the angle (radians) whos cosine is the specified value"
+  },
+  "add": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = a + b."
+  },
+  "asin": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Returns the angle (radians) whos sine is the specified value"
+  },
+  "atan": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Returns the angle (radians) whos tan is the specified value"
+  },
+  "atan2": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Returns the angle (radians) whose tangent is the quotient of two specified values: a (y) and b (x)"
+  },
+  "ceil": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = smallest integer greater than a"
+  },
+  "cos": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Returns the cosine of the specified angle (radians)"
+  },
+  "div": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = a / b"
+  },
+  "exp": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = exp(a)"
+  },
+  "floor": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = largest integer less than a"
+  },
+  "log": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = log(a)"
+  },
+  "max": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = max of a or b"
+  },
+  "min": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = min of a or b"
+  },
+  "mod": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = a mod b (note: NOT a % b)"
+  },
+  "mul": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = a * b"
+  },
+  "rand": {
+   "operands": [
+    [
+     "Register"
+    ]
+   ],
+   "doc": "Register = a random value x with 0 <= x < 1"
+  },
+  "round": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = a rounded to nearest integer"
+  },
+  "sin": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Returns the sine of the specified angle (radians)"
+  },
+  "sqrt": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = square root of a"
+  },
+  "sub": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = a - b."
+  },
+  "tan": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Returns the tan of the specified angle (radians) "
+  },
+  "trunc": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = a with fractional part removed"
+  },
+  "and": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if a and b not zero, otherwise 0"
+  },
+  "nor": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if a and b are 0, otherwise 0"
+  },
+  "or": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if a and/or b not 0, otherwise 0"
+  },
+  "xor": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if either a or b not 0, otherwise 0"
+  },
+  "peek": {
+   "operands": [
+    [
+     "Register"
+    ]
+   ],
+   "doc": "Register = the value at the top of the stack"
+  },
+  "pop": {
+   "operands": [
+    [
+     "Register"
+    ]
+   ],
+   "doc": "Register = the value at the top of the stack and decrements sp"
+  },
+  "push": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Pushes the value of a to the stack at sp and increments sp"
+  },
+  "hcf": {
+   "operands": [],
+   "doc": "Halt and catch fire"
+  },
+  "move": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = provided num or register value."
+  },
+  "sleep": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Pauses execution on the IC for a seconds"
+  },
+  "yield": {
+   "operands": [],
+   "doc": "Pauses execution for 1 tick"
+  },
+  "bnan": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line b if a is not a number (NaN)"
+  },
+  "brnan": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Relative branch to line b if a is not a number (NaN)"
+  },
+  "lbn": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "LogicType"
+    ],
+    [
+     "BatchMode",
+     "Number",
+     "Register"
+    ]
+   ],
+   "doc": "Loads LogicType from all output network devices with provided type and name hashes using the provide batch mode. Average (0), Sum (1), Minimum (2), Maximum (3). Can use either the word, or the number."
+  },
+  "lbns": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "SlotLogicType"
+    ],
+    [
+     "BatchMode",
+     "Number",
+     "Register"
+    ]
+   ],
+   "doc": "Loads LogicSlotType from slotIndex from all output network devices with provided type and name hashes using the provide batch mode. Average (0), Sum (1), Minimum (2), Maximum (3). Can use either the word, or the number."
+  },
+  "lbs": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "SlotLogicType"
+    ],
+    [
+     "BatchMode",
+     "Number",
+     "Register"
+    ]
+   ],
+   "doc": "Loads LogicSlotType from slotIndex from all output network devices with provided type hash using the provide batch mode. Average (0), Sum (1), Minimum (2), Maximum (3). Can use either the word, or the number."
+  },
+  "not": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Performs a bitwise logical NOT operation flipping each bit of the input value, resulting in a binary complement. If a bit is 1, it becomes 0, and if a bit is 0, it becomes 1."
+  },
+  "sbn": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "LogicType"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Stores register value to LogicType on all output network devices with provided type hash and name."
+  },
+  "sbs": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "SlotLogicType"
+    ],
+    [
+     "Register"
+    ]
+   ],
+   "doc": "Stores register value to LogicSlotType on all output network devices with provided type hash in the provided slot."
+  },
+  "sla": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Performs a bitwise arithmetic left shift operation on the binary representation of a value. It shifts the bits to the left and fills the vacated rightmost bits with zeros (note that this is indistinguishable from 'sll')."
+  },
+  "sll": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Performs a bitwise logical left shift operation on the binary representation of a value. It shifts the bits to the left and fills the vacated rightmost bits with zeros."
+  },
+  "sra": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Performs a bitwise arithmetic right shift operation on the binary representation of a value. It shifts the bits to the right and fills the vacated leftmost bits with a copy of the sign bit (the most significant bit)."
+  },
+  "srl": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Performs a bitwise logical right shift operation on the binary representation of a value. It shifts the bits to the right and fills the vacated leftmost bits with zeros"
+  },
+  "snan": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 1 if a is NaN, otherwise 0"
+  },
+  "snanz": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Register = 0 if a is NaN, otherwise 1"
+  },
+  "ss": {
+   "operands": [
+    [
+     "Device"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "SlotLogicType"
+    ],
+    [
+     "Register"
+    ]
+   ],
+   "doc": "Stores register value to device stored in a slot LogicSlotType on device."
+  },
+  "get": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Device"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Loads the value in the stack memory at index address on provided device into register r?."
+  },
+  "getd": {
+   "operands": [
+    [
+     "Register"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Loads the value in the stack memory at index address on provided device id into register r?."
+  },
+  "put": {
+   "operands": [
+    [
+     "Device"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Adds the value to the stack memory off the provided device at index address."
+  },
+  "putd": {
+   "operands": [
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Adds the value to the stack memory off the provided device id at index address"
+  },
+  "bdnvl": {
+   "operands": [
+    [
+     "Device"
+    ],
+    [
+     "LogicType"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line c if the provided logic type is not 'loadable', that is the device would provide an exception if you tried to use LOAD(\"l\")"
+  },
+  "bdnvs": {
+   "operands": [
+    [
+     "Device"
+    ],
+    [
+     "LogicType"
+    ],
+    [
+     "Register",
+     "Number"
+    ]
+   ],
+   "doc": "Branch to line c if the provided logic type is not 'storable', that is the device would provide an exception if you tried to use STORE(\"s\")"
+  }
+ }
+}

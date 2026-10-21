@@ -29,7 +29,7 @@ describe("register allocation", () => {
     expect(devices.db.Setting).toBe(17 + 136);
     expect(stats.spills).toBeGreaterThan(0);
     expect(stats.registers).toBeLessThanOrEqual(16);
-    expect(code).toMatch(/^poke 511 r\d+$/m);
+    expect(code).toMatch(/^put db 511 r\d+$/m);
     expect(code).toMatch(/^get r\d+ db 511$/m);
   });
 
@@ -84,7 +84,7 @@ while true {
     ].join("\n");
     const { devices, code } = run(p, { devices: { d0: { Setting: 0 } } });
     expect(devices.db).toEqual({ Setting: 153, Mode: 3000 });
-    const slots = [...code.matchAll(/^poke (\d+) /gm)].map((m) => Number(m[1]));
+    const slots = [...code.matchAll(/^put db (\d+) /gm)].map((m) => Number(m[1]));
     expect(Math.min(...slots)).toBeGreaterThanOrEqual(500);
   });
 

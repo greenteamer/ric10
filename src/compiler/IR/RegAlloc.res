@@ -4,7 +4,7 @@
 // 2. Coalesce move-related vregs that do not interfere (removes copies).
 // 3. Greedy colouring in program order, preferring a move partner's register.
 // 4. If colouring fails, spill one vreg to a stack slot and start over: every
-//    definition is followed by `poke slot value`, every use is preceded by
+//    definition is followed by `put db slot value`, every use is preceded by
 //    `get tmp db slot`. Candidates are ranked by (accesses weighted by loop
 //    depth) / (live-range length), so long-lived state such as variant refs
 //    and loop-carried refs goes to the stack first while short-lived
@@ -283,7 +283,7 @@ let spillVReg = (ir: IR.t, v: IR.vreg, slot: int, ~fresh: unit => IR.vreg, ~temp
           let t = fresh()
           temps->Dict.set(key(t), true)
           out->Array.push(IR.mapDef(i, t))
-          out->Array.push(IR.Native("poke", None, [AOp(Num(Int.toFloat(slot))), AOp(VReg(t))], true))
+          out->Array.push(IR.Native("put", None, [ADev("db"), AOp(Num(Int.toFloat(slot))), AOp(VReg(t))], true))
         } else {
           out->Array.push(i)
         }

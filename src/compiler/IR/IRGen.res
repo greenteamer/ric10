@@ -1351,16 +1351,8 @@ and genBuiltin = (ctx, env, name: string, args: array<expr>, loc): option<value>
     switch arg(0).desc {
     | String(("d0" | "d1" | "d2" | "d3" | "d4" | "d5" | "db") as p) => Some(VDevice(Pin(p)))
     | _ =>
-      fail(
-        ~fn,
-        ~loc,
-        `device() expects "d0".."d5" or "db"`,
-        ~hint="for ReferenceIds use deviceId(id)",
-      )
+      fail(~fn, ~loc, `device() expects "d0".."d5" or "db"`)
     }
-  | "deviceId" =>
-    expectArgs(1)
-    Some(VDevice(ById(argScalar(0))))
   | "hash" =>
     expectArgs(1)
     switch arg(0).desc {
@@ -1498,11 +1490,6 @@ and genBuiltin = (ctx, env, name: string, args: array<expr>, loc): option<value>
   | "peek" =>
     expectArgs(0)
     Some(native("peek", ~out=true, ~effects=false, []))
-  | "poke" =>
-    expectArgs(2)
-    let addr = argScalar(0)
-    let v = argScalar(1)
-    Some(native("poke", ~out=false, ~effects=true, [AOp(addr), AOp(v)]))
   | "get" =>
     expectArgs(2)
     let p = argPin(0)
@@ -1514,10 +1501,17 @@ and genBuiltin = (ctx, env, name: string, args: array<expr>, loc): option<value>
     let addr = argScalar(1)
     let v = argScalar(2)
     Some(native("put", ~out=false, ~effects=true, [ADev(p), AOp(addr), AOp(v)]))
-  | "clr" =>
-    expectArgs(1)
-    let p = argPin(0)
-    Some(native("clr", ~out=false, ~effects=true, [ADev(p)]))
+  | "getd" =>
+    expectArgs(2)
+    let id = argScalar(0)
+    let addr = argScalar(1)
+    Some(native("getd", ~out=true, ~effects=false, [AOp(id), AOp(addr)]))
+  | "putd" =>
+    expectArgs(3)
+    let id = argScalar(0)
+    let addr = argScalar(1)
+    let v = argScalar(2)
+    Some(native("putd", ~out=false, ~effects=true, [AOp(id), AOp(addr), AOp(v)]))
   | "abs" => unary(Abs, None)
   | "sqrt" => unary(Sqrt, Some(KFloat))
   | "floor" => unary(Floor, Some(KFloat))
@@ -1544,11 +1538,18 @@ and genBuiltin = (ctx, env, name: string, args: array<expr>, loc): option<value>
     expectArgs(0)
     Some(native("rand", ~out=true, ~effects=true, []))
   | "lerp" =>
+    // a + (b - a) * t  (the game has no lerp instruction)
     expectArgs(3)
     let a = argScalar(0)
     let b = argScalar(1)
     let t = argScalar(2)
-    Some(native("lerp", ~out=true, ~effects=false, [AOp(a), AOp(b), AOp(t)]))
+    let d1 = dst()
+    emit(ctx, Binary(d1, Sub, b, a))
+    let d2 = dst()
+    emit(ctx, Binary(d2, Mul, VReg(d1), t))
+    let d3 = dst()
+    emit(ctx, Binary(d3, Add, a, VReg(d2)))
+    Some(VScalar(VReg(d3), KFloat))
   | "select" =>
     expectArgs(3)
     let c = argScalar(0)

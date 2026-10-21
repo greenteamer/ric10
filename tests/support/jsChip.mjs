@@ -24,14 +24,10 @@ export class JsChip {
   device(pin) {
     return { pin };
   }
-  deviceId(id) {
-    return { id };
-  }
   hash(s) {
     return hash(s);
   }
   resolve(d) {
-    if (d.id !== undefined) return [this.byId[d.id], `id ${d.id}`];
     if (d.pin === "db") return [(this.devices.db ??= {}), "db"];
     const dev = this.devices[d.pin];
     if (!dev) throw new Error(`no device on ${d.pin}`);
@@ -87,10 +83,15 @@ export class JsChip {
   push(v) { this.stack[this.sp++] = num(v); }
   pop() { return this.stack[--this.sp]; }
   peek() { return this.stack[this.sp - 1]; }
-  poke(a, v) { this.stack[a] = num(v); }
   get(_d, a) { return this.stack[a]; }
   put(_d, a, v) { this.stack[a] = num(v); }
-  clr() { this.stack.fill(0); }
+  idStack(id) {
+    const dev = this.byId[id];
+    if (!dev) throw new Error(`no device with id ${id}`);
+    return (dev.stack ??= new Array(512).fill(0));
+  }
+  getd(id, a) { return this.idStack(id)[a]; }
+  putd(id, a, v) { this.idStack(id)[a] = num(v); }
 
   yield() {
     this.ticks++;

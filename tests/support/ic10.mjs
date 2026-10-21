@@ -6,6 +6,14 @@
 // instructions, reads of missing logic types and programs over the line limit
 // throw, so tests catch bad output instead of silently computing garbage.
 
+import fs from "fs";
+import path from "path";
+
+const TABLE = JSON.parse(
+  fs.readFileSync(path.join(import.meta.dirname, "..", "fixtures", "ic10-instructions.json"), "utf8"),
+);
+export const INSTRUCTIONS = TABLE.instructions;
+
 const STACK_SIZE = 512;
 const LINES_PER_TICK = 128;
 const BATCH_MODES = { Average: 0, Sum: 1, Minimum: 2, Maximum: 3 };
@@ -36,7 +44,7 @@ export class IC10 {
    * @param {object} opts
    *   devices: { d0: {Temperature: 300, ...}, ... }   pin -> logic values
    *   network: [{ prefabHash, nameHash?, values: {...} }] devices for lb/sb
-   *   byId:    { [referenceId]: {...} }               devices for ld/sd
+   *   byId:    { [referenceId]: { stack: [...] } }    device stacks for getd/putd
    *   strict:  throw when reading a logic type a device does not have (default true)
    *   maxLines: line limit (default 128)
    */
@@ -71,7 +79,9 @@ export class IC10 {
         return null;
       }
       const parts = line.match(/HASH\("[^"]*"\)|STR\("[^"]*"\)|\S+/g);
-      return { op: parts[0], args: parts.slice(1), line: i + 1 };
+      const ins = { op: parts[0], args: parts.slice(1), line: i + 1 };
+      this.validate(ins);
+      return ins;
     });
     // defines and aliases are resolved before execution
     for (const ins of this.program) {
@@ -81,6 +91,35 @@ export class IC10 {
         this.defines[ins.args[0]] = this.num(ins.args[1], ins);
       }
     }
+  }
+
+  // Opcode, operand count and operand kinds against the game's instruction table
+  validate(ins) {
+    const spec = INSTRUCTIONS[ins.op];
+    if (!spec) throw new IC10Error(`line ${ins.line}: unknown instruction '${ins.op}'`);
+    if (ins.args.length !== spec.operands.length) {
+      throw new IC10Error(`line ${ins.line}: ${ins.op} takes ${spec.operands.length} operand(s), got ${ins.args.length}`);
+    }
+    const isReg = (t) => /^r(1[0-7]|[0-9])$|^sp$|^ra$/.test(t);
+    const isDev = (t) => /^d[0-5]$|^db$/.test(t);
+    const isNum = (t) => /^-?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(t) || /^HASH\(/.test(t) || /^\$[0-9A-Fa-f]+$/.test(t);
+    const isIdent = (t) => /^[A-Za-z_][A-Za-z0-9_.]*$/.test(t);
+    ins.args.forEach((arg, i) => {
+      const kinds = spec.operands[i];
+      const ok = kinds.some((k) => {
+        switch (k) {
+          case "Register": return isReg(arg);
+          case "Device": return isDev(arg);
+          case "Number": return isNum(arg) || isIdent(arg); // defines and labels resolve later
+          case "LogicType": case "SlotLogicType": case "BatchMode": case "ReagentMode": case "Name": return isIdent(arg) || isNum(arg);
+          default: return false;
+        }
+      });
+      // aliases are resolved at run time; accept identifiers where a register or device is expected
+      if (!ok && !(isIdent(arg) && (kinds.includes("Register") || kinds.includes("Device")))) {
+        throw new IC10Error(`line ${ins.line}: operand ${i + 1} of ${ins.op} must be ${kinds.join("|")}, got '${arg}'`);
+      }
+    });
   }
 
   fail(ins, msg) {
@@ -155,6 +194,12 @@ export class IC10 {
     this.writes.push({ tick: this.ticks, target: label, prop, value });
   }
 
+  idStack(id, ins) {
+    const dev = this.byId[id];
+    if (!dev) this.fail(ins, `no device with id ${id}`);
+    return (dev.stack ??= new Array(STACK_SIZE).fill(0));
+  }
+
   batch(prefab, name) {
     return this.network.filter((d) => d.prefabHash === prefab && (name === undefined || d.nameHash === name));
   }
@@ -226,7 +271,6 @@ export class IC10 {
         case "min": out(Math.min(v(1), v(2))); break;
         case "max": out(Math.max(v(1), v(2))); break;
         case "rand": out(0.5); break;
-        case "lerp": out(v(1) + (v(2) - v(1)) * Math.min(1, Math.max(0, v(3)))); break;
         case "and": out(fromLong(toLong(v(1)) & toLong(v(2)))); break;
         case "or": out(fromLong(toLong(v(1)) | toLong(v(2)))); break;
         case "xor": out(fromLong(toLong(v(1)) ^ toLong(v(2)))); break;
@@ -248,7 +292,6 @@ export class IC10 {
           out(this.stack[--this.regs[16]]);
           break;
         case "peek": out(this.stack[this.regs[16] - 1] ?? 0); break;
-        case "poke": this.stack[v(0)] = v(1); break;
         case "get": {
           if (this.pin(a[1], ins) !== "db") this.fail(ins, "only db stack is emulated");
           out(this.stack[v(2)]);
@@ -259,7 +302,6 @@ export class IC10 {
           this.stack[v(1)] = v(2);
           break;
         }
-        case "clr": this.stack.fill(0); break;
         case "l": out(this.read(this.device(a[1], ins), a[2], ins, a[1])); break;
         case "s": this.write(this.device(a[0], ins), a[1], v(2), this.pin(a[0], ins)); break;
         case "ls": {
@@ -274,18 +316,8 @@ export class IC10 {
           this.write(slot, a[2], v(3), `${a[0]}.slot${v(1)}`);
           break;
         }
-        case "ld": {
-          const d = this.byId[v(1)];
-          if (!d) this.fail(ins, `no device with id ${v(1)}`);
-          out(this.read(d, a[2], ins, `id ${v(1)}`));
-          break;
-        }
-        case "sd": {
-          const d = this.byId[v(0)];
-          if (!d) this.fail(ins, `no device with id ${v(0)}`);
-          this.write(d, a[1], v(2), `id ${v(0)}`);
-          break;
-        }
+        case "getd": out(this.idStack(v(1), ins)[v(2)]); break;
+        case "putd": this.idStack(v(0), ins)[v(1)] = v(2); break;
         case "lb": out(this.aggregate(this.batch(v(1)).map((d) => this.read(d.values, a[2], ins, "batch")), a[3], ins)); break;
         case "lbn": out(this.aggregate(this.batch(v(1), v(2)).map((d) => this.read(d.values, a[3], ins, "batch")), a[4], ins)); break;
         case "sb": for (const d of this.batch(v(0))) this.write(d.values, a[1], v(2), `batch ${v(0)}`); break;

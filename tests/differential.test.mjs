@@ -202,7 +202,7 @@ while true {
 for i in 1 to 5 { push(i * i) }
 let sum = ref(0.)
 for _ in 1 to 5 { sum := sum.contents +. pop() }
-poke(10, sum.contents)
+put(db, 10, sum.contents)
 push(100)
 s(db, "Setting", get(db, 10) +. peek())`,
   },

@@ -18,7 +18,6 @@ type operand =
 
 type device =
   | Pin(string) // d0..d5, db                  -> l / s
-  | ById(operand) // ReferenceId                -> ld / sd
   | Batch(operand) // prefab hash               -> lb / sb
   | BatchNamed(operand, operand) // prefab + name hash -> lbn / sbn
 
@@ -107,7 +106,7 @@ let operandVRegs = (op: operand): array<vreg> =>
 let deviceVRegs = (d: device): array<vreg> =>
   switch d {
   | Pin(_) => []
-  | ById(op) | Batch(op) => operandVRegs(op)
+  | Batch(op) => operandVRegs(op)
   | BatchNamed(a, b) => Array.concat(operandVRegs(a), operandVRegs(b))
   }
 
@@ -211,7 +210,6 @@ let mapUses = (i: instr, f: operand => operand): instr => {
   let mapDev = d =>
     switch d {
     | Pin(_) => d
-    | ById(op) => ById(f(op))
     | Batch(op) => Batch(f(op))
     | BatchNamed(a, b) => BatchNamed(f(a), f(b))
     }

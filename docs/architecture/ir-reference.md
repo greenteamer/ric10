@@ -18,7 +18,6 @@ block per out-of-line function (its first instruction is the function's label).
 | Device | Load / store |
 |---|---|
 | `Pin("d0")` | `l` / `s` |
-| `ById(op)` | `ld` / `sd` |
 | `Batch(prefab)` | `lb` / `sb` (with batch mode on load) |
 | `BatchNamed(prefab, name)` | `lbn` / `sbn` |
 
@@ -35,9 +34,9 @@ block per out-of-line function (its first instruction is the function's label).
 | `Label(l)`, `Goto(l)` | `l:`, `j l` |
 | `Branch(op, a, b, l)` | `blt ble bgt bge beq bne`; `bXXz a l` when one side is 0 |
 | `Call(f)`, `Return`, `ReturnVia(v)` | `jal f`, `j ra`, `j rX` |
-| `DeviceLoad(d, dev, logicType, mode)` | `l`/`ld`/`lb`/`lbn` |
-| `DeviceStore(dev, logicType, v)` | `s`/`sd`/`sb`/`sbn` |
-| `Native(opcode, d?, args, sideEffects)` | any other instruction: `ls ss lbs lbns sbs lr sdse sdns yield sleep push pop peek poke get put clr rand lerp` |
+| `DeviceLoad(d, dev, logicType, mode)` | `l`/`lb`/`lbn` |
+| `DeviceStore(dev, logicType, v)` | `s`/`sb`/`sbn` |
+| `Native(opcode, d?, args, sideEffects)` | any other instruction: `ls ss lbs lbns sbs lr sdse sdns yield sleep push pop peek get put getd putd rand` |
 | `Raw(text)` | verbatim |
 
 ## Analyses (in IR.res)

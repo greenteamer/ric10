@@ -15,7 +15,6 @@ let d3: device = device("d3")
 let d4: device = device("d4")
 let d5: device = device("d5")
 let db: device = device("db")
-let deviceId: float => device = %raw(`id => globalThis.__ic10.deviceId(id)`)
 let hash: string => int = %raw(`s => globalThis.__ic10.hash(s)`)
 
 let l: (device, string) => float = %raw(`(d, p) => globalThis.__ic10.l(d, p)`)
@@ -40,11 +39,11 @@ let sleep: float => unit = %raw(`s => globalThis.__ic10.sleep(s)`)
 let push: 'a => unit = %raw(`v => globalThis.__ic10.push(v)`)
 let pop: unit => float = %raw(`() => globalThis.__ic10.pop()`)
 let peek: unit => float = %raw(`() => globalThis.__ic10.peek()`)
-let poke: (int, 'a) => unit = %raw(`(a, v) => globalThis.__ic10.poke(a, v)`)
 let get: (device, int) => float = %raw(`(d, a) => globalThis.__ic10.get(d, a)`)
 let put: (device, int, 'a) => unit = %raw(`(d, a, v) => globalThis.__ic10.put(d, a, v)`)
-let clr: device => unit = %raw(`d => globalThis.__ic10.clr(d)`)
+let getd: (float, int) => float = %raw(`(id, a) => globalThis.__ic10.getd(id, a)`)
+let putd: (float, int, 'a) => unit = %raw(`(id, a, v) => globalThis.__ic10.putd(id, a, v)`)
 
 let select = (cond: bool, a: 'a, b: 'a): 'a => cond ? a : b
-let lerp = (a: float, b: float, t: float): float => a +. (b -. a) *. Math.min(1., Math.max(0., t))
+let lerp = (a: float, b: float, t: float): float => a +. (b -. a) *. t
 let rand: unit => float = %raw(`() => 0.5`)

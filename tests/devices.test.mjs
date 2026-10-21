@@ -50,12 +50,19 @@ ss(sorter, 1, "Lock", occupied)`;
     expect(devices.d0.slots[1].Lock).toBe(1);
   });
 
-  test("ReferenceId access uses ld/sd", () => {
-    const p = `let pump = deviceId(4711.)\ns(pump, "Setting", l(pump, "Setting") + 1.)`;
-    const byId = { 4711: { Setting: 2 } };
-    const { code } = run(p, { byId });
-    expect(code).toMatch(/^ld r0 4711 Setting$/m);
-    expect(byId[4711].Setting).toBe(3);
+  test("device stacks by ReferenceId use getd/putd", () => {
+    const p = `let sorter = l(d0, "ReferenceId")\nputd(sorter, 3, getd(sorter, 3) +. 1.)`;
+    const byId = { 4711: { stack: [0, 0, 0, 41] } };
+    const { code } = run(p, { byId, devices: { d0: { ReferenceId: 4711 } } });
+    expect(code).toMatch(/^getd r1 r0 3$/m);
+    expect(code).toMatch(/^putd r0 3 r1$/m);
+    expect(byId[4711].stack[3]).toBe(42);
+  });
+
+  test("lerp is plain arithmetic", () => {
+    expect(asm(`s(db, "Setting", lerp(10., 20., l(d0, "Setting")))`)).toBe(
+      "l r0 d0 Setting\nmul r0 10 r0\nadd r0 10 r0\ns db Setting r0",
+    );
   });
 
   test("isSet checks the pin", () => {
@@ -70,7 +77,7 @@ push(10)
 push(20)
 let top = peek()
 let a = pop()
-poke(5, a + top)
+put(db, 5, a + top)
 s(db, "Setting", get(db, 5) + pop())`;
     expect(run(p).devices.db.Setting).toBe(50);
   });

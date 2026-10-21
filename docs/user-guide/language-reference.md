@@ -157,7 +157,7 @@ IC10 has 16 registers. ric10 keeps every value in a register as long as they fit
 registers are reused as soon as a value is dead, and copies are coalesced away.
 
 When more than 16 values are alive at the same time, the compiler moves some of them to
-the stack and reloads them where they are used (`poke 511 rX` after a write,
+the stack and reloads them where they are used (`put db 511 rX` after a write,
 `get rX db 511` before a read). It picks the values with the fewest accesses per
 instruction of lifetime, weighted by loop depth, so the state of a `while true` loop
 (variant refs, counters) goes to the stack first while the temporaries inside the loop keep

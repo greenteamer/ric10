@@ -16,7 +16,7 @@ inference (the real ReScript compiler already type-checks the program).
 A variant is a tag register plus one register per payload slot of its widest constructor.
 
 Rejected: the 0.1 fixed stack layout. It limited each type to one ref, made variants
-impossible to pass or return, and cost `poke`/`get` lines on every access. The stack stays
+impossible to pass or return, and cost `put`/`get` lines on every access. The stack stays
 free for user code.
 
 ## D3. Inline by default, `jal` when it pays
@@ -30,7 +30,7 @@ function used many times would not fit.
 Arguments, results and saved `ra` are ordinary vregs. Liveness with call summaries makes
 values that survive a call interfere with everything the callee writes.
 
-When colouring fails, one vreg is spilled to a stack slot (`poke` after each write, `get`
+When colouring fails, one vreg is spilled to a stack slot (`put db` after each write, `get`
 before each read) and allocation restarts. The spill heuristic prefers values with few
 accesses per instruction of lifetime, weighted by loop depth: loop-carried state such as
 variant refs is evicted first, temporaries stay in registers. This reproduces what 0.1 did

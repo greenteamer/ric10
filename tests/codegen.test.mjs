@@ -58,3 +58,39 @@ while true {
     expect(lineCount(code)).toBeLessThanOrEqual(7);
   });
 });
+
+describe("instruction table", () => {
+  const table = JSON.parse(fs.readFileSync(path.join(root, "tests/fixtures/ic10-instructions.json"), "utf8"));
+  const src = (f) => fs.readFileSync(path.join(root, f), "utf8");
+
+  test("every opcode the backend can emit exists in the game", () => {
+    const backend = src("src/compiler/IR/IRToIC10.res");
+    const names = new Set();
+    // opcode tables: `| Add => "add"` and native calls: native("ls", ...)
+    for (const m of backend.matchAll(/=> "([a-z0-9]+)"/g)) names.add(m[1]);
+    for (const m of src("src/compiler/IR/IRGen.res").matchAll(/native\("([a-z0-9]+)"/g)) names.add(m[1]);
+    for (const m of src("src/compiler/IR/RegAlloc.res").matchAll(/Native\("([a-z0-9]+)"/g)) names.add(m[1]);
+    for (const c of ["lt", "le", "gt", "ge", "eq", "ne"]) for (const f of [`s${c}`, `s${c}z`, `b${c}`, `b${c}z`]) names.add(f);
+    for (const f of ["j", "jal", "define", "move", "l", "s", "lb", "lbn", "sb", "sbn"]) names.add(f);
+    const unknown = [...names].filter((n) => !/^(lt|le|gt|ge|eq|ne)$/.test(n) && !table.instructions[n]);
+    expect(unknown).toEqual([]);
+  });
+
+  test("the bindings table in the docs only names game instructions", () => {
+    const doc = src("docs/user-guide/ic10-bindings.md");
+    const mentioned = new Set();
+    for (const line of doc.split("\n")) {
+      if (!line.startsWith("|")) continue;
+      const cell = line.split("|")[2] ?? "";
+      for (const m of cell.matchAll(/`([a-z]+)\b/g)) mentioned.add(m[1]);
+    }
+    const unknown = [...mentioned].filter((n) => !table.instructions[n]);
+    expect(unknown).toEqual([]);
+  });
+
+  test("the table is the one exported from the game", () => {
+    expect(Object.keys(table.instructions).length).toBe(140);
+    expect(table.instructions.ld).toBeUndefined();
+    expect(table.instructions.getd.operands).toEqual([["Register"], ["Register", "Number"], ["Register", "Number"]]);
+  });
+});

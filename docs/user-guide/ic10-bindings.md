@@ -13,15 +13,14 @@ Values written to devices may be `int`, `float` or `bool`.
 |---|---|
 | `device("d0")` … `device("d5")`, `device("db")` | compile-time pin |
 | `d0` … `d5`, `db` | the same pins, predefined |
-| `deviceId(referenceId)` | device addressed by ReferenceId (`ld` / `sd`) |
 | `isSet(dev)`, `isNotSet(dev)` | `sdse` / `sdns` |
 
 ## Reading and writing
 
 | ReScript | IC10 |
 |---|---|
-| `l(dev, "Temperature")` | `l r? d? Temperature` (or `ld` for `deviceId`) |
-| `s(dev, "On", v)` | `s d? On v` (or `sd`) |
+| `l(dev, "Temperature")` | `l r? d? Temperature` |
+| `s(dev, "On", v)` | `s d? On v` |
 | `ls(dev, slot, "Occupied")` | `ls r? d? slot Occupied` |
 | `ss(dev, slot, "Lock", v)` | `ss d? slot Lock v` |
 | `lr(dev, Contents, reagentHash)` | `lr r? d? Contents hash` |
@@ -48,8 +47,8 @@ Values written to devices may be `int`, `float` or `bool`.
 | `yield()` | `yield` |
 | `sleep(seconds)` | `sleep seconds` |
 | `push(v)`, `pop()`, `peek()` | `push`, `pop`, `peek` |
-| `poke(addr, v)` | `poke addr v` |
-| `get(dev, addr)`, `put(dev, addr, v)`, `clr(dev)` | `get`, `put`, `clr` |
+| `get(dev, addr)`, `put(dev, addr, v)` | `get`, `put` |
+| `getd(referenceId, addr)`, `putd(referenceId, addr, v)` | `getd`, `putd` |
 
 ric10 uses the stack only when a program has more than 16 simultaneously live values; it
 then takes slots from address 511 downwards. `push`/`pop` grow from address 0, so the two
@@ -64,8 +63,11 @@ Use the standard library; ric10 maps these to single instructions:
 `Math.exp`, `Math.log`, `Math.min`, `Math.max`, `Math.Int.min`, `Math.Int.max`,
 `Math.Int.abs`, `Math.random` (`rand`), `Float.toInt` (`trunc`), `Int.toFloat` (no code).
 
-Also from `IC10.res`: `select(cond, a, b)` (`select`), `lerp(a, b, t)` (`lerp`),
-`rand()`.
+Also from `IC10.res`: `select(cond, a, b)` (`select`), `lerp(a, b, t)` (three arithmetic
+instructions; the game has no `lerp`), `rand()`.
+
+Reading a device by ReferenceId: the game removed `ld`/`sd`; how `l`/`s` address devices by
+id in the current build has not been verified yet, so there is no binding for it.
 
 ## Anything else
 
