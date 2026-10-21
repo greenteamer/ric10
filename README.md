@@ -73,12 +73,12 @@ A subset of ReScript 12, all of it valid ReScript:
 - numbers are IC10 doubles; `int` division truncates like ReScript; `true`/`false` are 1/0
 - all operators: `+ - * / % **`, `+.` family, comparisons, `&& || !`, `&&& ||| ^^^ ~~~ << >> >>>`
 - `ref`, `:=`, `.contents`, `while`, `for i in a to b` / `downto`
-- functions with parameters and results, closures over top-level values, pipes `->`,
-  higher-order functions (inlined)
+- functions with parameters and results, labeled parameters, closures over top-level
+  values, pipes `->`, higher-order functions (inlined)
 - variants with payloads, `switch` with or-patterns, guards, literal and wildcard patterns
 - IC10 bindings: `l`, `s`, `ls`, `ss`, `lb`, `lbn`, `sb`, `sbn`, `lbs`, `lbns`, `sbs`,
-  `hash`, `isSet`, `yield`, `sleep`, stack (`push`, `pop`, `peek`, `get`, `put`,
-  `getd`, `putd`), `select`, `lerp`, `Math.*`
+  `hash`, `isSet`, `yield`, `sleep`, `hcf`, stack (`push`, `pop`, `peek`, `get`, `put`,
+  `getd`, `putd`), `select`, `lerp`, `approx`, `Float.isNaN`, `Float.clamp`, `Math.*`
 - `%raw("...")` for anything else; registers it mentions are left alone
 
 Not supported (yet): records, tuples, arrays, strings beyond logic-type names, recursion.
