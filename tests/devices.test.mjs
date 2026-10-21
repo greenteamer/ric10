@@ -101,6 +101,30 @@ while !approxZero(l(d0, "Setting"), 0.001) { s(d0, "Setting", 0) }`;
     expect(emu.halted).toBe(true);
   });
 
+  test("--alias names the pins and drops unused aliases", () => {
+    const p = `
+let furnace = device("d0")
+let unused = device("d1")
+let sensor = d2
+let sp = device("d3")
+while true {
+  s(furnace, "On", l(sensor, "Temperature") < 500.)
+  s(sp, "On", isSet(furnace))
+  yield()
+}`;
+    const { code, emu } = run(p, { devices: { d0: {}, d2: { Temperature: 400 }, d3: {} }, ticks: 1, options: { aliases: true } });
+    expect(code).toMatch(/^alias furnace d0$/m);
+    expect(code).toMatch(/^alias sensor d2$/m);
+    expect(code).not.toMatch(/alias unused/);
+    expect(code).not.toMatch(/alias sp/); // register-like names keep the raw pin
+    expect(code).toMatch(/^l r\d+ sensor Temperature$/m);
+    expect(code).toMatch(/^sdse r\d+ furnace$/m); // isSet as a value; as a condition it would be bdse/bdns
+    expect(emu.devices.d0.On).toBe(1);
+    expect(emu.devices.d3.On).toBe(1);
+    // without the flag nothing changes
+    expect(asm(p)).not.toMatch(/alias/);
+  });
+
   test("stack builtins", () => {
     const p = `
 push(10)

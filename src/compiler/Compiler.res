@@ -25,11 +25,12 @@ let compileWithDiagnostics = (source: string, ~options: option<CodegenTypes.comp
   let options = options->Option.getOr({})
   let debug = options.debug->Option.getOr(false)
   let maxLines = options.maxLines->Option.getOr(CodegenTypes.ic10MaxLines)
+  let aliases = options.aliases->Option.getOr(false)
   let empty = {lines: 0, registers: 0, spills: 0}
   try {
     let tokens = Lexer.tokenize(source)
     let ast = Parser.parse(tokens)
-    let (ir, warnings, names) = IRGen.generate(ast)
+    let (ir, warnings, names) = IRGen.generate(ast, ~aliases)
     if debug {
       Console.log("=== IR (before optimization) ===\n" ++ IRPrint.print(ir))
     }

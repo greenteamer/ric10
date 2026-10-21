@@ -44,7 +44,8 @@ to type-check against the new bindings (see "Breaking changes").
   `Int.shift*`, `Math.Constants.pi/e`; game bindings `approx`, `approxZero`, `hcf`.
 - Conditions on `isSet`, `Float.isNaN`, `approx` compile to `bdse`/`bdns`/`bnan`/`bap`/`bna`.
 - Diagnostics with line and column, hints, warnings for >128 lines and long lines.
-- CLI: `-o`, `--stdout`, `--debug`, exit code 1 on errors.
+- CLI: `-o`, `--stdout`, `--debug`, `--alias` (emit `alias name dX` for named devices),
+  exit code 1 on errors.
 - Test suite: IC10 emulator, differential tests against the real ReScript compiler,
   seeded program fuzzer, golden files for examples.
 

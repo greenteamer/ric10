@@ -72,6 +72,7 @@ type ctx = {
   vregNames: Dict.t<string>,
   warnings: array<Errors.t>,
   mutable active: array<string>, // functions being inlined or compiled (recursion check)
+  aliases: bool, // emit `alias name pin` for top-level device bindings
 }
 
 let fail = (~fn, ~loc, ~hint=?, message) => Errors.fail(~file, ~fn, ~loc, ~hint?, message)
@@ -992,6 +993,12 @@ and genLet = (ctx, env, name, valueExpr: expr, loc, ~topLevel): value => {
     ctx.defines->Dict.set(name, true)
     ctx.defs->Array.push(DefNum(name, n))
     VScalar(Name(name), isFloat ? KFloat : KInt)
+  // `let furnace = device("d0")` / `let furnace = d0` with --alias
+  | Call("device", [{desc: String(("d0" | "d1" | "d2" | "d3" | "d4" | "d5" | "db") as pin)}])
+  | Ident(("d0" | "d1" | "d2" | "d3" | "d4" | "d5" | "db") as pin) if ctx.aliases && canDefine =>
+    ctx.defines->Dict.set(name, true)
+    ctx.defs->Array.push(Native("alias", None, [ATok(name), ADev(pin)], true))
+    VDevice(Pin(name))
   | Call("hash", [{desc: String(s)}]) if canDefine =>
     ctx.defines->Dict.set(name, true)
     ctx.defs->Array.push(DefHash(name, s))
@@ -1868,7 +1875,7 @@ and genBuiltin = (ctx, env, name: string, allArgs: array<expr>, loc): option<val
 // ---------------------------------------------------------------------------
 
 // Returns the IR, warnings and a vreg -> source name map (for diagnostics).
-let generate = (program: AST.program): (IR.t, array<Errors.t>, Dict.t<string>) => {
+let generate = (program: AST.program, ~aliases=false): (IR.t, array<Errors.t>, Dict.t<string>) => {
   let ctx = {
     buf: [],
     nextVReg: 0,
@@ -1883,6 +1890,7 @@ let generate = (program: AST.program): (IR.t, array<Errors.t>, Dict.t<string>) =
     vregNames: Dict.make(),
     warnings: [],
     active: [],
+    aliases,
   }
   program->Array.forEach(s => countCallsStmt(ctx.callCounts, s))
   let _ = genBlock(ctx, Belt.Map.String.empty, program, ~want=false, ~topLevel=true)

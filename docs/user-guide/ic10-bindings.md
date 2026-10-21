@@ -13,7 +13,11 @@ Values written to devices may be `int`, `float` or `bool`.
 |---|---|
 | `device("d0")` … `device("d5")`, `device("db")` | compile-time pin |
 | `d0` … `d5`, `db` | the same pins, predefined |
-| `isSet(dev)`, `isNotSet(dev)` | `sdse` / `sdns` |
+| `isSet(dev)`, `isNotSet(dev)` | `sdse` / `sdns` (`bdse` / `bdns` in conditions) |
+
+With `ric10 --alias`, every top-level `let name = device("dX")` (or `let name = dX`) becomes
+`alias name dX` and the name is used in the code; in game the alias labels the housing
+screw. Each alias costs one line, which is why it is opt-in.
 
 ## Reading and writing
 

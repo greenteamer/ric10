@@ -32,8 +32,8 @@ export function warnings(src) {
 }
 
 // Compile and run. `ticks: "end"` runs until the program falls off its end.
-export function run(src, { devices = {}, network, byId, ticks = "end", onTick, strict } = {}) {
-  const d = compile(src);
+export function run(src, { devices = {}, network, byId, ticks = "end", onTick, strict, options } = {}) {
+  const d = compile(src, options);
   const emu = new IC10(d.code, { devices, network, byId, strict });
   try {
     if (ticks === "end") emu.runToEnd();

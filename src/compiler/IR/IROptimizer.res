@@ -427,6 +427,19 @@ let removeUnusedDefines = (ir: IR.t): IR.t => {
     | _ => ()
     }
   let rawText = []
+  let usedPins = Dict.make()
+  let markDev = (d: IR.device) =>
+    switch d {
+    | Pin(p) => usedPins->Dict.set(p, true)
+    | Batch(_) | BatchNamed(_) => ()
+    }
+  let markArgs = (args: array<IR.arg>) =>
+    args->Array.forEach(a =>
+      switch a {
+      | ADev(p) => usedPins->Dict.set(p, true)
+      | AOp(_) | ATok(_) => ()
+      }
+    )
   ir->Array.forEach(b =>
     b.instructions->Array.forEach(i => {
       let _ = IR.mapUses(i, op => {
@@ -435,6 +448,10 @@ let removeUnusedDefines = (ir: IR.t): IR.t => {
       })
       switch i {
       | Raw(t) => rawText->Array.push(t)
+      | DeviceLoad(_, d, _, _) => markDev(d)
+      | DeviceStore(d, _, _) => markDev(d)
+      | Native("alias", _, _, _) => ()
+      | Native(_, _, args, _) | BranchIf(_, args, _) => markArgs(args)
       | _ => ()
       }
     })
@@ -445,6 +462,7 @@ let removeUnusedDefines = (ir: IR.t): IR.t => {
     instrs->Array.filter(i =>
       switch i {
       | DefNum(n, _) | DefHash(n, _) => used->Dict.get(n) != None || usedInRaw(n)
+      | Native("alias", None, [ATok(n), ADev(_)], _) => usedPins->Dict.get(n) != None || usedInRaw(n)
       | _ => true
       }
     )

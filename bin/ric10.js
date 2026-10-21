@@ -21,7 +21,7 @@ function showHelp() {
 ric10 - ReScript to IC10 compiler for Stationeers
 
 Usage:
-  ric10 <file.res> [-o out.ic10] [--stdout] [--debug]
+  ric10 <file.res> [-o out.ic10] [--stdout] [--debug] [--alias]
                                 Compile ReScript to IC10 assembly
   ric10 init <project-name>     Create a new IC10 project
   ric10 --help                  Show this help

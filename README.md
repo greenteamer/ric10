@@ -51,6 +51,7 @@ npx ric10 furnace.res              # writes furnace.ic10
 npx ric10 furnace.res --stdout     # print instead
 npx ric10 furnace.res -o chip.ic10
 npx ric10 furnace.res --debug      # also print the IR
+npx ric10 furnace.res --alias      # alias lines for named devices (labels the screws in game)
 ```
 
 The CLI prints warnings (non-exhaustive switch, more than 128 lines, lines longer than

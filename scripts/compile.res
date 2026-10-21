@@ -14,6 +14,7 @@ Options:
   -o <file>   output file (default: <source>.ic10)
   --stdout    print the assembly instead of writing a file
   --debug     print the IR before and after optimization
+  --alias     emit alias lines for named devices (labels the housing screws in game)
 
 Examples:
   ric10 furnace.res
@@ -42,7 +43,10 @@ switch positional[0] {
 | None => usage()
 | Some(src) =>
   let source = readFileSync(src, "utf8")
-  let d = Compiler.compileWithDiagnostics(source, ~options={debug: flag("--debug")})
+  let d = Compiler.compileWithDiagnostics(
+    source,
+    ~options={debug: flag("--debug"), aliases: flag("--alias")},
+  )
   d.warnings->Array.forEach(w => Console.error(`warning: ${Errors.format(w)}`))
   if d.ok {
     if flag("--stdout") {
