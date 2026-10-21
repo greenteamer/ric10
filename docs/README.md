@@ -69,6 +69,7 @@ New to the compiler? Start here:
 | Document | Description |
 |----------|-------------|
 | [Compiler Overview](architecture/compiler-overview.md) | High-level architecture and component design |
+| [Compiler Development Rules](architecture/compiler-development-rules.md) | Project-level engineering rules and compiler invariants |
 | [Stack Layout](architecture/stack-layout.md) | IC10 stack operations and variant storage strategy |
 | [IR Design](architecture/ir-design.md) | Intermediate Representation migration plan |
 | [IR Reference](architecture/ir-reference.md) | Complete IR types, instructions, and examples |
