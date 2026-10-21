@@ -1,7 +1,7 @@
 // IC10.res - ReScript bindings for the ric10 compiler.
 //
 // These are type-checking stubs: running your program through the real
-// ReScript compiler (with `-open IC10`) proves it is well-typed, while ric10
+// ReScript compiler (with -open IC10) proves it is well-typed, while ric10
 // recognises the same names and emits IC10 instructions for them.
 // Math: use the standard library (Math.abs, Math.sqrt, Math.floor, Math.min,
 // Math.max, Math.sin, ..., Float.toInt, Int.toFloat) - ric10 maps those too.

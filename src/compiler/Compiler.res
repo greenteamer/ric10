@@ -32,7 +32,7 @@ let compileWithDiagnostics = (source: string, ~options: option<CodegenTypes.comp
     if debug {
       Console.log("=== IR (before optimization) ===\n" ++ IRPrint.print(ir))
     }
-    let ir = IROptimizer.optimize(ir)
+    let ir = IROptimizer.optimize(ir, ~names)
     if debug {
       Console.log("=== IR (after optimization) ===\n" ++ IRPrint.print(ir))
     }

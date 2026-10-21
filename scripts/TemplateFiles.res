@@ -1,208 +1,172 @@
-// Template files for project initialization
+// Template files for `ric10 init <name>`.
+// ic10Bindings is a verbatim copy of src/compiler/IC10.res (a test keeps them in sync).
 
-// IC10.res bindings - copied from src/compiler/IC10.res
-let ic10Bindings = `// IC10.res - ReScript bindings for IC10 assembly instructions
-// These are stub implementations that exist purely for type checking.
-// The actual compiler recognizes these function names and generates IC10 assembly instead.
-
-// Device references (d0-d5, db)
-type device = int
-
-// Bulk operation modes for lb/lbn operations
-module Mode = {
-  // String constants for bulk operations
-  let maximum = "Maximum"
-  let minimum = "Minimum"
-  let average = "Average"
-  let sum = "Sum"
-}
-
-// Device reference - creates a device reference from a device string
-// Examples:
-//   let furnace = device("d0")   // Device pin 0
-//   let pump = device("d1")      // Device pin 1
-//   let housing = device("db")   // Database device
-//   let sensor = device("d2")    // Device pin 2
+let ic10Bindings = `// IC10.res - ReScript bindings for the ric10 compiler.
 //
-// Use descriptive variable names for better code clarity:
-//   let mainFurnace = device("d0")
-//   let backupFurnace = device("d1")
-//   let tempSensor = device("d2")
-let device = (_deviceRef: string): device => {
-  0
-}
+// These are type-checking stubs: running your program through the real
+// ReScript compiler (with -open IC10) proves it is well-typed, while ric10
+// recognises the same names and emits IC10 instructions for them.
+// Math: use the standard library (Math.abs, Math.sqrt, Math.floor, Math.min,
+// Math.max, Math.sin, ..., Float.toInt, Int.toFloat) - ric10 maps those too.
 
-// Load operations - read from devices
-// l r0 d0 Temperature
-let l = (_device: device, _property: string): int => {
-  0
-}
+type device
 
-// lb r0 typeHash Temperature Maximum
-// typeHash should be a variable from hash("StructureTank")
-let lb = (_typeHash: string, _property: string, _mode: string): int => {
-  0
-}
+type batchMode = Average | Sum | Minimum | Maximum
 
-// lbn r0 typeHash nameHash Property Mode
-// typeHash and nameHash should be variables from hash()
-let lbn = (_typeHash: string, _nameHash: string, _property: string, _mode: string): int => {
-  0
-}
+type reagentMode = Contents | Required | Recipe | TotalContents
 
-// Store operations - write to devices
-// s d0 Setting 1
-let s = (_device: device, _property: string, _value: int): unit => {
-  () // Stub - never executed
-}
+// Values written to devices may be int, float or bool (true = 1).
 
-// sb typeHash Setting 1
-// typeHash should be a variable from hash("StructureTank")
-let sb = (_typeHash: string, _property: string, _value: int): unit => {
-  ()
-}
+// --- devices -------------------------------------------------------------
 
-// sbn typeHash nameHash Property Value
-// typeHash and nameHash should be variables from hash()
-let sbn = (_typeHash: string, _nameHash: string, _property: string, _value: int): unit => {
-  ()
-}
+// Device pin: device("d0") .. device("d5"), device("db") (the IC housing)
+let device = (_pin: string): device => Obj.magic(0)
+let d0: device = Obj.magic(0)
+let d1: device = Obj.magic(1)
+let d2: device = Obj.magic(2)
+let d3: device = Obj.magic(3)
+let d4: device = Obj.magic(4)
+let d5: device = Obj.magic(5)
+let db: device = Obj.magic(-1)
 
-// hash("StructureTank") -> defines a hash constant
-// Usage: let typeHash = hash("StructureTank")
-let hash = (_string: string): string => {
-  "" // Returns the variable name (compiler recognizes this)
-}
+// Device by ReferenceId (uses ld / sd)
+let deviceId = (_referenceId: float): device => Obj.magic(0)
 
-// Common IC10 properties for convenience and documentation
-module Property = {
-  // Environmental
-  let temperature = "Temperature"
-  let pressure = "Pressure"
-  let volume = "Volume"
+// HASH("StructureVolumePump")
+let hash = (_name: string): int => 0
 
-  // Power
-  let setting = "Setting"
-  let on = "On"
-  let power = "Power"
-  let mode = "Mode"
+// l r? d? logicType
+let l = (_device: device, _logicType: string): float => 0.0
+// s d? logicType value
+let s = (_device: device, _logicType: string, _value: 'a): unit => ()
+// ls r? d? slot slotLogicType
+let ls = (_device: device, _slot: int, _slotLogicType: string): float => 0.0
+// ss d? slot slotLogicType value
+let ss = (_device: device, _slot: int, _slotLogicType: string, _value: 'a): unit => ()
+// lr r? d? reagentMode reagentHash
+let lr = (_device: device, _mode: reagentMode, _reagent: int): float => 0.0
+// sdse / sdns: is a device connected to the pin?
+let isSet = (_device: device): bool => false
+let isNotSet = (_device: device): bool => true
 
-  // Logic
-  let activate = "Activate"
-  let open_ = "Open" // 'open' is reserved keyword
-  let lock = "Lock"
-}
+// --- batch operations on every device of a prefab type ---------------------
+
+let lb = (_prefabHash: int, _logicType: string, _mode: batchMode): float => 0.0
+let lbn = (_prefabHash: int, _nameHash: int, _logicType: string, _mode: batchMode): float => 0.0
+let lbs = (_prefabHash: int, _slot: int, _slotLogicType: string, _mode: batchMode): float => 0.0
+let lbns = (
+  _prefabHash: int,
+  _nameHash: int,
+  _slot: int,
+  _slotLogicType: string,
+  _mode: batchMode,
+): float => 0.0
+let sb = (_prefabHash: int, _logicType: string, _value: 'a): unit => ()
+let sbn = (_prefabHash: int, _nameHash: int, _logicType: string, _value: 'a): unit => ()
+let sbs = (_prefabHash: int, _slot: int, _slotLogicType: string, _value: 'a): unit => ()
+
+// --- execution ----------------------------------------------------------
+
+// Pause until the next game tick
+let yield = (): unit => ()
+// Pause for a number of seconds
+let sleep = (_seconds: float): unit => ()
+
+// --- stack memory (512 slots) ---------------------------------------------
+
+let push = (_value: 'a): unit => ()
+let pop = (): float => 0.0
+let peek = (): float => 0.0
+let poke = (_address: int, _value: 'a): unit => ()
+let get = (_device: device, _address: int): float => 0.0
+let put = (_device: device, _address: int, _value: 'a): unit => ()
+let clr = (_device: device): unit => ()
+
+// --- misc -----------------------------------------------------------------
+
+// Branch-free conditional: select r? cond a b
+let select = (cond: bool, a: 'a, b: 'a): 'a => cond ? a : b
+let lerp = (a: float, b: float, t: float): float => a +. (b -. a) *. t
+let rand = (): float => 0.0
 `
 
-// Example.res - Simple example code
-let exampleCode = `let furnace = device("d0")
+let exampleCode = `// Furnace heater: keeps a furnace below a temperature limit.
+let furnace = device("d0")
 let sensor = device("d1")
+
+let limit = 500.
 
 while true {
   let temp = l(sensor, "Temperature")
-
-  if temp < 500 {
-    s(furnace, "On", 1)
-  } else {
-    s(furnace, "On", 0)
-  }
-
-  %raw("yield")
+  s(furnace, "On", temp < limit)
+  yield()
 }
 `
 
-// rescript.json template
-let rescriptConfig = (projectName: string) => "{
-  \"name\": \"" ++ projectName ++ "\",
-  \"sources\": [
-    {
-      \"dir\": \"src\",
-      \"subdirs\": true
-    }
-  ],
-  \"package-specs\": [
-    {
-      \"module\": \"commonjs\",
-      \"in-source\": false
-    }
-  ],
-  \"suffix\": \".res.js\",
-  \"bs-dependencies\": [\"@rescript/core\"],
-  \"bsc-flags\": [\"-open RescriptCore\", \"-open IC10\"]
+let rescriptConfig = (projectName: string) =>
+  `{
+  "name": "${projectName}",
+  "sources": [{"dir": "src", "subdirs": true}],
+  "package-specs": [{"module": "esmodule", "in-source": true}],
+  "suffix": ".res.mjs",
+  "compiler-flags": ["-open IC10"]
 }
-"
+`
 
-// package.json template
-let packageJson = (projectName: string) => "{
-  \"name\": \"" ++ projectName ++ "\",
-  \"version\": \"1.0.0\",
-  \"description\": \"IC10 assembly project using ReScript\",
-  \"scripts\": {
-    \"build\": \"rescript\",
-    \"dev\": \"rescript -w\",
-    \"compile\": \"ric10 src/Example.res\"
+let packageJson = (projectName: string) =>
+  `{
+  "name": "${projectName}",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Stationeers IC10 scripts written in ReScript",
+  "scripts": {
+    "typecheck": "rescript",
+    "compile": "ric10 src/Example.res"
   },
-  \"dependencies\": {
-    \"@rescript/core\": \"^1.6.1\",
-    \"rescript\": \"^11.1.4\"
+  "devDependencies": {
+    "rescript": "^12.1.0",
+    "rescript-ic10-compiler": "^0.2.0"
   }
 }
-"
+`
 
-// README.md template
-let readme = (projectName: string) => "# " ++ projectName ++ "
+let readme = (projectName: string) =>
+  `# ${projectName}
 
-IC10 assembly project using ReScript
+Stationeers IC10 scripts written in ReScript and compiled with ric10.
 
-## Quick Start
+## Workflow
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
+    npm install
+    npm run typecheck          # the real ReScript compiler checks your program
+    npx ric10 src/Example.res  # writes src/Example.ic10
 
-2. Compile Example.res to IC10:
-   ```bash
-   ric10 src/Example.res
-   # Creates src/Example.ic10
-   ```
+Paste the .ic10 file into an IC housing in game.
 
-3. Watch mode (auto-compile on changes):
-   ```bash
-   npm run dev
-   ```
+## Files
 
-## Project Structure
+- src/IC10.res: bindings for IC10 instructions (devices, batch ops, stack, yield)
+- src/Example.res: your script
 
-- `src/IC10.res` - IC10 bindings (device functions)
-- `src/Example.res` - Example code (edit this!)
-- `rescript.json` - ReScript compiler config
+## Cheatsheet
 
-## Available IC10 Functions
+    let sensor = device("d0")                  // pins d0..d5, db
+    let t = l(sensor, "Temperature")           // read (float)
+    s(d1, "On", t > 300.)                      // write int/float/bool
+    let tanks = hash("StructureTankSmall")
+    let avg = lb(tanks, "Pressure", Average)   // batch read
+    yield()                                    // wait one tick
 
-- `device(ref)` - Create device reference
-- `l(device, property)` - Load from device
-- `s(device, property, value)` - Store to device
-- `lb/lbn` - Batch load operations
-- `sb/sbn` - Batch store operations
-- `hash(string)` - Generate hash constant
-
-## IC10 Property Constants
-
-Use `Property.temperature`, `Property.pressure`, `Property.on`, etc.
-
-See `src/IC10.res` for full API documentation.
+Language: let, refs, if/switch/blocks as expressions, while, for, functions with
+parameters, variants with payloads, pattern matching. Math via Math.* .
 
 ## Resources
 
-- [Stationeers IC10 Documentation](https://stationeers-wiki.com/IC10)
-- [ReScript Documentation](https://rescript-lang.org)
-"
+- https://stationeers-wiki.com/IC10
+- https://rescript-lang.org
+`
 
-// .gitignore template
 let gitignore = `node_modules/
 lib/
-*.js
-*.js.map
-!.gitkeep
+*.res.mjs
 `

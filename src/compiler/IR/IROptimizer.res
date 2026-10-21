@@ -111,7 +111,9 @@ let foldConstants = (ir: IR.t): IR.t => {
 // ---------------------------------------------------------------------------
 // Local (basic block) constant and copy propagation
 
-let propagateCopies = (ir: IR.t): IR.t =>
+// `names` (vreg -> source variable) is updated so that a value keeps its
+// variable name when the copy carrying the name is propagated away.
+let propagateCopies = (ir: IR.t, ~names: Dict.t<string>=Dict.make()): IR.t =>
   ir->mapBlocks(instrs => {
     let env = ref(Belt.Map.Int.empty)
     instrs->Array.map(i => {
@@ -136,6 +138,14 @@ let propagateCopies = (ir: IR.t): IR.t =>
         switch i {
         | Move(_, VReg(s)) if s == d => ()
         | Move(_, (VReg(_) | Num(_) | Name(_) | Hash(_)) as src) =>
+          switch src {
+          | VReg(s) =>
+            switch (names->Dict.get(Int.toString(d)), names->Dict.get(Int.toString(s))) {
+            | (Some(n), None) => names->Dict.set(Int.toString(s), n)
+            | _ => ()
+            }
+          | _ => ()
+          }
           env := env.contents->Belt.Map.Int.set(d, src)
         | _ => ()
         }
@@ -181,7 +191,42 @@ let referencedLabels = (ir: IR.t): Dict.t<bool> => {
   refs
 }
 
+// Consecutive labels name the same place. Keep the last label of each run
+// (`endswitch3` reads better than `case7`), except a function's entry label.
+let mergeLabels = (instrs: array<IR.instr>): array<IR.instr> => {
+  let alias = Dict.make()
+  let run = []
+  let flush = startsAtEntry => {
+    switch (startsAtEntry ? run[0] : run->Array.at(-1)) {
+    | Some(keep) => run->Array.forEach(l => if l != keep { alias->Dict.set(l, keep) })
+    | None => ()
+    }
+    run->Array.splice(~start=0, ~remove=Array.length(run), ~insert=[])
+  }
+  let runStart = ref(0)
+  instrs->Array.forEachWithIndex((i, idx) =>
+    switch i {
+    | Label(l) =>
+      if Array.length(run) == 0 {
+        runStart := idx
+      }
+      run->Array.push(l)
+    | _ => flush(runStart.contents == 0)
+    }
+  )
+  flush(runStart.contents == 0)
+  let rename = l => alias->Dict.get(l)->Option.getOr(l)
+  instrs->Array.map(i =>
+    switch i {
+    | Goto(l) => IR.Goto(rename(l))
+    | Branch(op, a, b, l) => Branch(op, a, b, rename(l))
+    | _ => i
+    }
+  )
+}
+
 let simplifyBlock = (instrs: array<IR.instr>): array<IR.instr> => {
+  let instrs = mergeLabels(instrs)
   let labelAt = Dict.make()
   instrs->Array.forEachWithIndex((i, idx) =>
     switch i {
@@ -276,6 +321,94 @@ let simplifyJumps = (ir: IR.t): IR.t => {
 }
 
 // ---------------------------------------------------------------------------
+// Branch diamonds that only pick a value become branch-free code:
+//   bXX a b else; move d x; j end; else: move d y; end:
+//     -> sXX d a b                (x = 0, y = 1)
+//     -> sNXX d a b               (x = 1, y = 0)
+//     -> sXX t a b; select d t y x
+//   bXX a b end; move d x; end:
+//     -> sXX t a b; select d t d x
+
+let maxVReg = (ir: IR.t): int => {
+  let m = ref(-1)
+  ir->Array.forEach(b =>
+    b.instructions->Array.forEach(i => {
+      IR.uses(i)->Array.forEach(v => m := Math.Int.max(m.contents, v))
+      IR.def(i)->Option.forEach(v => m := Math.Int.max(m.contents, v))
+    })
+  )
+  m.contents
+}
+
+let branchesToSelect = (ir: IR.t): IR.t => {
+  let next = ref(maxVReg(ir) + 1)
+  let fresh = () => {
+    let v = next.contents
+    next := v + 1
+    v
+  }
+  let refCount = Dict.make()
+  ir->Array.forEach(b =>
+    b.instructions->Array.forEach(i =>
+      switch i {
+      | Goto(l) | Branch(_, _, _, l) | Call(l) =>
+        refCount->Dict.set(l, refCount->Dict.get(l)->Option.getOr(0) + 1)
+      | _ => ()
+      }
+    )
+  )
+  let refs = l => refCount->Dict.get(l)->Option.getOr(0)
+  let isOne = (o: IR.operand) => o == Num(1.)
+  let isZero = (o: IR.operand) => o == Num(0.)
+  ir->mapBlocks(instrs => {
+    let out = []
+    let n = Array.length(instrs)
+    let i = ref(0)
+    while i.contents < n {
+      let at = k => instrs[i.contents + k]
+      switch (at(0), at(1), at(2), at(3), at(4), at(5)) {
+      | (
+          Some(Branch(c, a, b, lElse)),
+          Some(Move(d, x)),
+          Some(Goto(lEnd)),
+          Some(Label(l3)),
+          Some(Move(d2, y)),
+          Some(Label(l5)),
+        ) if l3 == lElse && l5 == lEnd && d == d2 && refs(lElse) == 1 =>
+        // condition true -> d = y, false -> d = x
+        if isZero(x) && isOne(y) {
+          out->Array.push(IR.Compare(d, c, a, b))
+        } else if isOne(x) && isZero(y) {
+          out->Array.push(IR.Compare(d, IR.invertCmp(c), a, b))
+        } else {
+          let t = fresh()
+          out->Array.push(IR.Compare(t, c, a, b))
+          out->Array.push(IR.Select(d, VReg(t), y, x))
+        }
+        if refs(lEnd) > 1 {
+          out->Array.push(IR.Label(lEnd))
+        }
+        i := i.contents + 6
+      | (Some(Branch(c, a, b, lEnd)), Some(Move(d, x)), Some(Label(l2)), _, _, _)
+        if l2 == lEnd && x != IR.VReg(d) =>
+        // condition true -> keep d, false -> d = x
+        let t = fresh()
+        out->Array.push(IR.Compare(t, c, a, b))
+        out->Array.push(IR.Select(d, VReg(t), VReg(d), x))
+        if refs(lEnd) > 1 {
+          out->Array.push(IR.Label(lEnd))
+        }
+        i := i.contents + 3
+      | _ =>
+        out->Array.push(instrs->Array.getUnsafe(i.contents))
+        i := i.contents + 1
+      }
+    }
+    out
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Whole-program cleanup
 
 let removeUnusedFunctions = (ir: IR.t): IR.t => {
@@ -328,18 +461,20 @@ let removeUnusedDefines = (ir: IR.t): IR.t => {
   )
 }
 
-let passes: array<pass> = [
+let makePasses = (~names): array<pass> => [
   {name: "foldConstants", run: foldConstants},
-  {name: "propagateCopies", run: propagateCopies},
+  {name: "propagateCopies", run: ir => propagateCopies(ir, ~names)},
   {name: "eliminateDeadCode", run: eliminateDeadCode},
+  {name: "branchesToSelect", run: branchesToSelect},
   {name: "simplifyJumps", run: simplifyJumps},
   {name: "removeUnusedFunctions", run: removeUnusedFunctions},
   {name: "removeUnusedDefines", run: removeUnusedDefines},
 ]
 
-let passNames = passes->Array.map(p => p.name)
+let passNames = makePasses(~names=Dict.make())->Array.map(p => p.name)
 
-let optimize = (ir: IR.t): IR.t => {
+let optimize = (ir: IR.t, ~names: Dict.t<string>=Dict.make()): IR.t => {
+  let passes = makePasses(~names)
   let current = ref(ir)
   let changed = ref(true)
   let rounds = ref(0)

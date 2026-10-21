@@ -1,3 +1,4 @@
+import * as harness from "./support/harness.mjs";
 import { run, evaluate, asm, compileError, warnings, writesTo } from "./support/harness.mjs";
 
 describe("refs", () => {
@@ -118,7 +119,10 @@ s(db, "Setting", v)`;
 
   test("exhaustive switch omits the last tag test", () => {
     const code = asm(`type t = A | B\nlet x = ref(A)\nwhile true {\n  switch x.contents {\n  | A => x := B\n  | B => x := A\n  }\n  s(d0, "Setting", x.contents == A ? 1 : 0)\n  yield()\n}`);
-    expect(code.match(/^b\w+ /gm)?.length ?? 0).toBe(1);
+    expect(code.match(/^b\w+ /gm)?.length ?? 0).toBeLessThanOrEqual(1);
+    const { IC10 } = harness;
+    const emu = new IC10(code, { devices: { d0: {} } }).run({ ticks: 4 });
+    expect(emu.writes.map((w) => w.value)).toEqual([0, 1, 0, 1]);
   });
 
   test("non-exhaustive switch warns", () => {

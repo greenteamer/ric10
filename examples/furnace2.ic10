@@ -1,79 +1,44 @@
-move sp 4
-poke 0 0
-move sp 1
-poke 4 1
-label0:
-l r0 d0 Pressure
-jal resolveAction
-get r1 db 0
-beq r1 0 match_case_3
-beq r1 1 match_case_4
-beq r1 2 match_case_5
-j match_end_2
-match_case_3:
-get r2 db 4
-beq r2 0 match_case_7
-beq r2 1 match_case_8
-j match_end_2
-match_case_7:
-poke 0 1
-poke 2 r0
-j match_end_2
-match_case_8:
-poke 0 0
-j match_end_2
-match_case_4:
-get r3 db 2
-get r4 db 4
-beq r4 0 match_case_10
-beq r4 1 match_case_11
-j match_end_2
-match_case_10:
-bgt r3 55000 label12
-jal loading
-j match_end_2
-label12:
-poke 0 2
-poke 3 r3
-match_case_11:
-poke 0 0
-j match_end_2
-match_case_5:
-get r5 db 3
-get r6 db 4
-beq r6 0 match_case_15
-beq r6 1 match_case_16
-j match_end_2
-match_case_15:
-blt r5 500 label17
-jal unloading
-j match_end_2
-label17:
-poke 0 1
-poke 2 r5
-match_case_16:
-poke 0 0
-match_end_2:
-yield
-j label0
-loading:
+move r0 0
+while0:
+l r2 d0 Pressure
+l r3 d1 Open
+sne r3 r3 1
+bnez r0 case5
+bnez r3 case7
+move r0 1
+move r1 r2
+j endswitch4
+case7:
+move r0 0
+j endswitch4
+case5:
+bne r0 1 case9
+bnez r3 case11
+ble r1 55000 else12
+move r0 2
+j endswitch4
+else12:
 s d2 Mode 1
 s d2 Open 1
 s d0 SettingInput 50
 s d0 SettingOutput 0
-j ra
-unloading:
+j endswitch4
+case11:
+move r0 0
+j endswitch4
+case9:
+bnez r3 case17
+bge r1 500 else18
+move r0 1
+j endswitch4
+else18:
 s d2 Mode 0
 s d2 Open 1
 s d0 SettingInput 50
 s d0 SettingOutput 50
-j ra
-resolveAction:
-l r0 d1 Open
-beq r0 1 label0
-poke 4 1
-j label1
-label0:
-poke 4 0
-label1:
-j ra
+j endswitch4
+case17:
+move r0 0
+endswitch4:
+yield
+j while0

@@ -1,0 +1,26 @@
+define low 290
+define high 300
+while0:
+l r0 d0 Temperature
+bge r0 low else2
+move r0 0
+j endif3
+else2:
+sle r0 r0 high
+select r0 r0 2 1
+endif3:
+bnez r0 case7
+s d1 On 1
+s d2 On 0
+j endswitch6
+case7:
+bne r0 1 case8
+s d1 On 0
+s d2 On 1
+j endswitch6
+case8:
+s d1 On 0
+s d2 On 0
+endswitch6:
+yield
+j while0

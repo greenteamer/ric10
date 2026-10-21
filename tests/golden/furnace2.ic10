@@ -1,0 +1,44 @@
+move r0 0
+while0:
+l r2 d0 Pressure
+l r3 d1 Open
+sne r3 r3 1
+bnez r0 case5
+bnez r3 case7
+move r0 1
+move r1 r2
+j endswitch4
+case7:
+move r0 0
+j endswitch4
+case5:
+bne r0 1 case9
+bnez r3 case11
+ble r1 55000 else12
+move r0 2
+j endswitch4
+else12:
+s d2 Mode 1
+s d2 Open 1
+s d0 SettingInput 50
+s d0 SettingOutput 0
+j endswitch4
+case11:
+move r0 0
+j endswitch4
+case9:
+bnez r3 case17
+bge r1 500 else18
+move r0 1
+j endswitch4
+else18:
+s d2 Mode 0
+s d2 Open 1
+s d0 SettingInput 50
+s d0 SettingOutput 50
+j endswitch4
+case17:
+move r0 0
+endswitch4:
+yield
+j while0
