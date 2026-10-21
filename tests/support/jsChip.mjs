@@ -1,0 +1,104 @@
+// JavaScript side of IC10.runtime.res: the same device model as the emulator,
+// driven by ReScript code compiled to JS by the real ReScript compiler.
+import { hash } from "./ic10.mjs";
+
+export class StopSimulation extends Error {}
+
+const num = (v) => (typeof v === "boolean" ? (v ? 1 : 0) : v);
+const MODES = { Average: 0, Sum: 1, Minimum: 2, Maximum: 3 };
+
+export class JsChip {
+  constructor({ devices = {}, network = [], byId = {}, ticks = Infinity, onTick } = {}) {
+    this.devices = devices;
+    this.network = network;
+    this.byId = byId;
+    this.maxTicks = ticks;
+    this.onTick = onTick;
+    this.ticks = 0;
+    this.writes = [];
+    this.stack = new Array(512).fill(0);
+    this.sp = 0;
+    if (onTick) onTick(this, 0);
+  }
+
+  device(pin) {
+    return { pin };
+  }
+  deviceId(id) {
+    return { id };
+  }
+  hash(s) {
+    return hash(s);
+  }
+  resolve(d) {
+    if (d.id !== undefined) return [this.byId[d.id], `id ${d.id}`];
+    if (d.pin === "db") return [(this.devices.db ??= {}), "db"];
+    const dev = this.devices[d.pin];
+    if (!dev) throw new Error(`no device on ${d.pin}`);
+    return [dev, d.pin];
+  }
+  read(dev, prop, label) {
+    if (!(prop in dev)) throw new Error(`${label} has no logic type '${prop}'`);
+    return dev[prop];
+  }
+  log(target, prop, value) {
+    this.writes.push({ tick: this.ticks, target, prop, value });
+  }
+  l(d, p) {
+    const [dev, label] = this.resolve(d);
+    return this.read(dev, p, label);
+  }
+  s(d, p, v) {
+    const [dev, label] = this.resolve(d);
+    dev[p] = num(v);
+    this.log(label, p, num(v));
+  }
+  ls(d, i, p) {
+    const [dev, label] = this.resolve(d);
+    return this.read(dev.slots[i], p, `${label} slot ${i}`);
+  }
+  ss(d, i, p, v) {
+    const [dev, label] = this.resolve(d);
+    dev.slots[i][p] = num(v);
+    this.log(`${label}.slot${i}`, p, num(v));
+  }
+  isSet(d) {
+    return d.pin === "db" || this.devices[d.pin] !== undefined;
+  }
+  batch(h, n) {
+    return this.network.filter((x) => x.prefabHash === h && (n === undefined || x.nameHash === n));
+  }
+  lb(h, n, p, mode) {
+    const values = this.batch(h, n).map((x) => this.read(x.values, p, "batch"));
+    if (values.length === 0) return 0;
+    switch (MODES[mode]) {
+      case 0: return values.reduce((a, b) => a + b, 0) / values.length;
+      case 1: return values.reduce((a, b) => a + b, 0);
+      case 2: return Math.min(...values);
+      case 3: return Math.max(...values);
+    }
+  }
+  sb(h, n, p, v) {
+    for (const x of this.batch(h, n)) {
+      x.values[p] = num(v);
+      this.log(n === undefined ? `batch ${h}` : `batch ${h}/${n}`, p, num(v));
+    }
+  }
+  push(v) { this.stack[this.sp++] = num(v); }
+  pop() { return this.stack[--this.sp]; }
+  peek() { return this.stack[this.sp - 1]; }
+  poke(a, v) { this.stack[a] = num(v); }
+  get(_d, a) { return this.stack[a]; }
+  put(_d, a, v) { this.stack[a] = num(v); }
+  clr() { this.stack.fill(0); }
+
+  yield() {
+    this.ticks++;
+    if (this.ticks >= this.maxTicks) throw new StopSimulation();
+    if (this.onTick) this.onTick(this, this.ticks);
+  }
+  sleep(seconds) {
+    this.ticks += Math.max(0, Math.ceil(seconds / 0.5) - 1);
+    this.yield();
+  }
+}

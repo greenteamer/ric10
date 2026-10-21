@@ -10,6 +10,9 @@ open AST
 type t = {
   tokens: array<Lexer.t>,
   mutable pos: int,
+  // inside a switch guard `| P if cond => body` the `=>` ends the guard,
+  // so `y => ...` and `(a > b) => ...` must not be read as lambdas
+  mutable inGuard: bool,
 }
 
 let file = "Parser.res"
@@ -499,7 +502,7 @@ and parsePrimary = (p): expr => {
     bump(p)
     mk(Bool(false), l)
   | Ident(name) =>
-    if peekAt(p, 1).tok == Op("=>") {
+    if peekAt(p, 1).tok == Op("=>") && !p.inGuard {
       parseLambda(p)
     } else {
       bump(p)
@@ -525,7 +528,7 @@ and parsePrimary = (p): expr => {
       mk(Constructor(name, []), l)
     }
   | Op("(") =>
-    if looksLikeLambda(p) {
+    if !p.inGuard && looksLikeLambda(p) {
       parseLambda(p)
     } else {
       bump(p)
@@ -620,7 +623,11 @@ and parseSwitch = (p): expr => {
     let pattern = parsePattern(p)
     let guard = if isKeyword(p, "if") || isKeyword(p, "when") {
       bump(p)
-      Some(parseExpr(p))
+      let saved = p.inGuard
+      p.inGuard = true
+      let g = parseExpr(p)
+      p.inGuard = saved
+      Some(g)
     } else {
       None
     }
@@ -772,7 +779,7 @@ and parseStatement = (p): stmt => {
 }
 
 let parse = (tokens: array<Lexer.t>): program => {
-  let p = {tokens, pos: 0}
+  let p = {tokens, pos: 0, inGuard: false}
   let stmts = []
   skipSemis(p)
   while tok(p) != EOF {

@@ -79,7 +79,6 @@ let foldConstants = (ir: IR.t): IR.t => {
       | (Some(0.), _) if op == Add => Some(Move(d, b))
       | (_, Some(1.)) if op == Mul || op == Div => Some(Move(d, a))
       | (Some(1.), _) if op == Mul => Some(Move(d, b))
-      | (_, Some(0.)) | (Some(0.), _) if op == Mul => Some(Move(d, Num(0.)))
       | _ => Some(i)
       }
     | Unary(d, op, a) =>
