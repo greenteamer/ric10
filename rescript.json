@@ -2,11 +2,15 @@
   "name": "rescript-ic10-compiler",
   "sources": [
     {
-      "dir": "src",
+      "dir": "src/compiler",
       "subdirs": true
     },
     {
       "dir": "scripts",
+      "subdirs": true
+    },
+    {
+      "dir": "examples",
       "subdirs": true
     }
   ],
@@ -17,14 +21,6 @@
     }
   ],
   "suffix": ".res.js",
-  "dependencies": ["@rescript/core", "sury"],
-  "compiler-flags": ["-open RescriptCore", "-open IC10"],
-  "ppx-flags": ["sury-ppx/bin"],
-  "gentypeconfig": {
-    "language": "typescript",
-    "shims": {},
-    "debug": {
-      "all": false
-    }
-  }
+  "dependencies": [],
+  "compiler-flags": ["-open IC10"]
 }

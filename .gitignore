@@ -53,3 +53,6 @@ Thumbs.db
 .cache/
 coverage/
 .nyc_output/
+
+# Claude Code worktrees
+.claude/worktrees/
