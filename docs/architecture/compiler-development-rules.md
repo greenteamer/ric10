@@ -1,95 +1,81 @@
-# Правила разработки компилятора (проектные договоренности)
+# Compiler development rules
 
-Этот документ фиксирует ключевые инженерные правила, к которым проект пришел в процессе развития IR-пайплайна и backend-ов.
+Project invariants. Each rule names the failure it prevents. Reasons and rejected
+alternatives live in [decisions.md](decisions.md).
 
-## 1) Единый конвейер компиляции
+## 1. One pipeline
 
-- Используем только цепочку: `Lexer -> Parser -> Optimizer -> IRGen -> IROptimizer -> Backend`.
-- Прямые обходы `AST -> backend` считаются легаси и не должны использоваться для новых фич.
-- Выбор backend (`IC10`/`WASM`) происходит только после оптимизации IR.
+`Lexer → Parser → IRGen → IROptimizer → IRToIC10`. A feature exists once it is expressed in
+IR; no AST-to-assembly shortcuts. (Before 0.2 a legacy path and the IR path coexisted and
+drifted apart.)
 
-## 2) IR — центральный и обязательный слой
+## 2. The source language is ReScript
 
-- IR является границей между frontend-частью языка и целевыми backend-ами.
-- Новые языковые возможности сначала выражаются в IR, затем понижаются в backend.
-- Любая бизнес-логика, завязанная на конкретную платформу, не должна просачиваться обратно в AST-уровень.
+Every construct ric10 accepts must be valid ReScript 12 and mean the same thing. Check new
+syntax against the real compiler (`tests/.work` or a scratch project) before implementing
+it. Operator precedence was copied from compiled ReScript output, not from memory.
+(Before 0.2 `x + 1 > 5` parsed as `x + (1 > 5)`.)
 
-## 3) IR должен оставаться backend-агностичным
+## 3. Exhaustive matches over IR
 
-- Для device I/O в IR используем абстракции `DeviceLoad`/`DeviceStore` и тип `device`.
-- Свойства/режимы (`"Temperature"`, `"Maximum"` и т.д.) передаются как строки на уровне IR.
-- Платформо-специфичный выбор конкретной инструкции (`l/lb/lbn/s/sb/sbn`) выполняется только в backend (`IRToIC10`).
+Adding an operand, device or instruction means updating every `switch` over it: `IR.res`
+helpers, `IRGen`, `IROptimizer`, `IRToIC10`. Pattern-match warnings are blocking.
 
-## 4) Exhaustive-обработка всех вариантов IR
+## 4. Virtual registers until the end
 
-- При добавлении нового `operand`/`instr` в `IR.res` обязательно обновлять все потребители:
-  - `IRGen.res`
-  - `IROptimizer.res`
-  - `IRToIC10.res`
-  - `IRToWASM.res` (если затронуто)
-  - `IRPrint.res`
-- Pattern-match warning по новому варианту считается блокирующей проблемой, а не "косметикой".
+IRGen and the optimizer use unlimited vregs. Only `RegAlloc` maps them to r0..r15. Do not
+emit physical registers from earlier phases; `%raw` registers are reserved, not modelled.
 
-## 5) Регистровая стратегия: virtual first, physical later
+## 5. Whole-program liveness owns correctness across calls
 
-- В IR используем неограниченные виртуальные регистры (`vreg`).
-- Отображение `vreg -> r0..r15` выполняется только в lowering (`IRToIC10`).
-- Ограничение IC10 в 16 физических регистров является жестким: при превышении компиляция должна падать с явной ошибкой.
+Never special-case "registers a function may use". Values that must survive a call are live
+inside the callee by construction (`Liveness.res`). (Before 0.2 functions reused the
+caller's registers and labels.)
 
-## 6) Оптимизации до аллокации физических регистров — обязательны
+## 6. Passes are data
 
-- `IROptimizer` должен выполняться до `IRToIC10`.
-- Dead code elimination не отключаем ради совместимости со старыми тест-ожиданиями.
-- При изменении оптимизаций обновляем тесты, а не вырезаем оптимизационные проходы.
+Add optimizations to `IROptimizer.makePasses`, with a comment saying why the position is
+right, and update the pass-order test. Passes must be semantics-preserving for every input
+including NaN and Infinity (`x * 0 → 0` was removed for that reason).
 
-## 7) Правило генерации ветвлений
+## 7. Errors are structured
 
-- На IR-уровне условная логика строится через `Compare + Bnez`.
-- `if` без `else` и `while` используют инвертированное сравнение (jump при FALSE-ветке условия).
-- На этапе `IRToIC10` допускается peephole-фьюзинг `Compare + Bnez` в прямые ветки (`blt/bgt/beq/...`).
+Raise with `Errors.fail(~file, ~fn, ~loc, ~hint?, message)`. Include a location whenever
+the AST has one; add a hint when the fix is not obvious. `Errors.format` is the only place
+a diagnostic becomes text.
 
-## 8) Правило порядка функций в выходном коде
+## 8. Behaviour is tested by execution
 
-- Главный блок программы всегда идет первым.
-- Блоки функций размещаются после main-блока.
-- Между main и функциями добавляется защитный переход в `__end` (и бесконечный цикл), чтобы исключить fall-through в тело функций.
+Every feature gets emulator tests (`tests/*.test.mjs`) that assert on device writes, not on
+assembly text. Assembly-shape assertions are only for code-quality properties (line count,
+`select` instead of jumps, no copies). A green golden file proves nothing about semantics.
 
-## 9) Инварианты stack layout для variant/ref
+## 9. ReScript is the oracle
 
-- `sp` инициализируется один раз при выделении памяти и далее не двигается в runtime-операциях с variant-данными.
-- Доступ к variant-данным делаем через адресный доступ (`StackGet`/`StackPoke` -> `get db`/`poke`).
-- Паттерн с runtime-манипуляцией `sp` для чтения (`move sp ...; peek`) считается ошибочным для нашей модели.
-- Слоты под варианты выделяются заранее фиксированным layout.
+Programs in `tests/differential.test.mjs` and the fuzzer must produce the same device-write
+trace when compiled by ReScript to JS and by ric10 to IC10. Run `npm run test:fuzz` after
+touching IRGen, the optimizer or the allocator.
 
-## 10) Ограничение модели вариантов
+## 10. The emulator is strict
 
-- Для одного variant-типа поддерживается только один активный `ref` (ограничение текущей stack-модели).
-- Это ограничение должно оставаться явным в диагностике компилятора и в документации.
+`tests/support/ic10.mjs` throws on duplicate labels, undefined labels, unknown
+instructions, missing logic types and programs over the line limit. Do not loosen it to
+make a test pass; fix the compiler.
 
-## 11) Константы и hash-значения
+## 11. Bindings have one source
 
-- Для именованных констант используем IR-форму `DefInt`/`DefHash` + `Name`/`Hash` operands.
-- Любые оптимизации подстановки констант должны сохранять корректность define-инструкций в финальном выводе.
+`src/compiler/IC10.res` is the API. `scripts/TemplateFiles.res` embeds it verbatim and
+`tests/support/IC10.runtime.res` mirrors its signatures; tests keep them in sync.
 
-## 12) Тесты — часть контракта компилятора
+## 12. Docs move with the code
 
-- Любое изменение IR/optimizer/backend сопровождается обновлением и прогоном тестов.
-- Сравнение кода в тестах допускает "другой, но эквивалентный" вывод только если это осознанный эффект оптимизации и он закреплен в тест-ожиданиях.
-- Отдельно контролируем регрессии по:
-  - регистровому давлению и overflow,
-  - switch/variant поведению,
-  - функциям и порядку исполнения,
-  - device I/O lowering.
+Changing a language feature updates `docs/user-guide/language-reference.md`; changing an
+invariant updates this file and `decisions.md`.
 
-## 13) Документация обновляется вместе с архитектурными изменениями
+## Checklist before merge
 
-- При изменении инвариантов или lowering-правил обновляем архитектурные документы и changelog.
-- Документация по IR является source of truth для новых доработок.
-
-## Краткий checklist перед merge
-
-1. Фича выражена в IR, а не "вшита" в backend напрямую.
-2. Обновлены все pattern-match потребители IR.
-3. Пройдены оптимизации до lowering.
-4. Не нарушены stack/variant инварианты (`sp`, fixed layout, one-ref-per-type).
-5. Обновлены тесты и документация.
+1. The feature is expressed in IR and accepted by the real ReScript compiler.
+2. Emulator tests cover it; `npm test` is green.
+3. `npm run test:fuzz` is green when codegen changed.
+4. Golden files updated deliberately (`npm run golden:update`) and the diff reviewed.
+5. Docs updated.

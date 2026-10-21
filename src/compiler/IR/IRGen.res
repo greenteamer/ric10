@@ -532,7 +532,11 @@ and genUnary = (ctx, env, op: unop, a: expr, loc): value => {
 
 // Operands of a comparison, such that `left CMP right` is the condition.
 // Variant equality compares tags (and payloads when the constructor is known).
-and comparison = (ctx, env, op: binop, a: expr, b: expr, loc): (IR.cmpOp, IR.operand, IR.operand) => {
+and comparison = (ctx, env, op: binop, a: expr, b: expr, loc): (
+  IR.cmpOp,
+  IR.operand,
+  IR.operand,
+) => {
   let fn = "comparison"
   let va = gen(ctx, env, a, ~want=true)
   let vb = gen(ctx, env, b, ~want=true)
@@ -555,17 +559,20 @@ and comparison = (ctx, env, op: binop, a: expr, b: expr, loc): (IR.cmpOp, IR.ope
           ~hint="compare against a constructor, or use switch",
         )
       }
-      let acc = newVReg(ctx)
-      emit(ctx, Compare(acc, Eq, tagA, tagB))
-      for i in 0 to slots - 1 {
-        let e = newVReg(ctx)
-        emit(ctx, Compare(e, Eq, pa->Array.getUnsafe(i), pb->Array.getUnsafe(i)))
-        emit(ctx, Binary(acc, And, VReg(acc), VReg(e)))
+      if slots == 0 {
+        (cmpOf(op), tagA, tagB)
+      } else {
+        let acc = newVReg(ctx)
+        emit(ctx, Compare(acc, Eq, tagA, tagB))
+        for i in 0 to slots - 1 {
+          let e = newVReg(ctx)
+          emit(ctx, Compare(e, Eq, pa->Array.getUnsafe(i), pb->Array.getUnsafe(i)))
+          emit(ctx, Binary(acc, And, VReg(acc), VReg(e)))
+        }
+        (op == Eq ? Ne : Eq, VReg(acc), Num(0.))
       }
-      (op == Eq ? Ne : Eq, VReg(acc), Num(0.))
     }
-  | (VScalar(_), other) | (other, _) =>
-    fail(~fn, ~loc, `cannot compare ${describeValue(other)}`)
+  | (VScalar(_), other) | (other, _) => fail(~fn, ~loc, `cannot compare ${describeValue(other)}`)
   }
 }
 

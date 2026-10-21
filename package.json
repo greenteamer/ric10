@@ -1,7 +1,7 @@
 {
   "name": "rescript-ic10-compiler",
   "description": "ReScript to IC10 compiler for Stationeers",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "bin": {
     "ric10": "./bin/ric10.js"
   },
@@ -9,7 +9,8 @@
     "bin/",
     "dist/",
     "package.json",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "res:clean": "rescript clean",
@@ -20,7 +21,9 @@
     "build:bundle": "npm run build:compile && npm run build:init",
     "build:compile": "esbuild scripts/compile.res.mjs --bundle --platform=node --outfile=dist/compile.js --format=cjs --external:fs --external:path",
     "build:init": "esbuild scripts/init.res.mjs --bundle --platform=node --outfile=dist/init.js --format=cjs --external:fs --external:path",
-    "prepublishOnly": "npm run res:build && npm run build:bundle"
+    "prepublishOnly": "npm run res:build && npm run build:bundle",
+    "test:fuzz": "RIC10_FUZZ=2000 node --experimental-vm-modules node_modules/jest/bin/jest.js differential",
+    "golden:update": "UPDATE_GOLDEN=1 node --experimental-vm-modules node_modules/jest/bin/jest.js examples"
   },
   "devDependencies": {
     "@rescript/language-server": "^1.66.0",
@@ -41,5 +44,14 @@
       "/.claude/"
     ],
     "transform": {}
+  },
+  "keywords": [
+    "stationeers",
+    "ic10",
+    "rescript",
+    "compiler"
+  ],
+  "engines": {
+    "node": ">=20"
   }
 }

@@ -1,193 +1,102 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Overview
-
-This is a VSCode extension that compiles a subset of ReScript to IC10 assembly language for the Stationeers game. The project uses a hybrid architecture:
-
-- **ReScript**: Core compiler logic (lexer, parser, AST, codegen, register allocation)
-- **TypeScript**: VSCode extension integration layer
-
-The compiler transforms ReScript source into IC10 assembly, managing register allocation for the target platform's 16-register constraint (r0-r15).
-
-## ⚠️ IMPORTANT: Command Restrictions
-
-**DO NOT run the following commands:**
-
-- `npm run res:build` - ReScript is already running in watch mode
-- `npm run res:dev` - ReScript watch mode is already active
-- `npm run compile` - TypeScript compilation is handled separately by the developer
-- `npm run watch` - TypeScript watch mode is handled separately
-- `npm run dev` - Combined watch mode is already running
-
-**The developer is managing the build process manually.** Claude should:
-
-- ✅ **ONLY** modify ReScript files in `src/compiler/`
-- ✅ Focus on compiler logic, AST transformations, and code generation
-- ❌ **NEVER** run build or watch commands
-- ❌ **NEVER** modify TypeScript files (extension.ts)
-- ❌ **NEVER** concern itself with compilation status
-
-The ReScript compiler is always running in watch mode in the background. Changes to `.res` files will automatically trigger recompilation.
-
-## Build Commands (For Reference Only - DO NOT RUN)
-
-### Development Setup
-
-```bash
-npm install                 # Install dependencies
-npm run res:build          # Compile ReScript to JavaScript
-npm run compile            # Compile TypeScript extension code
-```
-
-### Development Workflow
-
-```bash
-npm run res:dev            # Watch mode for ReScript (auto-recompile)
-npm run watch              # Watch mode for TypeScript
-npm run dev                # Combined watch mode for both
-```
-
-### Testing the Extension
-
-1. Open project in VSCode
-2. Press `F5` to launch Extension Development Host
-3. Open a `.res` file (e.g., `testing/test.res`)
-4. Run command: "Compile ReScript to IC10" via Command Palette
-
-## Architecture
-
-### Core Components
-
-**Lexer** (`src/compiler/Lexer.res`): Tokenizes ReScript source code into a stream of tokens for parsing.
-
-**Parser** (`src/compiler/Parser.res`): Hand-written recursive descent parser that consumes tokens and builds an AST. Supports variable declarations, binary operations, conditionals, and block statements.
-
-**AST** (`src/compiler/AST.res`): Defines the abstract syntax tree types using ReScript variants. Key types include `astNode`, `expr`, `binaryOp`, and `program`.
-
-**Register Allocator** (`src/compiler/RegisterAlloc.res`): Manages IC10's limited 16 registers (r0-r15) using linear allocation strategy. Tracks variable-to-register mappings and temporary register allocation/deallocation.
-
-**Code Generator** (`src/compiler/Codegen.res`): Transforms AST into IC10 assembly instructions. Implements optimizations like constant folding and direct register operations to minimize instruction count.
-
-**Compiler API** (`src/compiler/Compiler.res`): Main entry point that orchestrates the compilation pipeline from source code to IC10 assembly.
-
-**VSCode Extension** (`src/extension.ts`): TypeScript integration layer that interfaces with VSCode APIs, provides the compile command, and displays results. **DO NOT MODIFY - TypeScript is out of scope.**
-
-### Language Support
-
-**ReScript Subset**: Variable declarations (`let`), arithmetic operations (`+`, `-`, `*`, `/`), comparisons (`>`, `<`, `==`), conditionals (`if/else`), block statements, integer literals, and identifiers. Supports variable scoping and shadowing in nested blocks.
-
-**IC10 Target**: Assembly language for Stationeers with 16 registers, no stack, and instructions like `move`, `add`, `sub`, `mul`, `div`, direct branch instructions (`blt`, `bgt`, `beq`), and `j`.
-
-### Key Constraints
-
-- **16 registers maximum** (r0-r15) - exceeding this causes compilation errors
-- **Integer-only arithmetic** - no floating point support
-- **No functions or loops** - simple linear code generation only
-- **No arrays or complex data structures** - primitive types only
-
-## File Structure
+# Compiler overview
 
 ```
-src/
-├── extension.ts              # TypeScript VSCode extension (DO NOT MODIFY)
-└── compiler/                 # ReScript compiler components (WORK HERE)
-    ├── AST.res              # Abstract syntax tree definitions
-    ├── Lexer.res            # Source code tokenization
-    ├── Parser.res           # Recursive descent parser with if/else support
-    ├── Register.res         # Register type and utilities
-    ├── RegisterAlloc.res    # Register allocation with variable shadowing
-    ├── Codegen.res          # IC10 code generation with direct branch optimization
-    └── Compiler.res         # Main compilation API
-
-tests/                        # Comprehensive test suite (40 tests)
-├── basic.test.js            # Variable declarations and arithmetic
-├── comparisons.test.js      # Comparison operations and if/else
-├── complex.test.js          # Complex expressions and mixed operations
-├── scoping.test.js          # Variable scoping and block statements
-├── errors.test.js           # Error cases and edge conditions
-└── if.test.js               # Original if statement test
+source.res
+  │ Lexer.res        tokens with line:col
+  │ Parser.res       AST (Pratt parser, ReScript 12 precedence)
+  │ IR/IRGen.res     IR with unlimited virtual registers
+  │ IR/IROptimizer   passes as data, run to a fixpoint
+  │ IR/RegAlloc      whole-program liveness → interference graph → r0..r15
+  │ IR/IRToIC10      drop coalesced moves, final jump cleanup, print
+  ▼
+source.ic10
 ```
 
-## Development Notes
+`Compiler.res` runs the pipeline. Phases throw `Errors.CompileError`; the orchestrator
+turns it into `compileWithDiagnostics` (errors, warnings, line and register counts) and
+the backwards-compatible `compile: (string) => result<string, string>`.
 
-- ReScript files are compiled to CommonJS modules with `.res.js` suffix
-- GenType creates TypeScript definitions (`.gen.ts`) for ReScript modules
-- The compiler uses pattern matching extensively for AST traversal
-- Error handling uses ReScript's `result` type throughout the pipeline
-- Register allocation failure triggers compilation errors
-- Code generation includes constant folding and register reuse optimizations
-- **Watch mode is always running** - your changes will be automatically compiled
-- Variable shadowing is supported through register reuse
-- Direct branch instructions are used for optimal IC10 assembly generation
-- Comprehensive test coverage ensures compiler correctness (40 tests)
+## Modules
 
-## Common Patterns
+| Module | Responsibility |
+|---|---|
+| `Errors.res` | diagnostic type `{severity, file, fn, message, loc, hint}`, the one `format` |
+| `Lexer.res` | tokens: numbers (int/float/hex/binary), strings, identifiers, keywords, operators, `%raw`, comments |
+| `AST.res` | expressions, statements, patterns; every node has a location |
+| `Parser.res` | Pratt parser for expressions, recursive descent for statements, patterns, types |
+| `IR/IR.res` | IR types plus shared analyses: `uses`, `def`, `isPure`, `mapUses`, `invertCmp` |
+| `IR/IRGen.res` | AST → IR: values, cells, conditions, switch, calls, builtins |
+| `IR/IROptimizer.res` | optimization passes (`passNames` lists them) |
+| `IR/Liveness.res` | whole-program liveness with call summaries |
+| `IR/RegAlloc.res` | interference graph, coalescing, greedy colouring, pressure diagnostics |
+| `IR/IRToIC10.res` | final assembly |
+| `IR/IRPrint.res` | IR dump (`--debug`) |
+| `IC10.res` | type-checking bindings for user programs (shipped by `ric10 init`) |
+| `CodegenTypes.res` | compiler options and IC10 limits |
 
-**Variable Declaration**: `let x = 5` → `move r0 5`
-**Binary Operation**: `x + y` → `add r2 r0 r1`
-**If-Only Statement**: `if x < 5 { a }` → `bge r0 5 label0; [then code]; label0:` (inverted branch skips on false)
-**If-Else Statement**: `if x < y { a } else { b }` → `blt r0 r1 label1; [else code]; j label0; label1: [then code]; label0:`
-**Variable Shadowing**: `let x = 10; if true { let x = 20 }` → Reuses same register for efficiency
-**Constant Folding**: `2 + 3` → `move r0 5`
-**Literal Optimization**: `x + 5` → `add r1 r0 5` (direct literal instead of register)
+## IRGen
 
-## Testing
+Every expression produces a value:
 
-The project includes a comprehensive test suite with 40 tests covering:
+- `VScalar(operand, kind)`: a vreg or an immediate. `kind` (int/float/unknown) only decides
+  whether `/` needs a `trunc`.
+- `VVariant(type, tag, payload)`: tag operand plus one operand per payload slot of the
+  widest constructor. Variants never touch the stack.
+- `VDevice`, `VString`, `VFun`: compile-time values (pins, logic types, functions).
+- `VRef(cell)`: a mutable cell; `.contents` copies it, `:=` writes it.
 
-- **Basic functionality** (8 tests): Variable declarations, arithmetic operations, constant folding
-- **Comparisons** (7 tests): All comparison operators (`<`, `>`, `==`) with if/else statements
-- **Complex expressions** (7 tests): Operator precedence, mixed arithmetic and comparisons
-- **Scoping** (7 tests): Variable shadowing, nested blocks, consecutive if statements
-- **Error handling** (10 tests): Syntax errors, register exhaustion, edge cases
-- **If statements** (1 test): Original failing test case for if-else functionality
+Conditions are generated by `genCond`/`genCondTrue`, which jump on the false/true outcome
+directly (`bge a b else`), including short-circuit `&&`/`||`/`!`.
 
-Run tests with: `npm test` (Jest framework)
+Calls: a function is inlined when it is called once, is tiny (AST size ≤ 6), or receives a
+compile-time value (device, string, ref, function). Otherwise it is compiled once into its
+own block (`ensureCompiled`) with parameter and result cells; the caller moves arguments in,
+emits `jal`, and copies the result out. Non-leaf functions save `ra` in a register.
+Recursion is rejected (`ctx.active`).
 
-All tests pass and validate the compiler's correctness across different scenarios.
+`switch` tests patterns in order and keeps a set of constructors not yet handled: a case
+that covers all remaining constructors needs no tag test, and leftovers produce a warning.
 
-## Recent Changes
+## Optimizer
 
-### Inverted Branch Logic Fix (Latest)
+`IROptimizer.makePasses` lists the passes; `optimize` runs the list until nothing changes:
 
-- **Fixed critical bug**: If-only statements were executing then blocks regardless of condition
-- Added `generateInvertedBranch` function for correct if-only code generation
-- **If-only**: Uses inverted branches (`bge`, `ble`, `bne`) to jump to end when condition is FALSE
-- **If-else**: Branches to then label when condition is TRUE, else block falls through
-- Updated all 40 test expectations to reflect correct assembly output
-- Example: `if a < b { c }` now generates `bge r0 r1 label0; [then]; label0:` (was incorrectly `blt r0 r1 label0; label0: [then]`)
+1. `foldConstants`: arithmetic, comparisons, selects and branches on known values (including
+   `define`d names), algebraic identities.
+2. `propagateCopies`: block-local constant and copy propagation.
+3. `eliminateDeadCode`: removes pure instructions whose result is dead (liveness-based).
+4. `branchesToSelect`: value-picking diamonds become `sXX` or `sXX` + `select`.
+5. `simplifyJumps`: merge adjacent labels, thread jumps, invert branch-over-jump, drop jumps
+   to the next line, unreachable code and unused labels.
+6. `removeUnusedFunctions`, `removeUnusedDefines`.
 
-### If Statement Implementation
+A test pins the pass order.
 
-- Added `If` and `Else` tokens to lexer
-- Implemented recursive descent parsing for if/else statements with mutual recursion
-- Added variable scoping and shadowing support in register allocator
-- Optimized code generation to use direct IC10 branch instructions (`blt`, `bgt`, `beq`)
-- Eliminated inefficient `slt`/`beqz` patterns in favor of single branch instructions
-- Created comprehensive test coverage for all language features
+## Liveness and register allocation
 
-### Key Optimizations
+`Liveness.analyze` works on all blocks at once. For a call `jal f` it uses summaries:
+`liveIn = liveOut ∪ gen(f)`, where `gen(f)` is what `f` reads before writing. Inside `f`,
+the exit set is `through(f)`, the union of what is live after every call site of `f`. So a
+value that survives any call is live throughout the callee and gets a different register
+than everything the callee writes.
 
-- **Inverted Branches for If-Only**: `if x < 5 { a }` generates `bge r0 5 label0; [then]; label0:` (skip then block when false)
-- **Direct Branch Instructions**: Single instruction branches instead of `slt`/`beqz` patterns
-- **Variable Shadowing**: Reuses registers when variables are shadowed in inner scopes
-- **Literal Operations**: Uses immediate values in arithmetic operations when possible
+`RegAlloc.allocate` builds the interference graph (a definition interferes with everything
+live after it, except the source of a move), coalesces non-interfering move pairs, and
+colours greedily in program order, preferring a move partner's register. Registers named by
+`%raw` are reserved. If colouring fails it retries without coalescing, then reports the
+variables alive at the point of highest pressure.
 
-## Claude's Role
+## Output layout
 
-When working on this project, Claude should:
+```
+define ...            top-level numeric and hash constants that are still used
+<main>
+j __end               only if main can fall off its end and functions follow
+<function blocks>     label: ... j ra / j rX
+__end:
+```
 
-1. **Focus exclusively on ReScript compiler logic** in `src/compiler/`
-2. **Never run build commands** - the developer handles compilation
-3. **Never modify TypeScript files** - extension integration is out of scope
-4. **Provide code improvements, bug fixes, and new features** for the compiler
-5. **Explain changes clearly** with reference to IC10 assembly output
-6. **Consider register allocation constraints** in all code generation changes
-7. **Run tests after changes** to ensure correctness (`npm test`)
-8. **Update test expectations** when modifying compiler behavior
+## Generated JavaScript
 
-- You can use npm run res:build to check correctness
-- Don't touch IR related code if I'm not asking about it explicitly
-
+ReScript output is ES modules (`*.res.mjs`). The CLI is bundled with esbuild into
+`dist/compile.js` and `dist/init.js`; `bin/ric10.js` dispatches to them.

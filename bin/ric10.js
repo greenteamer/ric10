@@ -18,21 +18,18 @@ if (command === 'init') {
 
 function showHelp() {
   console.log(`
-ric10 - ReScript to IC10 compiler
+ric10 - ReScript to IC10 compiler for Stationeers
 
 Usage:
-  ric10 <file.res> [backend]    Compile ReScript to IC10/WASM
-  ric10 init <project-name>     Create new IC10 project
+  ric10 <file.res> [-o out.ic10] [--stdout] [--debug]
+                                Compile ReScript to IC10 assembly
+  ric10 init <project-name>     Create a new IC10 project
   ric10 --help                  Show this help
   ric10 --version               Show version
 
-Backends:
-  ic10 - IC10 assembly (default)
-  wasm - WebAssembly text format
-
 Examples:
   ric10 furnace.res
-  ric10 furnace.res wasm
+  ric10 furnace.res --stdout
   ric10 init my-ic10-project
   `);
 }
