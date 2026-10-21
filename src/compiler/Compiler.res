@@ -7,6 +7,7 @@
 type stats = {
   lines: int,
   registers: int,
+  spills: int, // values kept on the stack because registers ran out
 }
 
 type diagnostics = {
@@ -24,7 +25,7 @@ let compileWithDiagnostics = (source: string, ~options: option<CodegenTypes.comp
   let options = options->Option.getOr({})
   let debug = options.debug->Option.getOr(false)
   let maxLines = options.maxLines->Option.getOr(CodegenTypes.ic10MaxLines)
-  let empty = {lines: 0, registers: 0}
+  let empty = {lines: 0, registers: 0, spills: 0}
   try {
     let tokens = Lexer.tokenize(source)
     let ast = Parser.parse(tokens)
@@ -69,7 +70,7 @@ let compileWithDiagnostics = (source: string, ~options: option<CodegenTypes.comp
       code: out.code,
       errors: [],
       warnings,
-      stats: {lines: out.lines, registers: out.registers},
+      stats: {lines: out.lines, registers: out.registers, spills: out.spills},
     }
   } catch {
   | Errors.CompileError(e) => {ok: false, code: "", errors: [e], warnings: [], stats: empty}

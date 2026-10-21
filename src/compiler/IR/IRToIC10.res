@@ -9,6 +9,7 @@ type output = {
   code: string,
   registers: int,
   lines: int,
+  spills: int,
 }
 
 let fmtNum = (n: float): string =>
@@ -180,7 +181,7 @@ let generate = (ir: IR.t, ~names: Dict.t<string>): output => {
   let alloc = RegAlloc.allocate(ir, ~names)
   let color = alloc.colorOf
   // copies between coalesced registers disappear
-  let ir = ir->IROptimizer.mapBlocks(instrs =>
+  let ir = alloc.ir->IROptimizer.mapBlocks(instrs =>
     instrs->Array.filter(i =>
       switch i {
       | Move(d, VReg(s)) => color(d) != color(s)
@@ -190,5 +191,10 @@ let generate = (ir: IR.t, ~names: Dict.t<string>): output => {
   )
   let ir = IROptimizer.simplifyJumps(IROptimizer.simplifyJumps(ir))
   let lines = print(ir, ~reg=v => `r${Int.toString(color(v))}`)
-  {code: lines->Array.join("\n"), registers: alloc.registersUsed, lines: Array.length(lines)}
+  {
+    code: lines->Array.join("\n"),
+    registers: alloc.registersUsed,
+    lines: Array.length(lines),
+    spills: alloc.spills,
+  }
 }

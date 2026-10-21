@@ -239,3 +239,38 @@ let mapUses = (i: instr, f: operand => operand): instr => {
   | DefNum(_) | DefHash(_) | Label(_) | Goto(_) | Call(_) | Return | ReturnVia(_) | Raw(_) => i
   }
 }
+
+// Replace the vreg written by `i` (no-op for instructions without a result)
+let mapDef = (i: instr, d: vreg): instr =>
+  switch i {
+  | Move(_, a) => Move(d, a)
+  | Unary(_, op, a) => Unary(d, op, a)
+  | Binary(_, op, a, b) => Binary(d, op, a, b)
+  | Compare(_, op, a, b) => Compare(d, op, a, b)
+  | Select(_, c, a, b) => Select(d, c, a, b)
+  | DeviceLoad(_, dev, p, m) => DeviceLoad(d, dev, p, m)
+  | Native(op, Some(_), args, se) => Native(op, Some(d), args, se)
+  | Native(_, None, _, _)
+  | DefNum(_)
+  | DefHash(_)
+  | Label(_)
+  | Goto(_)
+  | Branch(_)
+  | Call(_)
+  | Return
+  | ReturnVia(_)
+  | DeviceStore(_)
+  | Raw(_) => i
+  }
+
+// Largest vreg number used anywhere (-1 for none)
+let maxVReg = (ir: t): int => {
+  let m = ref(-1)
+  ir->Array.forEach(b =>
+    b.instructions->Array.forEach(i => {
+      uses(i)->Array.forEach(v => m := Math.Int.max(m.contents, v))
+      def(i)->Option.forEach(v => m := Math.Int.max(m.contents, v))
+    })
+  )
+  m.contents
+}

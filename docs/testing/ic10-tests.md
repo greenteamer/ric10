@@ -50,5 +50,5 @@ must be equal.
 
 `tests/support/progen.mjs` generates random programs from a seed: float arithmetic, `Math.*`,
 ternaries, refs, `if`, `for`, `while`, variants with guards, and functions called several
-times so they are compiled out of line. Programs that genuinely need more than 16 registers
-are accepted as correctly rejected. `RIC10_FUZZ=N` sets the number of programs.
+times so they are compiled out of line; some of them need more than 16 registers and
+exercise spilling. `RIC10_FUZZ=N` sets the number of programs.

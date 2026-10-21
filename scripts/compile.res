@@ -50,10 +50,11 @@ switch positional[0] {
     } else {
       let dest = output->Option.getOr(defaultDest(src))
       writeFileSync(dest, d.code ++ "\n", "utf8")
+      let spills = d.stats.spills > 0 ? `, ${Int.toString(d.stats.spills)} values on the stack` : ""
       Console.log(
         `✓ ${src} -> ${dest} (${Int.toString(d.stats.lines)} lines, ${Int.toString(
             d.stats.registers,
-          )} registers)`,
+          )} registers${spills})`,
       )
     }
   } else {

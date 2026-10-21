@@ -11,7 +11,7 @@ import fs from "fs";
 import path from "path";
 import { execFileSync } from "child_process";
 import { pathToFileURL } from "url";
-import { compile, diagnostics, IC10 } from "./support/harness.mjs";
+import { compile, IC10 } from "./support/harness.mjs";
 import { JsChip, StopSimulation } from "./support/jsChip.mjs";
 import { hash } from "./support/ic10.mjs";
 import { generateProgram, inputsFor } from "./support/progen.mjs";
@@ -351,10 +351,6 @@ describe("ric10 agrees with ReScript", () => {
 
   test.each(randomPrograms.map((p) => [p.name, p]))("%s", async (name, p) => {
     expect(built).toBe(true);
-    // Programs that genuinely need more than 16 registers are rejected with a
-    // clear error (no spilling yet); that is correct behaviour, not a mismatch.
-    const d = diagnostics(p.src);
-    if (!d.ok && /more than 16 registers/.test(d.errors[0].message)) return;
     const { js, ic10, code } = await runBoth(name, p.src, p);
     if (JSON.stringify(ic10) !== JSON.stringify(js)) {
       console.log(`--- ${name} source ---\n${p.src}\n--- ic10 ---\n${code}`);

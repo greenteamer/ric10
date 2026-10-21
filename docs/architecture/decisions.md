@@ -30,6 +30,14 @@ function used many times would not fit.
 Arguments, results and saved `ra` are ordinary vregs. Liveness with call summaries makes
 values that survive a call interfere with everything the callee writes.
 
+When colouring fails, one vreg is spilled to a stack slot (`poke` after each write, `get`
+before each read) and allocation restarts. The spill heuristic prefers values with few
+accesses per instruction of lifetime, weighted by loop depth: loop-carried state such as
+variant refs is evicted first, temporaries stay in registers. This reproduces what 0.1 did
+for every variant (state on the stack) only when it is needed, so small programs keep the
+shorter, faster register-only code. Slots are allocated from 511 downwards so user
+`push`/`pop` from 0 stay clear.
+
 Rejected: fixed argument/result registers with caller-saved spills to the stack (more
 lines, and the 0.1 version clobbered registers anyway); per-function allocation (cannot
 see what the caller keeps alive).
@@ -67,7 +75,6 @@ It was deleted; the 0.1 code is in the version history (before 0.2.0).
 
 ## Known limitations (tech debt)
 
-- No spilling: more than 16 simultaneously live values is a compile error.
 - No records, tuples or arrays (records and tuples could reuse the variant register-group
   representation; arrays would map to the stack).
 - `%` follows IC10 `mod` (always non-negative), unlike JavaScript for negative operands.

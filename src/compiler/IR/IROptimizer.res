@@ -328,19 +328,8 @@ let simplifyJumps = (ir: IR.t): IR.t => {
 //   bXX a b end; move d x; end:
 //     -> sXX t a b; select d t d x
 
-let maxVReg = (ir: IR.t): int => {
-  let m = ref(-1)
-  ir->Array.forEach(b =>
-    b.instructions->Array.forEach(i => {
-      IR.uses(i)->Array.forEach(v => m := Math.Int.max(m.contents, v))
-      IR.def(i)->Option.forEach(v => m := Math.Int.max(m.contents, v))
-    })
-  )
-  m.contents
-}
-
 let branchesToSelect = (ir: IR.t): IR.t => {
-  let next = ref(maxVReg(ir) + 1)
+  let next = ref(IR.maxVReg(ir) + 1)
   let fresh = () => {
     let v = next.contents
     next := v + 1

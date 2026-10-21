@@ -51,7 +51,9 @@ Values written to devices may be `int`, `float` or `bool`.
 | `poke(addr, v)` | `poke addr v` |
 | `get(dev, addr)`, `put(dev, addr, v)`, `clr(dev)` | `get`, `put`, `clr` |
 
-ric10 itself never uses the stack, so it is entirely yours.
+ric10 uses the stack only when a program has more than 16 simultaneously live values; it
+then takes slots from address 511 downwards. `push`/`pop` grow from address 0, so the two
+do not collide unless the stack is nearly full.
 
 ## Math
 

@@ -28,7 +28,7 @@ the backwards-compatible `compile: (string) => result<string, string>`.
 | `IR/IRGen.res` | AST → IR: values, cells, conditions, switch, calls, builtins |
 | `IR/IROptimizer.res` | optimization passes (`passNames` lists them) |
 | `IR/Liveness.res` | whole-program liveness with call summaries |
-| `IR/RegAlloc.res` | interference graph, coalescing, greedy colouring, pressure diagnostics |
+| `IR/RegAlloc.res` | interference graph, coalescing, greedy colouring, spilling to the stack |
 | `IR/IRToIC10.res` | final assembly |
 | `IR/IRPrint.res` | IR dump (`--debug`) |
 | `IC10.res` | type-checking bindings for user programs (shipped by `ric10 init`) |
@@ -83,8 +83,11 @@ than everything the callee writes.
 `RegAlloc.allocate` builds the interference graph (a definition interferes with everything
 live after it, except the source of a move), coalesces non-interfering move pairs, and
 colours greedily in program order, preferring a move partner's register. Registers named by
-`%raw` are reserved. If colouring fails it retries without coalescing, then reports the
-variables alive at the point of highest pressure.
+`%raw` are reserved. If colouring fails it retries without coalescing, then spills: the vreg
+with the lowest (loop-weighted accesses / live-range length) gets a stack slot from 511
+downwards, its definitions are followed by `poke` and its uses preceded by `get` into
+fresh short-lived vregs, and allocation starts over. Long-lived loop state is evicted
+first. After 64 spills the error names the values alive at the point of highest pressure.
 
 ## Output layout
 

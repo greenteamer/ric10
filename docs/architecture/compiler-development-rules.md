@@ -23,8 +23,9 @@ helpers, `IRGen`, `IROptimizer`, `IRToIC10`. Pattern-match warnings are blocking
 
 ## 4. Virtual registers until the end
 
-IRGen and the optimizer use unlimited vregs. Only `RegAlloc` maps them to r0..r15. Do not
-emit physical registers from earlier phases; `%raw` registers are reserved, not modelled.
+IRGen and the optimizer use unlimited vregs. Only `RegAlloc` maps them to r0..r15 and
+decides what lives on the stack. Do not emit physical registers or stack slots from earlier
+phases; `%raw` registers are reserved, not modelled.
 
 ## 5. Whole-program liveness owns correctness across calls
 

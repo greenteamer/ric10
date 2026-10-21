@@ -25,7 +25,9 @@ to type-check against the new bindings (see "Breaking changes").
   be bound, compared (`==`), passed and returned. Or-patterns, guards, literal patterns,
   exhaustiveness warnings.
 - Register allocation based on whole-program liveness with copy coalescing; registers are
-  reused as soon as values die. Errors name the variables alive at the point of pressure.
+  reused as soon as values die. When more than 16 values are alive at once, long-lived
+  state (variant and ref cells) is spilled to the top of the stack (`poke`/`get`) and
+  temporaries keep their registers; the CLI reports the number of spilled values.
 - Optimizer: constant folding, copy propagation, dead code elimination, jump threading,
   branch-free `select`/`sXX` for value-picking `if`s, removal of unused functions and
   defines. `bXXz`/`sXXz` forms for comparisons with zero.

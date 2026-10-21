@@ -132,6 +132,8 @@ st :=
 
 - A variant value occupies one register for the tag plus one per payload slot of the
   largest constructor. Any number of refs and variables of the same type may exist.
+- When registers run out, long-lived variant and ref state is kept on the stack instead
+  (see "Registers and the stack").
 - Patterns: constructors with variable, `_` or literal payloads; `A | B` (without
   bindings); `_`; a variable; number and boolean literals for `switch` on numbers.
 - Guards: `| P if cond =>`.
@@ -149,6 +151,22 @@ switch Float.toInt(l(d0, "Mode")) {
 }
 ```
 
+## Registers and the stack
+
+IC10 has 16 registers. ric10 keeps every value in a register as long as they fit:
+registers are reused as soon as a value is dead, and copies are coalesced away.
+
+When more than 16 values are alive at the same time, the compiler moves some of them to
+the stack and reloads them where they are used (`poke 511 rX` after a write,
+`get rX db 511` before a read). It picks the values with the fewest accesses per
+instruction of lifetime, weighted by loop depth, so the state of a `while true` loop
+(variant refs, counters) goes to the stack first while the temporaries inside the loop keep
+their registers. Each spilled value costs one line per access, so programs with much
+long-lived state are limited by the 128-line budget rather than by registers.
+
+Spill slots are taken from address 511 downwards; user `push`/`pop` grow from 0. The CLI
+reports how many values were spilled.
+
 ## Raw assembly
 
 ```rescript
@@ -161,9 +179,7 @@ allocation for the whole program.
 ## Not supported
 
 Records, tuples, arrays, lists, strings as values, `option`/`result`, modules, exceptions,
-recursion, labeled arguments, `as` patterns, nested patterns inside payloads. Programs that
-need more than 16 simultaneously live values are rejected with a list of the variables
-involved (there is no spilling to the stack yet).
+recursion, labeled arguments, `as` patterns, nested patterns inside payloads.
 
 ## Diagnostics
 
@@ -171,8 +187,7 @@ Errors carry `line:col` and often a hint:
 
 ```
 [Parser.res][parsePrimary] 3:12: unexpected end of file in expression
-[RegAlloc.res][allocate]: program needs more than 16 registers: 17 values are alive at once (a, b, ...)
-  hint: shorten variable lifetimes, move values into refs that are reused, or split the program across chips
+[IRGen.res][genCall] 7:9: function 'f' expects 2 argument(s), got 1
 ```
 
 Warnings: non-exhaustive switch, unreachable case, constructor shadowing, more than 128

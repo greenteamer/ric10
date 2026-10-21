@@ -80,8 +80,7 @@ A subset of ReScript 12, all of it valid ReScript:
   `peek`, `poke`, `get`, `put`, `clr`), `select`, `lerp`, `Math.*`
 - `%raw("...")` for anything else; registers it mentions are left alone
 
-Not supported (yet): records, tuples, arrays, strings beyond logic-type names, recursion,
-spilling when more than 16 values are alive at once.
+Not supported (yet): records, tuples, arrays, strings beyond logic-type names, recursion.
 
 See [docs/user-guide/language-reference.md](docs/user-guide/language-reference.md) and
 [docs/user-guide/ic10-bindings.md](docs/user-guide/ic10-bindings.md).
@@ -91,7 +90,9 @@ See [docs/user-guide/language-reference.md](docs/user-guide/language-reference.m
 Lexer → Pratt parser → IRGen → optimizer (passes run to a fixpoint) → whole-program
 liveness → register allocation with copy coalescing → IC10. Functions called once are
 inlined; others are called with `jal`, and liveness keeps callee registers away from
-values the caller still needs. See [docs/architecture/compiler-overview.md](docs/architecture/compiler-overview.md).
+values the caller still needs. When more than 16 values are alive at once, long-lived
+state (variant and ref cells) moves to the top of the stack (`poke`/`get`) and the
+registers stay with short-lived temporaries. See [docs/architecture/compiler-overview.md](docs/architecture/compiler-overview.md).
 
 ## Testing
 
