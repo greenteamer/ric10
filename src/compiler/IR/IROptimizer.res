@@ -1,493 +1,353 @@
-// IR Optimization Layer
-// Applies optimizations at the IR level before physical register allocation
+// IR optimizer. Passes are data: `passes` lists them in execution order and the
+// whole list runs to a fixpoint. A test pins the order (`passNames`).
 
-// Track which virtual registers are actually used
-module VRegSet = Belt.Set.Int
+module IntSet = Belt.Set.Int
 
-// Analysis: find all virtual registers that are used (read from)
-let rec findUsedVRegs = (instrs: list<IR.instr>, used: VRegSet.t): VRegSet.t => {
-  switch instrs {
-  | list{} => used
-  | list{instr, ...rest} => {
-      let newUsed = switch instr {
-      | Move(_, VReg(vreg)) => used->VRegSet.add(vreg)
-      | Move(_, Num(_)) => used
-      | Move(_, Name(_)) => used
-      | Move(_, Hash(_)) => used
-      | Binary(_, _, VReg(left), VReg(right)) => used->VRegSet.add(left)->VRegSet.add(right)
-      | Binary(_, _, VReg(left), Num(_)) => used->VRegSet.add(left)
-      | Binary(_, _, VReg(left), Name(_)) => used->VRegSet.add(left)
-      | Binary(_, _, VReg(left), Hash(_)) => used->VRegSet.add(left)
-      | Binary(_, _, Num(_), VReg(right)) => used->VRegSet.add(right)
-      | Binary(_, _, Num(_), Num(_)) => used
-      | Binary(_, _, Num(_), Name(_)) => used
-      | Binary(_, _, Num(_), Hash(_)) => used
-      | Binary(_, _, Name(_), VReg(right)) => used->VRegSet.add(right)
-      | Binary(_, _, Name(_), Num(_)) => used
-      | Binary(_, _, Name(_), Name(_)) => used
-      | Binary(_, _, Name(_), Hash(_)) => used
-      | Binary(_, _, Hash(_), VReg(right)) => used->VRegSet.add(right)
-      | Binary(_, _, Hash(_), Num(_)) => used
-      | Binary(_, _, Hash(_), Name(_)) => used
-      | Binary(_, _, Hash(_), Hash(_)) => used
-      | Compare(_, _, VReg(left), VReg(right)) => used->VRegSet.add(left)->VRegSet.add(right)
-      | Compare(_, _, VReg(left), Num(_)) => used->VRegSet.add(left)
-      | Compare(_, _, VReg(left), Name(_)) => used->VRegSet.add(left)
-      | Compare(_, _, VReg(left), Hash(_)) => used->VRegSet.add(left)
-      | Compare(_, _, Num(_), VReg(right)) => used->VRegSet.add(right)
-      | Compare(_, _, Num(_), Num(_)) => used
-      | Compare(_, _, Num(_), Name(_)) => used
-      | Compare(_, _, Num(_), Hash(_)) => used
-      | Compare(_, _, Name(_), VReg(right)) => used->VRegSet.add(right)
-      | Compare(_, _, Name(_), Num(_)) => used
-      | Compare(_, _, Name(_), Name(_)) => used
-      | Compare(_, _, Name(_), Hash(_)) => used
-      | Compare(_, _, Hash(_), VReg(right)) => used->VRegSet.add(right)
-      | Compare(_, _, Hash(_), Num(_)) => used
-      | Compare(_, _, Hash(_), Name(_)) => used
-      | Compare(_, _, Hash(_), Hash(_)) => used
-      | Bnez(VReg(vreg), _) => used->VRegSet.add(vreg)
-      | Bnez(Num(_), _) => used
-      | Bnez(Name(_), _) => used
-      | Bnez(Hash(_), _) => used
-      | DeviceStore(_, _, VReg(vreg)) => used->VRegSet.add(vreg)
-      | DeviceStore(_, _, Num(_)) => used
-      | DeviceStore(_, _, Name(_)) => used
-      | DeviceStore(_, _, Hash(_)) => used
-      | Unary(_, _, VReg(vreg)) => used->VRegSet.add(vreg)
-      | Unary(_, _, Num(_)) => used
-      | Unary(_, _, Name(_)) => used
-      | Unary(_, _, Hash(_)) => used
-      | _ => used
-      }
-      findUsedVRegs(rest, newUsed)
-    }
-  }
+type pass = {
+  name: string,
+  run: IR.t => IR.t,
 }
 
-// Optimization 1: Dead Code Elimination
-// Remove Move instructions where the destination vreg is never used
-let eliminateDeadCode = (instrs: list<IR.instr>): list<IR.instr> => {
-  let usedVRegs = findUsedVRegs(instrs, VRegSet.empty)
+let mapBlocks = (ir: IR.t, f: array<IR.instr> => array<IR.instr>): IR.t =>
+  ir->Array.map(b => {...b, instructions: f(b.instructions)})
 
-  let rec filter = (instrs: list<IR.instr>): list<IR.instr> => {
-    switch instrs {
-    | list{} => list{}
-    | list{Move(vreg, _) as instr, ...rest} =>
-      if usedVRegs->VRegSet.has(vreg) {
-        list{instr, ...filter(rest)}
-      } else {
-        // Dead move - vreg is never used
-        filter(rest)
+// IC10 arithmetic semantics shared with the test emulator
+let ic10Mod = (a, b) => a -. b *. Math.floor(a /. b)
+
+let isSmallInt = x => NumUtil.isInteger(x) && x >= -2147483648. && x < 2147483648.
+
+// ---------------------------------------------------------------------------
+// Constant folding and algebraic identities
+
+let defineValues = (ir: IR.t): Dict.t<float> => {
+  let d = Dict.make()
+  ir->Array.forEach(b =>
+    b.instructions->Array.forEach(i =>
+      switch i {
+      | DefNum(name, v) => d->Dict.set(name, v)
+      | _ => ()
       }
-    | list{instr, ...rest} => list{instr, ...filter(rest)}
-    }
-  }
-
-  filter(instrs)
+    )
+  )
+  d
 }
 
-// Optimization 2: Constant and Copy Propagation
-// Replaces variables with their known constant or copy values.
-type copyMap = Belt.Map.Int.t<IR.operand>
-
-let propagateConstantsAndCopies = (instrs: list<IR.instr>): list<IR.instr> => {
-  let substituteOperand = (op: IR.operand, copies: copyMap): IR.operand => {
+let foldConstants = (ir: IR.t): IR.t => {
+  let defines = defineValues(ir)
+  let known = (op: IR.operand) =>
     switch op {
-    | VReg(vreg) =>
-      switch copies->Belt.Map.Int.get(vreg) {
-      | Some(replacement) => replacement
-      | None => op
-      }
-    | Num(_) => op
-    | Name(_) => op
-    | Hash(_) => op
+    | Num(n) => Some(n)
+    | Name(n) => defines->Dict.get(n)
+    | _ => None
     }
-  }
-
-  let rec process = (instrs: list<IR.instr>, copies: copyMap): list<IR.instr> => {
-    switch instrs {
-    | list{} => list{}
-
-    // Instructions that DEFINE a register
-    | list{IR.Move(dst, operand), ...rest} =>
-      let substitutedOperand = substituteOperand(operand, copies)
-      let newInstr = IR.Move(dst, substitutedOperand)
-      let newCopies = copies->Belt.Map.Int.remove(dst)->Belt.Map.Int.set(dst, substitutedOperand)
-      list{newInstr, ...process(rest, newCopies)}
-
-    | list{IR.Binary(dst, op, left, right), ...rest} =>
-      let newLeft = substituteOperand(left, copies)
-      let newRight = substituteOperand(right, copies)
-      let newInstr = IR.Binary(dst, op, newLeft, newRight)
-      let newCopies = copies->Belt.Map.Int.remove(dst)
-      list{newInstr, ...process(rest, newCopies)}
-
-    | list{IR.Compare(dst, op, left, right), ...rest} =>
-      let newLeft = substituteOperand(left, copies)
-      let newRight = substituteOperand(right, copies)
-      let newInstr = IR.Compare(dst, op, newLeft, newRight)
-      let newCopies = copies->Belt.Map.Int.remove(dst)
-      list{newInstr, ...process(rest, newCopies)}
-
-    | list{IR.Unary(dst, op, operand), ...rest} =>
-      let newOperand = substituteOperand(operand, copies)
-      let newInstr = IR.Unary(dst, op, newOperand)
-      let newCopies = copies->Belt.Map.Int.remove(dst)
-      list{newInstr, ...process(rest, newCopies)}
-
-    | list{IR.DeviceLoad(dst, device, property, bulkOpt), ...rest} =>
-      let newCopies = copies->Belt.Map.Int.remove(dst)
-      list{IR.DeviceLoad(dst, device, property, bulkOpt), ...process(rest, newCopies)}
-
-    | list{IR.StackGet(dst, address), ...rest} =>
-      let newCopies = copies->Belt.Map.Int.remove(dst)
-      list{IR.StackGet(dst, address), ...process(rest, newCopies)}
-
-    // Instructions that USE registers
-    | list{IR.Bnez(operand, label), ...rest} =>
-      let newOperand = substituteOperand(operand, copies)
-      list{IR.Bnez(newOperand, label), ...process(rest, copies)}
-
-    | list{IR.DeviceStore(device, property, operand), ...rest} =>
-      let newOperand = substituteOperand(operand, copies)
-      list{IR.DeviceStore(device, property, newOperand), ...process(rest, copies)}
-
-    | list{IR.StackPoke(address, operand), ...rest} =>
-      let newOperand = substituteOperand(operand, copies)
-      list{IR.StackPoke(address, newOperand), ...process(rest, copies)}
-
-    | list{IR.StackPush(operand), ...rest} =>
-      let newOperand = substituteOperand(operand, copies)
-      list{IR.StackPush(newOperand), ...process(rest, copies)}
-
-    // Other instructions are left alone
-    | list{instr, ...rest} => list{instr, ...process(rest, copies)}
-    }
-  }
-
-  process(instrs, Belt.Map.Int.empty)
-}
-
-// Optimization 3: Redundant Move Elimination
-// Remove moves like v0 = v0
-let eliminateRedundantMoves = (instrs: list<IR.instr>): list<IR.instr> => {
-  let rec filter = (instrs: list<IR.instr>): list<IR.instr> => {
-    switch instrs {
-    | list{} => list{}
-    | list{Move(dst, VReg(src)), ...rest} if dst === src => filter(rest) // v0 = v0 is redundant
-    | list{instr, ...rest} => list{instr, ...filter(rest)}
-    }
-  }
-
-  filter(instrs)
-}
-
-// Optimization 4: Constant Folding
-// Evaluate constant expressions at compile time
-let foldConstants = (instrs: list<IR.instr>): list<IR.instr> => {
-  let rec process = (instrs: list<IR.instr>): list<IR.instr> => {
-    switch instrs {
-    | list{} => list{}
-    | list{Binary(dst, op, Num(left), Num(right)), ...rest} =>
-      let result = switch op {
-      | AddOp => left + right
-      | SubOp => left - right
-      | MulOp => left * right
-      | DivOp =>
-        if right == 0 {
-          // Division by zero, cannot fold
-          -1 // Or some other sentinel, or don't fold
-        } else {
-          left / right
-        }
-      }
-      list{Move(dst, Num(result)), ...process(rest)}
-
-    | list{Compare(dst, op, Num(left), Num(right)), ...rest} =>
-      let result = switch op {
-      | LtOp => left < right
-      | GtOp => left > right
-      | EqOp => left == right
-      | GeOp => left >= right
-      | LeOp => left <= right
-      | NeOp => left != right
-      }
-      list{Move(dst, Num(result ? 1 : 0)), ...process(rest)}
-
-    | list{instr, ...rest} => list{instr, ...process(rest)}
-    }
-  }
-  process(instrs)
-}
-
-// Optimization 5: Unreachable Code Elimination
-// Remove instructions after unconditional control flow (Goto, Return) until the next Label
-let eliminateUnreachableCode = (instrs: list<IR.instr>): list<IR.instr> => {
-  let rec process = (instrs: list<IR.instr>, afterUnconditional: bool): list<IR.instr> => {
-    switch instrs {
-    | list{} => list{}
-
-    // After an unconditional jump, skip instructions until we hit a label
-    | list{Label(_) as label, ...rest} =>
-      list{label, ...process(rest, false)}
-
-    | list{_instr, ...rest} if afterUnconditional =>
-      // Skip this unreachable instruction
-      process(rest, afterUnconditional)
-
-    // Unconditional control flow instructions
-    | list{Goto(_) as goto, ...rest} =>
-      list{goto, ...process(rest, true)}
-
-    | list{Return as ret, ...rest} =>
-      list{ret, ...process(rest, true)}
-
-    // All other instructions
-    | list{instr, ...rest} =>
-      list{instr, ...process(rest, false)}
-    }
-  }
-
-  process(instrs, false)
-}
-
-// Optimization 6: Empty Basic Block Elimination
-// Redirect jumps to labels that immediately jump elsewhere
-let eliminateEmptyBlocks = (instrs: list<IR.instr>): list<IR.instr> => {
-  // First pass: build a map of labels that immediately jump to other labels
-  let rec buildRedirectMap = (instrs: list<IR.instr>, currentLabel: option<string>, redirects: Belt.Map.String.t<string>): Belt.Map.String.t<string> => {
-    switch instrs {
-    | list{} => redirects
-
-    // Label followed immediately by Goto → record this redirect
-    | list{Label(label), Goto(target), ...rest} =>
-      buildRedirectMap(list{Goto(target), ...rest}, Some(label), redirects->Belt.Map.String.set(label, target))
-
-    // Label followed by something other than Goto → not empty
-    | list{Label(label), ...rest} =>
-      buildRedirectMap(rest, Some(label), redirects)
-
-    // Other instructions
-    | list{_, ...rest} =>
-      buildRedirectMap(rest, currentLabel, redirects)
-    }
-  }
-
-  let redirectMap = buildRedirectMap(instrs, None, Belt.Map.String.empty)
-
-  // Follow redirect chain to find final target
-  let rec followRedirects = (label: string, visited: Belt.Set.String.t): string => {
-    if visited->Belt.Set.String.has(label) {
-      // Circular redirect, stop here
-      label
-    } else {
-      switch redirectMap->Belt.Map.String.get(label) {
-      | Some(target) => followRedirects(target, visited->Belt.Set.String.add(label))
-      | None => label
-      }
-    }
-  }
-
-  // Second pass: redirect all jumps and remove empty blocks
-  let rec process = (instrs: list<IR.instr>): list<IR.instr> => {
-    switch instrs {
-    | list{} => list{}
-
-    // Redirect Goto instructions
-    | list{Goto(target), ...rest} =>
-      let newTarget = followRedirects(target, Belt.Set.String.empty)
-      list{Goto(newTarget), ...process(rest)}
-
-    // Redirect Bnez instructions
-    | list{Bnez(operand, target), ...rest} =>
-      let newTarget = followRedirects(target, Belt.Set.String.empty)
-      list{Bnez(operand, newTarget), ...process(rest)}
-
-    // Remove empty blocks (Label immediately followed by Goto)
-    | list{Label(_label), Goto(_target), ...rest} =>
-      // Skip this empty block entirely
-      process(rest)
-
-    // Keep all other instructions
-    | list{instr, ...rest} =>
-      list{instr, ...process(rest)}
-    }
-  }
-
-  process(instrs)
-}
-
-// Optimization 7: Fall-through Optimization
-// Remove Goto instructions that jump to the immediately following label
-let eliminateFallthroughJumps = (instrs: list<IR.instr>): list<IR.instr> => {
-  let rec process = (instrs: list<IR.instr>): list<IR.instr> => {
-    switch instrs {
-    | list{} => list{}
-
-    // Goto immediately followed by its target label → remove Goto
-    | list{Goto(target), Label(label), ...rest} if target === label =>
-      list{Label(label), ...process(rest)}
-
-    // Keep all other instructions
-    | list{instr, ...rest} =>
-      list{instr, ...process(rest)}
-    }
-  }
-
-  process(instrs)
-}
-
-// Type definitions for define substitution
-type defineValue =
-  | DefNum(int)
-  | DefHashStr(string)
-
-type defineMap = Belt.Map.String.t<defineValue>
-
-// Apply all optimizations to a block (without define substitution)
-let optimizeBlockWithoutDefines = (block: IR.block): IR.block => {
-  let optimized =
-    block.instructions
-    ->foldConstants
-    ->propagateConstantsAndCopies
-    ->eliminateRedundantMoves
-    ->eliminateDeadCode
-    ->eliminateUnreachableCode
-    ->eliminateEmptyBlocks
-    ->eliminateFallthroughJumps
-
-  {...block, instructions: optimized}
-}
-
-// Global define substitution across all blocks
-// Collects defines from all blocks, then substitutes in all blocks
-let globalDefineSubstitution = (blocks: list<IR.block>): list<IR.block> => {
-  // First pass: collect defines from ALL blocks
-  let collectDefinesFromBlocks = (blocks: list<IR.block>): defineMap => {
-    blocks->List.reduce(Belt.Map.String.empty, (defines, block) => {
-      block.instructions->List.reduce(defines, (defines, instr) => {
-        switch instr {
-        | DefInt(name, value) => defines->Belt.Map.String.set(name, DefNum(value))
-        | DefHash(name, hashValue) => defines->Belt.Map.String.set(name, DefHashStr(hashValue))
-        | _ => defines
-        }
-      })
-    })
-  }
-
-  let globalDefines = collectDefinesFromBlocks(blocks)
-
-  // Helper to substitute a single operand using global defines
-  let substituteOperand = (op: IR.operand): IR.operand => {
+  let evalBin = (op: IR.binOp, a, b): option<float> =>
     switch op {
-    | Name(name) =>
-      switch globalDefines->Belt.Map.String.get(name) {
-      | Some(DefNum(value)) => Num(value)
-      | Some(DefHashStr(hashStr)) => Hash(hashStr)
-      | None => op
-      }
-    | other => other
+    | Add => Some(a +. b)
+    | Sub => Some(a -. b)
+    | Mul => Some(a *. b)
+    | Div => b == 0. ? None : Some(a /. b)
+    | Mod => b == 0. ? None : Some(ic10Mod(a, b))
+    | Min => Some(Math.min(a, b))
+    | Max => Some(Math.max(a, b))
+    | And if isSmallInt(a) && isSmallInt(b) =>
+      Some(Int.toFloat(Int.bitwiseAnd(Float.toInt(a), Float.toInt(b))))
+    | Or if isSmallInt(a) && isSmallInt(b) =>
+      Some(Int.toFloat(Int.bitwiseOr(Float.toInt(a), Float.toInt(b))))
+    | Xor if isSmallInt(a) && isSmallInt(b) =>
+      Some(Int.toFloat(Int.bitwiseXor(Float.toInt(a), Float.toInt(b))))
+    | And | Or | Xor | Sll | Srl | Sra | Atan2 => None
     }
-  }
-
-  // Helper to substitute device types using global defines
-  let substituteDevice = (device: IR.device): IR.device => {
-    switch device {
-    | DeviceType(name) =>
-      switch globalDefines->Belt.Map.String.get(name) {
-      | Some(DefHashStr(hashStr)) => DeviceType(`HASH("${hashStr}")`)
-      | _ => device
-      }
-    | DeviceNamed(typeName, nameName) =>
-      let newTypeName = switch globalDefines->Belt.Map.String.get(typeName) {
-      | Some(DefHashStr(hashStr)) => `HASH("${hashStr}")`
-      | _ => typeName
-      }
-      let newNameName = switch globalDefines->Belt.Map.String.get(nameName) {
-      | Some(DefHashStr(hashStr)) => `HASH("${hashStr}")`
-      | _ => nameName
-      }
-      DeviceNamed(newTypeName, newNameName)
-    | other => other
+  let evalUn = (op: IR.unOp, a): option<float> =>
+    switch op {
+    | Abs => Some(Math.abs(a))
+    | Floor => Some(Math.floor(a))
+    | Ceil => Some(Math.ceil(a))
+    | Trunc => Some(Math.trunc(a))
+    | Sqrt => a >= 0. ? Some(Math.sqrt(a)) : None
+    | Round | Sin | Cos | Tan | Asin | Acos | Atan | Exp | Log | BitNot => None
     }
-  }
-
-  // Second pass: substitute in all blocks but KEEP define instructions
-  let substituteInBlock = (block: IR.block): IR.block => {
-    let rec process = (instrs: list<IR.instr>): list<IR.instr> => {
-      switch instrs {
-      | list{} => list{}
-
-      // KEEP DefInt and DefHash instructions (don't remove them)
-      | list{DefInt(_, _) as defInstr, ...rest} => list{defInstr, ...process(rest)}
-      | list{DefHash(_, _) as defInstr, ...rest} => list{defInstr, ...process(rest)}
-
-      // Substitute in instructions with operands
-      | list{Move(dst, operand), ...rest} =>
-        list{Move(dst, substituteOperand(operand)), ...process(rest)}
-
-      | list{Binary(dst, op, left, right), ...rest} =>
-        list{Binary(dst, op, substituteOperand(left), substituteOperand(right)), ...process(rest)}
-
-      | list{Compare(dst, op, left, right), ...rest} =>
-        list{Compare(dst, op, substituteOperand(left), substituteOperand(right)), ...process(rest)}
-
-      | list{Unary(dst, op, operand), ...rest} =>
-        list{Unary(dst, op, substituteOperand(operand)), ...process(rest)}
-
-      | list{Bnez(operand, label), ...rest} =>
-        list{Bnez(substituteOperand(operand), label), ...process(rest)}
-
-      | list{DeviceLoad(dst, device, property, bulkOpt), ...rest} =>
-        list{DeviceLoad(dst, substituteDevice(device), property, bulkOpt), ...process(rest)}
-
-      | list{DeviceStore(device, property, operand), ...rest} =>
-        list{DeviceStore(substituteDevice(device), property, substituteOperand(operand)), ...process(rest)}
-
-      | list{StackPoke(address, operand), ...rest} =>
-        list{StackPoke(address, substituteOperand(operand)), ...process(rest)}
-
-      | list{StackPush(operand), ...rest} =>
-        list{StackPush(substituteOperand(operand)), ...process(rest)}
-
-      // Other instructions are left alone
-      | list{instr, ...rest} => list{instr, ...process(rest)}
+  let foldInstr = (i: IR.instr): option<IR.instr> =>
+    switch i {
+    | Binary(d, op, a, b) =>
+      switch (known(a), known(b)) {
+      | (Some(x), Some(y)) =>
+        switch evalBin(op, x, y) {
+        | Some(r) => Some(Move(d, Num(r)))
+        | None => Some(i)
+        }
+      | (_, Some(0.)) if op == Add || op == Sub => Some(Move(d, a))
+      | (Some(0.), _) if op == Add => Some(Move(d, b))
+      | (_, Some(1.)) if op == Mul || op == Div => Some(Move(d, a))
+      | (Some(1.), _) if op == Mul => Some(Move(d, b))
+      | (_, Some(0.)) | (Some(0.), _) if op == Mul => Some(Move(d, Num(0.)))
+      | _ => Some(i)
       }
+    | Unary(d, op, a) =>
+      switch known(a)->Option.flatMap(x => evalUn(op, x)) {
+      | Some(r) => Some(Move(d, Num(r)))
+      | None => Some(i)
+      }
+    | Compare(d, op, a, b) =>
+      switch (known(a), known(b)) {
+      | (Some(x), Some(y)) => Some(Move(d, Num(IR.evalCmp(op, x, y) ? 1. : 0.)))
+      | _ => Some(i)
+      }
+    | Select(d, c, a, b) =>
+      switch known(c) {
+      | Some(x) => Some(Move(d, x != 0. ? a : b))
+      | None => a == b ? Some(Move(d, a)) : Some(i)
+      }
+    | Branch(op, a, b, l) =>
+      switch (known(a), known(b)) {
+      | (Some(x), Some(y)) => IR.evalCmp(op, x, y) ? Some(Goto(l)) : None
+      | _ => Some(i)
+      }
+    | Move(d, VReg(s)) if d == s => None
+    | _ => Some(i)
     }
-
-    {...block, instructions: process(block.instructions)}
-  }
-
-  blocks->List.map(substituteInBlock)
+  ir->mapBlocks(instrs => instrs->Array.filterMap(foldInstr))
 }
 
-// Apply optimizations to entire program
-// Run multiple passes until no more changes
-let optimize = (ir: IR.t): IR.t => {
-  // First, do global define substitution across all blocks
-  let afterDefineSubst = globalDefineSubstitution(ir)
+// ---------------------------------------------------------------------------
+// Local (basic block) constant and copy propagation
 
-  let rec optimizePass = (blocks: list<IR.block>, prevSize: int): list<IR.block> => {
-    let optimized = blocks->List.map(optimizeBlockWithoutDefines)
-
-    // Count total instructions
-    let currentSize = optimized->List.reduce(0, (acc, block) => {
-      acc + List.length(block.instructions)
+let propagateCopies = (ir: IR.t): IR.t =>
+  ir->mapBlocks(instrs => {
+    let env = ref(Belt.Map.Int.empty)
+    instrs->Array.map(i => {
+      let i = switch i {
+      | Label(_) | Call(_) | Raw(_) =>
+        env := Belt.Map.Int.empty
+        i
+      | _ =>
+        IR.mapUses(i, op =>
+          switch op {
+          | VReg(v) => env.contents->Belt.Map.Int.get(v)->Option.getOr(op)
+          | _ => op
+          }
+        )
+      }
+      switch IR.def(i) {
+      | Some(d) =>
+        env :=
+          env.contents
+          ->Belt.Map.Int.remove(d)
+          ->Belt.Map.Int.keep((_, op) => op != IR.VReg(d))
+        switch i {
+        | Move(_, VReg(s)) if s == d => ()
+        | Move(_, (VReg(_) | Num(_) | Name(_) | Hash(_)) as src) =>
+          env := env.contents->Belt.Map.Int.set(d, src)
+        | _ => ()
+        }
+      | None => ()
+      }
+      i
     })
-
-    // If size changed, run another pass
-    if currentSize < prevSize {
-      optimizePass(optimized, currentSize)
-    } else {
-      optimized
-    }
-  }
-
-  // Calculate initial size (after define substitution)
-  let initialSize = afterDefineSubst->List.reduce(0, (acc, block) => {
-    acc + List.length(block.instructions)
   })
 
-  optimizePass(afterDefineSubst, initialSize)
+// ---------------------------------------------------------------------------
+// Dead code elimination (whole-program liveness)
+
+let eliminateDeadCode = (ir: IR.t): IR.t => {
+  let live = Liveness.analyze(ir)
+  let keep = live.instrs->Array.mapWithIndex((i, idx) =>
+    switch IR.def(i) {
+    | Some(d) if IR.isPure(i) => live.liveOut->Array.getUnsafe(idx)->IntSet.has(d)
+    | _ => true
+    }
+  )
+  ir->Array.mapWithIndex((b, bi) => {
+    let start = live.blockStart->Array.getUnsafe(bi)
+    {
+      ...b,
+      instructions: b.instructions->Array.filterWithIndex((_, j) => keep->Array.getUnsafe(start + j)),
+    }
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Control flow cleanup
+
+let referencedLabels = (ir: IR.t): Dict.t<bool> => {
+  let refs = Dict.make()
+  ir->Array.forEach(b =>
+    b.instructions->Array.forEach(i =>
+      switch i {
+      | Goto(l) | Branch(_, _, _, l) | Call(l) => refs->Dict.set(l, true)
+      | _ => ()
+      }
+    )
+  )
+  refs
+}
+
+let simplifyBlock = (instrs: array<IR.instr>): array<IR.instr> => {
+  let labelAt = Dict.make()
+  instrs->Array.forEachWithIndex((i, idx) =>
+    switch i {
+    | Label(l) => labelAt->Dict.set(l, idx)
+    | _ => ()
+    }
+  )
+  // first non-label instruction at or after idx
+  let rec skipLabels = idx =>
+    switch instrs[idx] {
+    | Some(Label(_)) => skipLabels(idx + 1)
+    | Some(_) => Some(idx)
+    | None => None
+    }
+  // follow chains of `L: j M`
+  let rec resolve = (l, depth) =>
+    if depth > 16 {
+      l
+    } else {
+      switch labelAt->Dict.get(l)->Option.flatMap(idx => skipLabels(idx)) {
+      | Some(idx) =>
+        switch instrs->Array.getUnsafe(idx) {
+        | Goto(m) if m != l => resolve(m, depth + 1)
+        | _ => l
+        }
+      | None => l
+      }
+    }
+  let retargeted = instrs->Array.map(i =>
+    switch i {
+    | Goto(l) => IR.Goto(resolve(l, 0))
+    | Branch(op, a, b, l) => Branch(op, a, b, resolve(l, 0))
+    | _ => i
+    }
+  )
+  // labels that follow position idx with only labels in between
+  let fallsInto = (arr: array<IR.instr>, idx, l) => {
+    let rec go = j =>
+      switch arr[j] {
+      | Some(Label(x)) => x == l ? true : go(j + 1)
+      | _ => false
+      }
+    go(idx + 1)
+  }
+  let out = []
+  let n = Array.length(retargeted)
+  let i = ref(0)
+  while i.contents < n {
+    let cur = retargeted->Array.getUnsafe(i.contents)
+    switch (cur, retargeted[i.contents + 1], retargeted[i.contents + 2]) {
+    // bXX a b L1; j L2; L1:  ->  bNXX a b L2; L1:
+    | (Branch(op, a, b, l1), Some(Goto(l2)), Some(Label(l3))) if l1 == l3 =>
+      out->Array.push(IR.Branch(IR.invertCmp(op), a, b, l2))
+      i := i.contents + 2
+    | ((Goto(l) | Branch(_, _, _, l)), _, _) if fallsInto(retargeted, i.contents, l) =>
+      i := i.contents + 1
+    | _ =>
+      out->Array.push(cur)
+      i := i.contents + 1
+    }
+  }
+  out
+}
+
+let simplifyJumps = (ir: IR.t): IR.t => {
+  let ir = ir->mapBlocks(simplifyBlock)
+  let refs = referencedLabels(ir)
+  ir->Array.mapWithIndex((b, bi) => {
+    let instrs = b.instructions
+    // a function's entry label is always kept; main has no entry label
+    // drop unreachable code and unreferenced labels
+    let reachable = ref(true)
+    let instructions = instrs->Array.filterWithIndex((i, idx) =>
+      switch i {
+      | Label(l) =>
+        if (idx == 0 && bi > 0) || refs->Dict.get(l) != None {
+          reachable := true
+          true
+        } else {
+          false
+        }
+      | _ =>
+        let keep = reachable.contents
+        if IR.isTerminator(i) {
+          reachable := false
+        }
+        keep
+      }
+    )
+    {...b, instructions}
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Whole-program cleanup
+
+let removeUnusedFunctions = (ir: IR.t): IR.t => {
+  let byName = Dict.make()
+  ir->Array.forEach(b => byName->Dict.set(b.name, b))
+  let reached = Dict.make()
+  let rec visit = (b: IR.block) =>
+    if reached->Dict.get(b.name) == None {
+      reached->Dict.set(b.name, true)
+      b.instructions->Array.forEach(i =>
+        switch i {
+        | Call(f) => byName->Dict.get(f)->Option.forEach(visit)
+        | _ => ()
+        }
+      )
+    }
+  ir[0]->Option.forEach(visit)
+  ir->Array.filterWithIndex((b, i) => i == 0 || reached->Dict.get(b.name) != None)
+}
+
+let removeUnusedDefines = (ir: IR.t): IR.t => {
+  let used = Dict.make()
+  let mark = (op: IR.operand) =>
+    switch op {
+    | Name(n) => used->Dict.set(n, true)
+    | _ => ()
+    }
+  let rawText = []
+  ir->Array.forEach(b =>
+    b.instructions->Array.forEach(i => {
+      let _ = IR.mapUses(i, op => {
+        mark(op)
+        op
+      })
+      switch i {
+      | Raw(t) => rawText->Array.push(t)
+      | _ => ()
+      }
+    })
+  )
+  let raw = rawText->Array.join("\n")
+  let usedInRaw = name => RegExp.test(RegExp.fromString(`\\b${name}\\b`), raw)
+  ir->mapBlocks(instrs =>
+    instrs->Array.filter(i =>
+      switch i {
+      | DefNum(n, _) | DefHash(n, _) => used->Dict.get(n) != None || usedInRaw(n)
+      | _ => true
+      }
+    )
+  )
+}
+
+let passes: array<pass> = [
+  {name: "foldConstants", run: foldConstants},
+  {name: "propagateCopies", run: propagateCopies},
+  {name: "eliminateDeadCode", run: eliminateDeadCode},
+  {name: "simplifyJumps", run: simplifyJumps},
+  {name: "removeUnusedFunctions", run: removeUnusedFunctions},
+  {name: "removeUnusedDefines", run: removeUnusedDefines},
+]
+
+let passNames = passes->Array.map(p => p.name)
+
+let optimize = (ir: IR.t): IR.t => {
+  let current = ref(ir)
+  let changed = ref(true)
+  let rounds = ref(0)
+  while changed.contents && rounds.contents < 20 {
+    let next = passes->Array.reduce(current.contents, (acc, p) => p.run(acc))
+    changed := next != current.contents
+    current := next
+    rounds := rounds.contents + 1
+  }
+  current.contents
 }

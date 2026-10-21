@@ -1,58 +1,104 @@
+// Compiler entry point.
+//
+// Pipeline: Lexer -> Parser -> IRGen -> IROptimizer (passes as data) ->
+// IRToIC10 (register allocation + emission). Phases throw
+// `Errors.CompileError`; this module converts it into results.
+
+type stats = {
+  lines: int,
+  registers: int,
+}
+
+type diagnostics = {
+  ok: bool,
+  code: string,
+  errors: array<Errors.t>,
+  warnings: array<Errors.t>,
+  stats: stats,
+}
+
+let internalError = (message: string): Errors.t =>
+  Errors.make(~file="Compiler.res", ~fn="compile", `internal compiler error: ${message}`)
+
+let compileWithDiagnostics = (source: string, ~options: option<CodegenTypes.compilerOptions>=?): diagnostics => {
+  let options = options->Option.getOr({})
+  let debug = options.debug->Option.getOr(false)
+  let maxLines = options.maxLines->Option.getOr(CodegenTypes.ic10MaxLines)
+  let empty = {lines: 0, registers: 0}
+  try {
+    let tokens = Lexer.tokenize(source)
+    let ast = Parser.parse(tokens)
+    let (ir, warnings, names) = IRGen.generate(ast)
+    if debug {
+      Console.log("=== IR (before optimization) ===\n" ++ IRPrint.print(ir))
+    }
+    let ir = IROptimizer.optimize(ir)
+    if debug {
+      Console.log("=== IR (after optimization) ===\n" ++ IRPrint.print(ir))
+    }
+    let out = IRToIC10.generate(ir, ~names)
+    let warnings = Array.copy(warnings)
+    if out.lines > maxLines {
+      warnings->Array.push(
+        Errors.warning(
+          ~file="Compiler.res",
+          ~fn="compile",
+          `program has ${Int.toString(out.lines)} lines; an IC10 chip runs at most ${Int.toString(
+              maxLines,
+            )}`,
+        ),
+      )
+    }
+    out.code
+    ->String.split("\n")
+    ->Array.forEachWithIndex((l, i) =>
+      if String.length(l) > CodegenTypes.ic10MaxLineLength {
+        warnings->Array.push(
+          Errors.warning(
+            ~file="Compiler.res",
+            ~fn="compile",
+            `output line ${Int.toString(i + 1)} is longer than ${Int.toString(
+                CodegenTypes.ic10MaxLineLength,
+              )} characters`,
+          ),
+        )
+      }
+    )
+    {
+      ok: true,
+      code: out.code,
+      errors: [],
+      warnings,
+      stats: {lines: out.lines, registers: out.registers},
+    }
+  } catch {
+  | Errors.CompileError(e) => {ok: false, code: "", errors: [e], warnings: [], stats: empty}
+  | JsExn(e) =>
+    let message = e->JsExn.message->Option.getOr("unknown error")
+    {ok: false, code: "", errors: [internalError(message)], warnings: [], stats: empty}
+  }
+}
+
+// Backwards compatible API: Ok(assembly) or Error(message)
 let compile = (source: string, ~options: option<CodegenTypes.compilerOptions>=?, ()): result<
   string,
   string,
 > => {
-  Console.log(">>> Starting compilation process...")
-  // Default options: IC10 backend, comments disabled for backward compatibility
-  let defaultOptions: CodegenTypes.compilerOptions = {
-    includeComments: false,
-    debugAST: false,
-    backend: IC10,
+  let d = compileWithDiagnostics(source, ~options?)
+  if d.ok {
+    Ok(d.code)
+  } else {
+    Error(d.errors->Array.map(Errors.format)->Array.join("\n"))
   }
-  let compilerOptions = switch options {
-  | Some(opts) => opts
-  | None => defaultOptions
-  }
-
-  // Fix backend if undefined from JavaScript (defaults to 0 which is WASM)
-  // When JavaScript passes { includeComments: false } without backend, we want IC10
-  let compilerOptions = switch options {
-  | Some(opts) =>
-      // Check if backend field was actually provided
-      let backendUndefined = Js.typeof(Obj.magic(opts)["backend"]) == "undefined"
-      {
-        ...compilerOptions,
-        backend: backendUndefined ? IC10 : compilerOptions.backend
-      }
-  | None => compilerOptions
-  }
-
-  // Standard compilation pipeline: Lex -> Parse -> AST Optimize -> IR -> IR Optimize -> Backend
-  source
-  ->Lexer.tokenize
-  ->Result.flatMap(Parser.parse)
-  ->Result.map(Optimizer.optimizeProgram)
-  ->Result.flatMap(IRGen.generate)
-  ->Result.map(ir => {
-    Console.log("=== IR (Before Optimization) ===")
-    Console.log(IRPrint.print(ir))
-    ir
-  })
-  ->Result.map(IROptimizer.optimize)
-  ->Result.map(ir => {
-    Console.log("\n=== IR (After Optimization) ===")
-    Console.log(IRPrint.print(ir))
-    ir
-  })
-  ->Result.flatMap(ir => {
-    // Select backend based on compiler options
-    switch compilerOptions.backend {
-    | IC10 =>
-      Console.log("\n=== Generating IC10 Assembly ===")
-      IRToIC10.generate(ir)
-    | WASM =>
-      Console.log("\n=== Generating WebAssembly ===")
-      IRToWASM.generate(ir)
-    }
-  })
 }
+
+// Optimized IR with virtual registers (for debugging and tests)
+let compileToIR = (source: string, ~optimize=true): result<string, string> =>
+  try {
+    let (ir, _, _) = IRGen.generate(Parser.parse(Lexer.tokenize(source)))
+    Ok(IRPrint.print(optimize ? IROptimizer.optimize(ir) : ir))
+  } catch {
+  | Errors.CompileError(e) => Error(Errors.format(e))
+  }
+
+let formatDiagnostic = Errors.format

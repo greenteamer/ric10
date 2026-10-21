@@ -1,1028 +1,783 @@
-// Parser for ReScript → IC10 compiler
-// Recursive descent parser that consumes tokens from Lexer and builds AST
+// Parser: tokens -> AST (Pratt parser for expressions, recursive descent for
+// statements, patterns and types).
+//
+// Operator precedence mirrors ReScript 12 (verified against the real compiler):
+//   :=  <  ?:  <  ||  <  &&  <  |||  <  ^^^  <  &&&  <  == != < <= > >=
+//   <  << >> >>>  <  + -  <  * / %  <  **  <  unary - ! ~~~  <  postfix . -> ()
 
-// Parser state - tracks position in token array
-type parser = {
-  tokens: array<Lexer.token>,
-  position: int,
-  length: int,
+open AST
+
+type t = {
+  tokens: array<Lexer.t>,
+  mutable pos: int,
 }
 
-// Create a parser from an array of tokens
-let create = (tokens: array<Lexer.token>): parser => {
-  {
-    tokens,
-    position: 0,
-    length: Array.length(tokens),
+let file = "Parser.res"
+
+let cur = p => p.tokens->Array.getUnsafe(p.pos)
+let peekAt = (p, offset) => {
+  let i = Math.Int.min(p.pos + offset, Array.length(p.tokens) - 1)
+  p.tokens->Array.getUnsafe(i)
+}
+let tok = p => cur(p).tok
+let loc = p => cur(p).loc
+let bump = p => p.pos = Math.Int.min(p.pos + 1, Array.length(p.tokens) - 1)
+
+let fail = (p, ~fn, ~hint=?, message) =>
+  Errors.fail(~file, ~fn, ~loc=loc(p), ~hint?, message)
+
+let describe = (t: Lexer.token) =>
+  switch t {
+  | EOF => "end of file"
+  | _ => `'${Lexer.tokenToString(t)}'`
   }
-}
 
-// Check if we've reached end of tokens
-let isEOF = (parser: parser): bool => {
-  parser.position >= parser.length
-}
-
-// Peek at current token without advancing
-let peek = (parser: parser): option<Lexer.token> => {
-  if isEOF(parser) {
-    None
-  } else {
-    parser.tokens[parser.position]
-  }
-}
-
-// Advance to next token
-let advance = (parser: parser): parser => {
-  {...parser, position: parser.position + 1}
-}
-
-// Helper: Check if two tokens match
-let tokensMatch = (token1: Lexer.token, token2: Lexer.token): bool => {
-  switch (token1, token2) {
-  | (Lexer.Let, Lexer.Let) => true
-  | (Lexer.If, Lexer.If) => true
-  | (Lexer.Else, Lexer.Else) => true
-  | (Lexer.While, Lexer.While) => true
-  | (Lexer.Type, Lexer.Type) => true
-  | (Lexer.Switch, Lexer.Switch) => true
-  | (Lexer.Ref, Lexer.Ref) => true
-  | (Lexer.True, Lexer.True) => true
-  | (Lexer.Assign, Lexer.Assign) => true
-  | (Lexer.ColonEqual, Lexer.ColonEqual) => true
-  | (Lexer.Dot, Lexer.Dot) => true
-  | (Lexer.Percent, Lexer.Percent) => true
-  | (Lexer.Comma, Lexer.Comma) => true
-  | (Lexer.Plus, Lexer.Plus) => true
-  | (Lexer.Minus, Lexer.Minus) => true
-  | (Lexer.Multiply, Lexer.Multiply) => true
-  | (Lexer.Divide, Lexer.Divide) => true
-  | (Lexer.GreaterThan, Lexer.GreaterThan) => true
-  | (Lexer.LessThan, Lexer.LessThan) => true
-  | (Lexer.EqualEqual, Lexer.EqualEqual) => true
-  | (Lexer.Arrow, Lexer.Arrow) => true
-  | (Lexer.Pipe, Lexer.Pipe) => true
-  | (Lexer.LeftParen, Lexer.LeftParen) => true
-  | (Lexer.RightParen, Lexer.RightParen) => true
-  | (Lexer.LeftBrace, Lexer.LeftBrace) => true
-  | (Lexer.RightBrace, Lexer.RightBrace) => true
-  | (Lexer.EOF, Lexer.EOF) => true
-  | (Lexer.IntLiteral(n1), Lexer.IntLiteral(n2)) => n1 == n2
-  | (Lexer.StringLiteral(s1), Lexer.StringLiteral(s2)) => s1 == s2
-  | (Lexer.Identifier(s1), Lexer.Identifier(s2)) => s1 == s2
-  | (Lexer.Invalid(s1), Lexer.Invalid(s2)) => s1 == s2
+let isOp = (p, op) =>
+  switch tok(p) {
+  | Op(o) => o == op
   | _ => false
   }
-}
-
-// Expect a specific token and advance, or return error
-let expect = (parser: parser, expected: Lexer.token): result<parser, string> => {
-  switch peek(parser) {
-  | Some(token) if tokensMatch(token, expected) => Ok(advance(parser))
-  | Some(token) =>
-    Error(
-      "[Parser.res][expect]: expected " ++
-      Lexer.tokenToString(expected) ++
-      " but found " ++
-      Lexer.tokenToString(token),
-    )
-  | None =>
-    Error(
-      "[Parser.res][expect]: expected " ++
-      Lexer.tokenToString(expected) ++ " but reached end of file",
-    )
+let isKeyword = (p, kw) =>
+  switch tok(p) {
+  | Keyword(k) => k == kw
+  | _ => false
   }
-}
 
-// Parse an expression: handles precedence and binary operators
-let rec parseExpression = (parser: parser): result<(parser, AST.expr), string> => {
-  parseAdditiveExpression(parser)
-}
-
-// Parse additive expressions (+, -)
-and parseAdditiveExpression = (parser: parser): result<(parser, AST.expr), string> => {
-  switch parseMultiplicativeExpression(parser) {
-  | Error(msg) => Error(msg)
-  | Ok((parser, left)) => parseAdditiveExpressionRest(parser, left)
+let expectOp = (p, ~fn, op) =>
+  if isOp(p, op) {
+    bump(p)
+  } else {
+    fail(p, ~fn, `expected '${op}' but found ${describe(tok(p))}`)
   }
-}
 
-and parseAdditiveExpressionRest = (parser: parser, left: AST.expr): result<
-  (parser, AST.expr),
-  string,
-> => {
-  switch peek(parser) {
-  | Some(Lexer.Plus) =>
-    let parser = advance(parser)
-    switch parseMultiplicativeExpression(parser) {
-    | Error(msg) => Error(msg)
-    | Ok((parser, right)) =>
-      parseAdditiveExpressionRest(parser, AST.createBinaryExpression(AST.Add, left, right))
+let expectKeyword = (p, ~fn, kw) =>
+  if isKeyword(p, kw) {
+    bump(p)
+  } else {
+    fail(p, ~fn, `expected '${kw}' but found ${describe(tok(p))}`)
+  }
+
+let expectIdent = (p, ~fn) =>
+  switch tok(p) {
+  | Ident(name) =>
+    bump(p)
+    name
+  | other => fail(p, ~fn, `expected identifier but found ${describe(other)}`)
+  }
+
+let skipSemis = p =>
+  while isOp(p, ";") {
+    bump(p)
+  }
+
+// ---------------------------------------------------------------------------
+// Types (only parsed to be skipped; the head name is kept for annotations)
+
+let rec parseType = (p): option<string> => {
+  let fn = "parseType"
+  let head = switch tok(p) {
+  | Op("(") =>
+    // tuple or parenthesized type
+    bump(p)
+    let _ = parseType(p)
+    while isOp(p, ",") {
+      bump(p)
+      let _ = parseType(p)
     }
-  | Some(Lexer.Minus) =>
-    let parser = advance(parser)
-    switch parseMultiplicativeExpression(parser) {
-    | Error(msg) => Error(msg)
-    | Ok((parser, right)) =>
-      parseAdditiveExpressionRest(parser, AST.createBinaryExpression(AST.Sub, left, right))
-    }
-  | _ => Ok((parser, left))
-  }
-}
-
-// Parse multiplicative expressions (*, /)
-and parseMultiplicativeExpression = (parser: parser): result<(parser, AST.expr), string> => {
-  switch parseComparisonExpression(parser) {
-  | Error(msg) => Error(msg)
-  | Ok((parser, left)) => parseMultiplicativeExpressionRest(parser, left)
-  }
-}
-
-and parseMultiplicativeExpressionRest = (parser: parser, left: AST.expr): result<
-  (parser, AST.expr),
-  string,
-> => {
-  switch peek(parser) {
-  | Some(Lexer.Multiply) =>
-    let parser = advance(parser)
-    switch parseComparisonExpression(parser) {
-    | Error(msg) => Error(msg)
-    | Ok((parser, right)) =>
-      parseMultiplicativeExpressionRest(parser, AST.createBinaryExpression(AST.Mul, left, right))
-    }
-  | Some(Lexer.Divide) =>
-    let parser = advance(parser)
-    switch parseComparisonExpression(parser) {
-    | Error(msg) => Error(msg)
-    | Ok((parser, right)) =>
-      parseMultiplicativeExpressionRest(parser, AST.createBinaryExpression(AST.Div, left, right))
-    }
-  | _ => Ok((parser, left))
-  }
-}
-
-// Parse comparison expressions (>, <, ==)
-// Parse postfix expressions like .contents
-and parsePostfixExpression = (parser: parser, base: AST.expr): result<
-  (parser, AST.expr),
-  string,
-> => {
-  switch peek(parser) {
-  | Some(Lexer.Dot) =>
-    // Consume dot
-    let parser = advance(parser)
-    // Expect identifier for field name
-    switch peek(parser) {
-    | Some(Lexer.Identifier(fieldName)) =>
-      Console.log2("[peek(parser)] identifier: ", (parser, fieldName))
-      let parser = advance(parser)
-      if fieldName == "contents" {
-        // Base must be a simple identifier
-        switch base {
-        | AST.Identifier(refName) =>
-          // Return RefAccess node
-          Ok((parser, AST.createRefAccess(refName)))
-        | _ =>
-          Error(
-            "[Parser.res][parsePostfixExpression]: only simple identifiers can be dereferenced with .contents",
-          )
+    expectOp(p, ~fn, ")")
+    None
+  | Op("'") => fail(p, ~fn, "type variables are not supported")
+  | Ident(_) | UIdent(_) =>
+    // qualified path: Belt.Map.t / state
+    let name = ref("")
+    let continue = ref(true)
+    while continue.contents {
+      switch tok(p) {
+      | Ident(n) | UIdent(n) =>
+        name := n
+        bump(p)
+        if isOp(p, ".") {
+          bump(p)
+        } else {
+          continue := false
         }
-      } else {
-        Error("[Parser.res][parsePostfixExpression]: only .contents field is supported for refs")
+      | _ => continue := false
       }
-    | _ => Error("[Parser.res][parsePostfixExpression]: expected field name after '.'")
     }
-  | _ =>
-    // No postfix operator, return base as-is
-    Ok((parser, base))
+    if isOp(p, "<") {
+      bump(p)
+      let _ = parseType(p)
+      while isOp(p, ",") {
+        bump(p)
+        let _ = parseType(p)
+      }
+      expectOp(p, ~fn, ">")
+    }
+    Some(name.contents)
+  | other => fail(p, ~fn, `expected a type but found ${describe(other)}`)
+  }
+  if isOp(p, "=>") {
+    bump(p)
+    let _ = parseType(p)
+    None
+  } else {
+    head
   }
 }
 
-and parseComparisonExpression = (parser: parser): result<(parser, AST.expr), string> => {
-  switch parsePrimaryExpression(parser) {
-  | Error(msg) => Error(msg)
-  | Ok((parser, expr)) =>
-    // Check for postfix operators like .contents
-    switch parsePostfixExpression(parser, expr) {
-    | Error(msg) => Error(msg)
-    | Ok((parser, postfixExpr)) => parseComparisonExpressionRest(parser, postfixExpr)
-    }
+// ---------------------------------------------------------------------------
+// Patterns
+
+let rec parsePattern = (p): pattern => {
+  let first = parsePatternAtom(p)
+  if isOp(p, "|") {
+    bump(p)
+    let rest = parsePattern(p)
+    {pdesc: POr(first, rest), ploc: first.ploc}
+  } else {
+    first
   }
 }
 
-and parseComparisonExpressionRest = (parser: parser, left: AST.expr): result<
-  (parser, AST.expr),
-  string,
-> => {
-  switch peek(parser) {
-  | Some(Lexer.GreaterThan) =>
-    let parser = advance(parser)
-    switch parsePrimaryExpression(parser) {
-    | Error(msg) => Error(msg)
-    | Ok((parser, right)) =>
-      // Also handle postfix expressions like .contents on the right side
-      switch parsePostfixExpression(parser, right) {
-      | Error(msg) => Error(msg)
-      | Ok((parser, rightPostfix)) =>
-        parseComparisonExpressionRest(
-          parser,
-          AST.createBinaryExpression(AST.Gt, left, rightPostfix),
-        )
+and parsePatternAtom = (p): pattern => {
+  let fn = "parsePattern"
+  let ploc = loc(p)
+  let pdesc = switch tok(p) {
+  | Ident("_") =>
+    bump(p)
+    PWild
+  | Ident(name) =>
+    bump(p)
+    PVar(name)
+  | Keyword("true") =>
+    bump(p)
+    PBool(true)
+  | Keyword("false") =>
+    bump(p)
+    PBool(false)
+  | Number(n, _) =>
+    bump(p)
+    PNumber(n)
+  | Op("-") | Op("-.") =>
+    bump(p)
+    switch tok(p) {
+    | Number(n, _) =>
+      bump(p)
+      PNumber(-.n)
+    | other => fail(p, ~fn, `expected a number after '-' but found ${describe(other)}`)
+    }
+  | UIdent(name) =>
+    bump(p)
+    if isOp(p, "(") && !cur(p).nl {
+      bump(p)
+      let args = [parsePattern(p)]
+      while isOp(p, ",") {
+        bump(p)
+        args->Array.push(parsePattern(p))
       }
-    }
-  | Some(Lexer.LessThan) =>
-    let parser = advance(parser)
-    switch parsePrimaryExpression(parser) {
-    | Error(msg) => Error(msg)
-    | Ok((parser, right)) =>
-      // Also handle postfix expressions like .contents on the right side
-      switch parsePostfixExpression(parser, right) {
-      | Error(msg) => Error(msg)
-      | Ok((parser, rightPostfix)) =>
-        parseComparisonExpressionRest(
-          parser,
-          AST.createBinaryExpression(AST.Lt, left, rightPostfix),
-        )
-      }
-    }
-  | Some(Lexer.EqualEqual) =>
-    let parser = advance(parser)
-    switch parsePrimaryExpression(parser) {
-    | Error(msg) => Error(msg)
-    | Ok((parser, right)) =>
-      // Also handle postfix expressions like .contents on the right side
-      switch parsePostfixExpression(parser, right) {
-      | Error(msg) => Error(msg)
-      | Ok((parser, rightPostfix)) =>
-        parseComparisonExpressionRest(
-          parser,
-          AST.createBinaryExpression(AST.Eq, left, rightPostfix),
-        )
-      }
-    }
-  | _ => Ok((parser, left))
-  }
-}
-
-// Parse primary expressions: literals, identifiers, parentheses, switch, variant constructors
-// Parse ref(expr) - ref creation
-and parseRefCreation = (parser: parser): result<(parser, AST.expr), string> => {
-  // Expect "ref" token (already consumed by caller)
-  // Expect "("
-  switch expect(parser, Lexer.LeftParen) {
-  | Error(e) => Error(e)
-  | Ok(parser) =>
-    // Parse inner expression
-    switch parseExpression(parser) {
-    | Error(e) => Error(e)
-    | Ok((parser, expr)) =>
-      // Expect ")"
-      switch expect(parser, Lexer.RightParen) {
-      | Error(e) => Error(e)
-      | Ok(parser) => Ok((parser, AST.createRefCreation(expr)))
-      }
-    }
-  }
-}
-
-// Parse variant constructor arguments: (expr1, expr2, expr3)
-// Returns array of expressions
-and parseVariantConstructorArguments = (parser: parser): result<
-  (parser, array<AST.expr>),
-  string,
-> => {
-  // Expect opening paren
-  switch expect(parser, Lexer.LeftParen) {
-  | Error(msg) => Error(msg)
-  | Ok(parser) =>
-    let rec parseArgs = (parser: parser, args: list<AST.expr>): result<
-      (parser, list<AST.expr>),
-      string,
-    > => {
-      switch peek(parser) {
-      | Some(Lexer.RightParen) =>
-        // End of arguments
-        Ok((advance(parser), args))
-      | _ =>
-        // Parse expression
-        switch parseExpression(parser) {
-        | Error(msg) => Error(msg)
-        | Ok((parser, expr)) =>
-          // Check for comma (more args) or closing paren
-          switch peek(parser) {
-          | Some(Lexer.RightParen) => Ok((advance(parser), list{expr, ...args}))
-          | Some(Lexer.Comma) =>
-            let parser = advance(parser) // consume comma
-            parseArgs(parser, list{expr, ...args})
-          | _ =>
-            Error(
-              "[Parser.res][parseVariantConstructorArgs]: expected ',' or ')' after variant constructor argument",
-            )
-          }
-        }
-      }
-    }
-
-    // Handle empty argument list
-    switch peek(parser) {
-    | Some(Lexer.RightParen) => Ok((advance(parser), []))
-    | _ =>
-      switch parseArgs(parser, list{}) {
-      | Error(msg) => Error(msg)
-      | Ok((parser, args)) => Ok((parser, List.toArray(List.reverse(args))))
-      }
-    }
-  }
-}
-
-// Parse function call arguments: (arg1, arg2, ...)
-// Arguments can be expressions, string literals, or device identifiers
-and parseFunctionArguments = (parser: parser): result<(parser, array<AST.argument>), string> => {
-  let rec parseArgs = (parser: parser, args: list<AST.argument>): result<
-    (parser, list<AST.argument>),
-    string,
-  > => {
-    switch peek(parser) {
-    | Some(Lexer.RightParen) =>
-      // End of arguments
-      Ok((advance(parser), args))
-    | Some(Lexer.StringLiteral(str)) =>
-      // String literal argument
-      let parser = advance(parser)
-      let arg = AST.ArgString(str)
-      // Check for comma (more arguments) or closing paren
-      switch peek(parser) {
-      | Some(Lexer.RightParen) => Ok((advance(parser), list{arg, ...args}))
-      | Some(Lexer.Comma) =>
-        // Consume comma and parse next argument
-        let parser = advance(parser)
-        parseArgs(parser, list{arg, ...args})
-      | _ =>
-        Error("[Parser.res][parseFunctionArguments]: expected ',' or ')' after function argument")
-      }
-    | Some(Lexer.Identifier(name)) =>
-      // Check if this is a device identifier (d0-d5, db)
-      let isDeviceId =
-        name == "d0" ||
-        name == "d1" ||
-        name == "d2" ||
-        name == "d3" ||
-        name == "d4" ||
-        name == "d5" ||
-        name == "db"
-
-      let isMode = name == "Maximum" || name == "Minimum" || name == "Average" || name == "Sum"
-
-      switch (isDeviceId, isMode) {
-      | (true, false) => {
-          Console.log2("[parseFunctionArguments] device id: ", (parser, name))
-          // Device identifier - treat as ArgDevice
-          let parser = advance(parser)
-          let arg = AST.ArgDevice(name)
-          // Check for comma or closing paren
-          switch peek(parser) {
-          | Some(Lexer.RightParen) => Ok((advance(parser), list{arg, ...args}))
-          | Some(Lexer.Comma) =>
-            // Consume comma and parse next argument
-            let parser = advance(parser)
-            parseArgs(parser, list{arg, ...args})
-          | _ =>
-            Error(
-              "[Parser.res][parseFunctionArguments]: expected ',' or ')' after function argument",
-            )
-          }
-        }
-      | (false, true) => {
-          Console.log2("[parseFunctionArguments] mode string: ", (parser, name))
-          let parser = advance(parser)
-
-          // Mode is now just a string (Maximum, Minimum, Average, Sum)
-          let arg = AST.ArgMode(name)
-          // Check for comma or closing paren
-          switch peek(parser) {
-          | Some(Lexer.RightParen) => Ok((advance(parser), list{arg, ...args}))
-          | _ => Error("[Parser.res][parseFunctionArguments]: expected ')' after mode argument")
-          }
-        }
-      | _ =>
-        // Regular identifier - parse as expression
-        switch parseExpression(parser) {
-        | Error(msg) => Error(msg)
-        | Ok((parser, expr)) =>
-          let arg = AST.ArgExpr(expr)
-          // Check for comma or closing paren
-          switch peek(parser) {
-          | Some(Lexer.RightParen) => Ok((advance(parser), list{arg, ...args}))
-          | Some(Lexer.Comma) =>
-            // Consume comma and parse next argument
-            let parser = advance(parser)
-            parseArgs(parser, list{arg, ...args})
-          | _ =>
-            Error(
-              "[Parser.res][parseFunctionArguments]: expected ',' or ')' after function argument",
-            )
-          }
-        }
-      }
-
-    | Some(_) =>
-      // Expression argument (for other token types)
-      switch parseExpression(parser) {
-      | Error(msg) => Error(msg)
-      | Ok((parser, expr)) =>
-        let arg = AST.ArgExpr(expr)
-        // Check for comma or closing paren
-        switch peek(parser) {
-        | Some(Lexer.RightParen) => Ok((advance(parser), list{arg, ...args}))
-        | Some(Lexer.Comma) =>
-          // Consume comma and parse next argument
-          let parser = advance(parser)
-          parseArgs(parser, list{arg, ...args})
-        | _ =>
-          Error("[Parser.res][parseFunctionArguments]: expected ',' or ')' after function argument")
-        }
-      }
-    | None =>
-      Error(
-        "[Parser.res][parseFunctionArguments]: unexpected end of file while parsing function arguments",
-      )
-    }
-  }
-
-  // Expect opening paren
-  switch expect(parser, Lexer.LeftParen) {
-  | Error(msg) => Error(msg)
-  | Ok(parser) =>
-    // Handle empty argument list
-    switch peek(parser) {
-    | Some(Lexer.RightParen) => Ok((advance(parser), []))
-    | _ =>
-      switch parseArgs(parser, list{}) {
-      | Error(msg) => Error(msg)
-      | Ok((parser, args)) => Ok((parser, List.toArray(List.reverse(args))))
-      }
-    }
-  }
-}
-
-and parsePrimaryExpression = (parser: parser): result<(parser, AST.expr), string> => {
-  switch peek(parser) {
-  | Some(Lexer.IntLiteral(value)) =>
-    let parser = advance(parser)
-    Ok((parser, AST.createLiteral(value)))
-  | Some(Lexer.True) =>
-    let parser = advance(parser)
-    Ok((parser, AST.LiteralBool(true))) // boolean true literal
-  | Some(Lexer.Ref) =>
-    let parser = advance(parser)
-    parseRefCreation(parser)
-  | Some(Lexer.Switch) => parseSwitchExpression(parser)
-  | Some(Lexer.StringLiteral(str)) =>
-    let parser = advance(parser)
-    Ok((parser, AST.createStringLiteral(str)))
-  | Some(Lexer.Identifier(name)) =>
-    let parser = advance(parser)
-    // Check if this is followed by parentheses
-    switch peek(parser) {
-    | Some(Lexer.LeftParen) =>
-      // Determine if this is a function call or variant constructor
-      // IC10 functions: l, lb, lbn, s, sb, sbn, device
-      // HASH is also a function (used in constants)
-      let isIC10Function =
-        name == "l" ||
-        name == "lb" ||
-        name == "lbn" ||
-        name == "s" ||
-        name == "sb" ||
-        name == "sbn" ||
-        name == "hash" ||
-        name == "device"
-
-      if isIC10Function {
-        // Parse as function call with multiple arguments
-        switch parseFunctionArguments(parser) {
-        | Error(msg) => Error(msg)
-        | Ok((parser, args)) => Ok((parser, AST.createFunctionCall(name, args)))
-        }
-      } else {
-        // Parse as variant constructor with multiple arguments: Constructor(arg1, arg2, ...)
-        switch parseVariantConstructorArguments(parser) {
-        | Error(msg) => Error(msg)
-        | Ok((parser, args)) => Ok((parser, AST.createVariantConstructor(name, args)))
-        }
-      }
-    | _ => Ok((parser, AST.createIdentifier(name)))
-    }
-  | Some(Lexer.LeftParen) =>
-    let parser = advance(parser)
-    switch parseExpression(parser) {
-    | Error(msg) => Error(msg)
-    | Ok((parser, expr)) =>
-      switch expect(parser, Lexer.RightParen) {
-      | Error(msg) => Error(msg)
-      | Ok(parser) => Ok((parser, expr))
-      }
-    }
-  | Some(token) => Error("Unexpected token in expression: " ++ Lexer.tokenToString(token))
-  | None => Error("Unexpected end of file in expression")
-  }
-}
-
-// Parse a switch expression: switch expr { | Pattern1 => body1 | Pattern2 => body2 }
-// Part of expression parser mutual recursion, but calls parseBlockStatement (defined later)
-and parseSwitchExpression = (parser: parser): result<(parser, AST.expr), string> => {
-  // Expect "switch"
-  switch expect(parser, Lexer.Switch) {
-  | Error(msg) => Error(msg)
-  | Ok(parser) =>
-    // Parse scrutinee (the expression being matched)
-    switch parseExpression(parser) {
-    | Error(msg) => Error(msg)
-    | Ok((parser, scrutinee)) =>
-      // Expect opening brace
-      switch expect(parser, Lexer.LeftBrace) {
-      | Error(msg) => Error(msg)
-      | Ok(parser) =>
-        // Parse match cases
-        let rec parseMatchCases = (parser: parser, cases: list<AST.matchCase>): result<
-          (parser, list<AST.matchCase>),
-          string,
-        > => {
-          // Check for closing brace
-          switch peek(parser) {
-          | Some(Lexer.RightBrace) => Ok((advance(parser), cases))
-          | Some(Lexer.Pipe) =>
-            let parser = advance(parser) // consume |
-            // Parse constructor name
-            switch peek(parser) {
-            | Some(Lexer.Identifier(constructorName)) =>
-              let parser = advance(parser)
-
-              // Check for argument bindings: | Constructor(arg1, arg2, arg3) =>
-              let (parser, argumentBindings) = switch peek(parser) {
-              | Some(Lexer.LeftParen) =>
-                let parser = advance(parser) // consume (
-
-                // Parse comma-separated argument names
-                let rec parseBindings = (parser: parser, bindings: list<string>): (
-                  parser,
-                  list<string>,
-                ) => {
-                  switch peek(parser) {
-                  | Some(Lexer.Identifier(argName)) =>
-                    let parser = advance(parser)
-                    // Check for comma (more args) or closing paren
-                    switch peek(parser) {
-                    | Some(Lexer.Comma) =>
-                      let parser = advance(parser) // consume comma
-                      parseBindings(parser, list{argName, ...bindings})
-                    | Some(Lexer.RightParen) => (advance(parser), list{argName, ...bindings})
-                    | _ => (parser, bindings) // error case, fallback
-                    }
-                  | Some(Lexer.RightParen) => (advance(parser), bindings) // empty parens
-                  | _ => (parser, bindings) // error case, fallback
-                  }
-                }
-
-                let (parser, bindings) = parseBindings(parser, list{})
-                (parser, List.toArray(List.reverse(bindings)))
-              | _ => (parser, [])
-              }
-
-              // Expect arrow
-              switch expect(parser, Lexer.Arrow) {
-              | Error(msg) => Error(msg)
-              | Ok(parser) =>
-                // Parse case body (either a block statement, a single statement, or a single expression)
-                switch peek(parser) {
-                | Some(Lexer.LeftBrace) =>
-                  // Block statement - will call parseBlockStatement defined later
-                  switch parseBlockStatement(parser) {
-                  | Error(msg) => Error(msg)
-                  | Ok((parser, body)) =>
-                    let matchCase: AST.matchCase = {
-                      constructorName,
-                      argumentBindings,
-                      body,
-                    }
-                    parseMatchCases(parser, list{matchCase, ...cases})
-                  }
-                | _ =>
-                  // Try to parse as a statement first (for ref assignments, if statements, etc.)
-                  // If that fails, fall back to parsing as an expression
-                  switch parseStatement(parser) {
-                  | Ok((parser, stmt)) =>
-                    let matchCase: AST.matchCase = {
-                      constructorName,
-                      argumentBindings,
-                      body: [stmt], // Wrap single statement in array
-                    }
-                    parseMatchCases(parser, list{matchCase, ...cases})
-                  | Error(_) =>
-                    // Statement parsing failed, try expression
-                    switch parseExpression(parser) {
-                    | Error(msg) => Error(msg)
-                    | Ok((parser, expr)) =>
-                      let matchCase: AST.matchCase = {
-                        constructorName,
-                        argumentBindings,
-                        body: [expr], // Wrap single expression in array
-                      }
-                      parseMatchCases(parser, list{matchCase, ...cases})
-                    }
-                  }
-                }
-              }
-
-            | Some(token) =>
-              Error(
-                "[Parser.res][parseSwitchExpression]: expected constructor name in match case, found " ++
-                Lexer.tokenToString(token),
-              )
-            | None =>
-              Error(
-                "[Parser.res][parseSwitchExpression]: expected constructor name in match case, but reached end of file",
-              )
-            }
-          | Some(token) =>
-            Error(
-              "[Parser.res][parseSwitchExpression]: expected '|' or '}' in match expression, found " ++
-              Lexer.tokenToString(token),
-            )
-          | None =>
-            Error(
-              "[Parser.res][parseSwitchExpression]: expected '|' or '}' in match expression, but reached end of file",
-            )
-          }
-        }
-
-        switch parseMatchCases(parser, list{}) {
-        | Error(msg) => Error(msg)
-        | Ok((parser, cases)) =>
-          Ok((parser, AST.createSwitchExpression(scrutinee, List.toArray(List.reverse(cases)))))
-        }
-      }
-    }
-  }
-}
-
-// Parse a variable declaration: let identifier = expression
-// Or function declaration: let identifier = () => { body }
-// Part of the same mutual recursion group
-and parseVariableDeclaration = (parser: parser): result<(parser, AST.astNode), string> => {
-  // Expect "let"
-  switch expect(parser, Lexer.Let) {
-  | Error(msg) => Error(msg)
-  | Ok(parser) =>
-    // Expect identifier
-    switch peek(parser) {
-    | Some(Lexer.Identifier(name)) =>
-      let parser = advance(parser)
-      // Expect "="
-      switch expect(parser, Lexer.Assign) {
-      | Error(msg) => Error(msg)
-      | Ok(parser) =>
-        // Check if this is a function declaration: () => { body }
-        switch (peek(parser), peek(advance(parser)), peek(advance(advance(parser)))) {
-        | (Some(Lexer.LeftParen), Some(Lexer.RightParen), Some(Lexer.Arrow)) =>
-          // Function declaration: let name = () => { body }
-          let parser = advance(advance(advance(parser))) // consume (), =>
-          // Parse function body block
-          switch parseBlockStatement(parser) {
-          | Error(msg) => Error(msg)
-          | Ok((parser, body)) => Ok((parser, AST.createFunctionDeclaration(name, body)))
-          }
-        | _ =>
-          // Regular variable declaration
-          switch parseExpression(parser) {
-          | Error(msg) => Error(msg)
-          | Ok((parser, expr)) => Ok((parser, AST.createVariableDeclaration(name, expr)))
-          }
-        }
-      }
-    | Some(token) =>
-      Error(
-        "[Parser.res][parseVariableDeclaration]: expected identifier after 'let', found " ++
-        Lexer.tokenToString(token),
-      )
-    | None =>
-      Error(
-        "[Parser.res][parseVariableDeclaration]: expected identifier after 'let', but reached end of file",
-      )
-    }
-  }
-}
-
-// Parse a type declaration: type name = Constructor1 | Constructor2(int) | ...
-// Part of the same mutual recursion group
-and parseTypeDeclaration = (parser: parser): result<(parser, AST.astNode), string> => {
-  // Expect "type"
-  switch expect(parser, Lexer.Type) {
-  | Error(msg) => Error(msg)
-  | Ok(parser) =>
-    // Expect type name identifier
-    switch peek(parser) {
-    | Some(Lexer.Identifier(typeName)) =>
-      let parser = advance(parser)
-      // Expect "="
-      switch expect(parser, Lexer.Assign) {
-      | Error(msg) => Error(msg)
-      | Ok(parser) =>
-        // Parse variant constructors
-        let rec parseConstructors = (
-          parser: parser,
-          constructors: list<AST.variantConstructor>,
-        ): result<(parser, list<AST.variantConstructor>), string> => {
-          // Optionally consume leading pipe (for consistency)
-          let parser = switch peek(parser) {
-          | Some(Lexer.Pipe) => advance(parser)
-          | _ => parser
-          }
-
-          // Expect constructor name
-          switch peek(parser) {
-          | Some(Lexer.Identifier(constructorName)) =>
-            let parser = advance(parser)
-
-            // Check for arguments: Constructor(int, int, int)
-            let (parser, argCount) = switch peek(parser) {
-            | Some(Lexer.LeftParen) =>
-              let parser = advance(parser) // consume (
-
-              // Parse comma-separated type names to count arguments
-              let rec countArgs = (parser: parser, count: int): (parser, int) => {
-                switch peek(parser) {
-                | Some(Lexer.Identifier(_)) =>
-                  let parser = advance(parser) // consume type identifier
-                  // Check for comma (more args) or closing paren
-                  switch peek(parser) {
-                  | Some(Lexer.Comma) =>
-                    let parser = advance(parser) // consume comma
-                    countArgs(parser, count + 1)
-                  | Some(Lexer.RightParen) => (advance(parser), count + 1)
-                  | _ => (parser, count) // error case, fallback
-                  }
-                | Some(Lexer.RightParen) => (advance(parser), count) // empty parens
-                | _ => (parser, count) // error case, fallback
-                }
-              }
-
-              countArgs(parser, 0)
-            | _ => (parser, 0)
-            }
-
-            let constructor: AST.variantConstructor = {
-              name: constructorName,
-              argCount,
-            }
-
-            // Check for more constructors (separated by |)
-            switch peek(parser) {
-            | Some(Lexer.Pipe) => parseConstructors(parser, list{constructor, ...constructors})
-            | _ => Ok((parser, list{constructor, ...constructors}))
-            }
-
-          | Some(token) =>
-            Error(
-              "[Parser.res][parseTypeDeclaration]: expected constructor name, found " ++
-              Lexer.tokenToString(token),
-            )
-          | None =>
-            Error(
-              "[Parser.res][parseTypeDeclaration]: expected constructor name, but reached end of file",
-            )
-          }
-        }
-
-        switch parseConstructors(parser, list{}) {
-        | Error(msg) => Error(msg)
-        | Ok((parser, constructors)) =>
-          Ok((
-            parser,
-            AST.createTypeDeclaration(typeName, List.toArray(List.reverse(constructors))),
-          ))
-        }
-      }
-    | Some(token) =>
-      Error(
-        "[Parser.res][parseTypeDeclaration]: expected type name after 'type', found " ++
-        Lexer.tokenToString(token),
-      )
-    | None =>
-      Error(
-        "[Parser.res][parseTypeDeclaration]: expected type name after 'type', but reached end of file",
-      )
-    }
-  }
-}
-
-// Parse an if statement: if expression { statements } else { statements }?
-// Part of the same mutual recursion group as expression parsers
-and parseIfStatement = (parser: parser): result<(parser, AST.astNode), string> => {
-  // Parse: if expr { statements }
-  switch parseExpression(parser) {
-  | Error(msg) => Error(msg)
-  | Ok((parser, condition)) =>
-    switch parseBlockStatement(parser) {
-    | Error(msg) => Error(msg)
-    | Ok((parser, thenBlock)) =>
-      // Check for else block
-      switch peek(parser) {
-      | Some(Lexer.Else) =>
-        let parser = advance(parser) // consume 'else' token
-        // Check if next token is 'if' for else if
-        switch peek(parser) {
-        | Some(Lexer.If) =>
-          // Parse else if as a nested if statement
-          let parser = advance(parser) // consume 'if' token
-          switch parseIfStatement(parser) {
-          | Error(msg) => Error(msg)
-          | Ok((parser, nestedIf)) =>
-            // Wrap nested if in array to make it a blockStatement
-            Ok((parser, AST.createIfStatement(condition, thenBlock, Some([nestedIf]))))
-          }
-        | _ =>
-          // Regular else block
-          switch parseBlockStatement(parser) {
-          | Error(msg) => Error(msg)
-          | Ok((parser, elseBlock)) =>
-            Ok((parser, AST.createIfStatement(condition, thenBlock, Some(elseBlock))))
-          }
-        }
-      | _ => Ok((parser, AST.createIfStatement(condition, thenBlock, None)))
-      }
-    }
-  }
-}
-
-// Parse a while loop: while condition { statements }
-// Part of the same mutual recursion group as expression parsers
-and parseWhileLoop = (parser: parser): result<(parser, AST.astNode), string> => {
-  // Parse: while expr { statements }
-  switch parseExpression(parser) {
-  | Error(msg) => Error(msg)
-  | Ok((parser, condition)) =>
-    switch parseBlockStatement(parser) {
-    | Error(msg) => Error(msg)
-    | Ok((parser, body)) => Ok((parser, AST.createWhileLoop(condition, body)))
-    }
-  }
-}
-
-// Parse a statement
-// Parse ref assignment: identifier := expr
-and parseRefAssignment = (parser: parser, name: string): result<(parser, AST.stmt), string> => {
-  // Expect ":=" (caller has already identified this pattern)
-  switch expect(parser, Lexer.ColonEqual) {
-  | Error(e) => Error(e)
-  | Ok(parser) =>
-    // Parse right-hand side expression
-    switch parseExpression(parser) {
-    | Error(e) => Error(e)
-    | Ok((parser, expr)) => Ok((parser, AST.createRefAssignment(name, expr)))
-    }
-  }
-}
-
-// Parse %raw("instruction") - raw IC10 assembly instruction
-and parseRawInstruction = (parser: parser): result<(parser, AST.astNode), string> => {
-  // Expect %
-  switch expect(parser, Lexer.Percent) {
-  | Error(msg) => Error(msg)
-  | Ok(parser) =>
-    // Expect "raw" identifier
-    switch peek(parser) {
-    | Some(Lexer.Identifier("raw")) =>
-      let parser = advance(parser)
-      // Expect (
-      switch expect(parser, Lexer.LeftParen) {
-      | Error(msg) => Error(msg)
-      | Ok(parser) =>
-        // Expect string literal
-        switch peek(parser) {
-        | Some(Lexer.StringLiteral(instruction)) =>
-          let parser = advance(parser)
-          // Expect )
-          switch expect(parser, Lexer.RightParen) {
-          | Error(msg) => Error(msg)
-          | Ok(parser) => Ok((parser, AST.createRawInstruction(instruction)))
-          }
-        | Some(token) =>
-          Error(
-            "[Parser.res][parseRawInstruction]: expected string literal in %raw() but found " ++
-            Lexer.tokenToString(token),
-          )
-        | None =>
-          Error(
-            "[Parser.res][parseRawInstruction]: expected string literal in %raw() but reached end of file",
-          )
-        }
-      }
-    | Some(token) =>
-      Error(
-        "[Parser.res][parseRawInstruction]: expected 'raw' after % but found " ++
-        Lexer.tokenToString(token),
-      )
-    | None =>
-      Error("[Parser.res][parseRawInstruction]: expected 'raw' after % but reached end of file")
-    }
-  }
-}
-
-and parseStatement = (parser: parser): result<(parser, AST.astNode), string> => {
-  switch peek(parser) {
-  | Some(Lexer.Let) => parseVariableDeclaration(parser)
-  | Some(Lexer.Type) => parseTypeDeclaration(parser)
-  | Some(Lexer.If) =>
-    let parser = advance(parser) // consume 'if' token
-    parseIfStatement(parser)
-  | Some(Lexer.While) =>
-    let parser = advance(parser) // consume 'while' token
-    parseWhileLoop(parser)
-  | Some(Lexer.Percent) =>
-    // Parse %raw("instruction")
-    parseRawInstruction(parser)
-  | Some(Lexer.LeftBrace) =>
-    switch parseBlockStatement(parser) {
-    | Error(msg) => Error(msg)
-    | Ok((parser, block)) => Ok((parser, AST.createBlockStatement(block)))
-    }
-  | Some(Lexer.Identifier(name)) =>
-    // Look ahead for := operator
-    let parser1 = advance(parser) // Consume identifier
-    switch peek(parser1) {
-    | Some(Lexer.ColonEqual) =>
-      // This is a ref assignment
-      parseRefAssignment(parser1, name)
-    | _ =>
-      // Not an assignment, try parsing as expression
-      parseExpression(parser)
-    }
-  | Some(Lexer.LeftParen) =>
-    // Could be an if statement - for now parse as expression
-    parseExpression(parser)
-  | Some(_) =>
-    // Try parsing as expression
-    parseExpression(parser)
-  | None => Error("[Parser.res][parseStatement]: unexpected end of file")
-  }
-}
-
-// Parse a block statement: { statements }
-// Uses List for O(1) cons operations, then converts to array
-and parseBlockStatement = (parser: parser): result<(parser, AST.blockStatement), string> => {
-  switch expect(parser, Lexer.LeftBrace) {
-  | Error(msg) => Error(msg)
-  | Ok(parser) =>
-    let rec parseStatements = (parser: parser, statements: list<AST.astNode>): result<
-      (parser, list<AST.astNode>),
-      string,
-    > => {
-      switch peek(parser) {
-      | Some(Lexer.RightBrace) => Ok((advance(parser), statements))
-      | Some(_) =>
-        switch parseStatement(parser) {
-        | Error(msg) => Error(msg)
-        | Ok((parser, stmt)) => parseStatements(parser, list{stmt, ...statements}) // O(1) cons
-        }
-      | None => Error("[Parser.res][parseBlockStatement]: expected '}' but reached end of file")
-      }
-    }
-    switch parseStatements(parser, list{}) {
-    | Error(msg) => Error(msg)
-    | Ok((parser, statements)) => Ok((parser, List.toArray(List.reverse(statements))))
-    }
-  }
-}
-
-// Parse a program (sequence of statements)
-// Uses List for O(1) cons operations, then converts to array
-let parse = (tokens: array<Lexer.token>): result<AST.program, string> => {
-  let rec parseStatements = (parser: parser, statements: list<AST.stmt>): result<
-    (parser, list<AST.stmt>),
-    string,
-  > => {
-    if isEOF(parser) {
-      Ok((parser, statements))
+      expectOp(p, ~fn, ")")
+      PConstr(name, args)
     } else {
-      switch peek(parser) {
-      | Some(Lexer.EOF) => Ok((parser, statements))
-      | Some(_) =>
-        switch parseStatement(parser) {
-        | Error(msg) => Error(msg)
-        | Ok((parser, stmt)) => parseStatements(parser, list{stmt, ...statements}) // O(1) cons
+      PConstr(name, [])
+    }
+  | Op("(") =>
+    bump(p)
+    let inner = parsePattern(p)
+    if isOp(p, ",") {
+      fail(p, ~fn, "tuple patterns are not supported")
+    }
+    expectOp(p, ~fn, ")")
+    inner.pdesc
+  | other => fail(p, ~fn, `expected a pattern but found ${describe(other)}`)
+  }
+  {pdesc, ploc}
+}
+
+// ---------------------------------------------------------------------------
+// Expressions
+
+type infix = {
+  lbp: int,
+  rbp: int,
+  op: option<binop>, // None for special forms (:=, ?)
+}
+
+// Binding powers: level L gives lbp = 2L; left-associative operators parse
+// their right operand at 2L + 1, right-associative ones at 2L - 1.
+let infixOf = (t: Lexer.token): option<(string, infix)> => {
+  let left = (name, level, op) => Some((name, {lbp: 2 * level, rbp: 2 * level + 1, op}))
+  let right = (name, level, op) => Some((name, {lbp: 2 * level, rbp: 2 * level - 1, op}))
+  switch t {
+  | Op(":=") => right(":=", 1, None)
+  | Op("?") => right("?", 2, None)
+  | Op("||") => left("||", 3, Some(Or))
+  | Op("&&") => left("&&", 4, Some(And))
+  | Op("|||") => left("|||", 5, Some(BitOr))
+  | Op("^^^") => left("^^^", 6, Some(BitXor))
+  | Op("&&&") => left("&&&", 7, Some(BitAnd))
+  | Op("==") | Op("===") => left("==", 8, Some(Eq))
+  | Op("!=") | Op("!==") => left("!=", 8, Some(Ne))
+  | Op("<") => left("<", 8, Some(Lt))
+  | Op("<=") => left("<=", 8, Some(Le))
+  | Op(">") => left(">", 8, Some(Gt))
+  | Op(">=") => left(">=", 8, Some(Ge))
+  | Op("<<") => left("<<", 9, Some(Shl))
+  | Op(">>") => left(">>", 9, Some(Shr))
+  | Op(">>>") => left(">>>", 9, Some(Ushr))
+  | Op("+") | Op("+.") => left("+", 10, Some(Add))
+  | Op("-") | Op("-.") => left("-", 10, Some(Sub))
+  | Op("*") | Op("*.") => left("*", 11, Some(Mul))
+  | Op("/") | Op("/.") => left("/", 11, Some(Div))
+  | Op("%") => left("%", 11, Some(Mod))
+  | Op("**") => right("**", 12, Some(Pow))
+  | _ => None
+  }
+}
+
+// Unary operators bind tighter than `**` (ReScript: -2 ** 2 == 4)
+let prefixBp = 25
+
+// Does the token stream at `p.pos` (pointing at "(") start a lambda?
+let looksLikeLambda = (p): bool => {
+  let depth = ref(0)
+  let i = ref(p.pos)
+  let result = ref(None)
+  let n = Array.length(p.tokens)
+  while result.contents == None && i.contents < n {
+    switch (p.tokens->Array.getUnsafe(i.contents)).tok {
+    | Op("(") => depth := depth.contents + 1
+    | Op(")") =>
+      depth := depth.contents - 1
+      if depth.contents == 0 {
+        // found matching paren: lambda if followed by `=>` or `: type =>`
+        let next = (p.tokens->Array.getUnsafe(Math.Int.min(i.contents + 1, n - 1))).tok
+        result :=
+          Some(
+            switch next {
+            | Op("=>") => true
+            | Op(":") =>
+              // scan a short type annotation for a following `=>`
+              let j = ref(i.contents + 2)
+              let found = ref(false)
+              let stop = ref(false)
+              while !stop.contents && j.contents < n {
+                switch (p.tokens->Array.getUnsafe(j.contents)).tok {
+                | Op("=>") =>
+                  found := true
+                  stop := true
+                | Ident(_) | UIdent(_) | Op(".") | Op("<") | Op(">") | Op(",") => ()
+                | _ => stop := true
+                }
+                j := j.contents + 1
+              }
+              found.contents
+            | _ => false
+            },
+          )
+      }
+    | EOF => result := Some(false)
+    | _ => ()
+    }
+    i := i.contents + 1
+  }
+  result.contents->Option.getOr(false)
+}
+
+let rec parseExpr = (p): expr => parseExprBp(p, 0)
+
+and parseExprBp = (p, minBp): expr => {
+  let fn = "parseExpression"
+  let lhs = ref(parsePrefix(p))
+  let continue = ref(true)
+  while continue.contents {
+    switch infixOf(tok(p)) {
+    | Some((name, info)) if info.lbp > minBp =>
+      let opLoc = loc(p)
+      bump(p)
+      switch (name, info.op) {
+      | (":=", _) =>
+        let rhs = parseExprBp(p, info.rbp)
+        lhs := mk(Assign(lhs.contents, rhs), opLoc)
+      | ("?", _) =>
+        let thenE = parseExprBp(p, 0)
+        expectOp(p, ~fn, ":")
+        let elseE = parseExprBp(p, info.rbp)
+        lhs := mk(If(lhs.contents, thenE, Some(elseE)), lhs.contents.loc)
+      | (_, Some(op)) =>
+        let rhs = parseExprBp(p, info.rbp)
+        lhs := mk(Binary(op, lhs.contents, rhs), opLoc)
+      | (_, None) => continue := false
+      }
+    | _ =>
+      // `r.contents = v`
+      if isOp(p, "=") && minBp == 0 {
+        switch lhs.contents.desc {
+        | Deref(_) =>
+          let opLoc = loc(p)
+          bump(p)
+          let rhs = parseExprBp(p, 0)
+          lhs := mk(Assign(lhs.contents, rhs), opLoc)
+        | _ => continue := false
         }
-      | None => Ok((parser, statements))
+      } else {
+        continue := false
       }
     }
   }
-  let parser = create(tokens)
-  switch parseStatements(parser, list{}) {
-  | Error(msg) => Error("[Parser.res][parse]<-" ++ msg)
-  | Ok((_, statements)) =>
-    Ok(
-      statements
-      ->List.reverse
-      ->List.toArray,
-    )
+  lhs.contents
+}
+
+and parsePrefix = (p): expr => {
+  let l = loc(p)
+  switch tok(p) {
+  | Op("-") | Op("-.") =>
+    bump(p)
+    let operand = parseExprBp(p, prefixBp)
+    switch operand.desc {
+    | Number(n, isFloat) => mk(Number(-.n, isFloat), l)
+    | _ => mk(Unary(Neg, operand), l)
+    }
+  | Op("+") | Op("+.") =>
+    bump(p)
+    parseExprBp(p, prefixBp)
+  | Op("!") =>
+    bump(p)
+    mk(Unary(Not, parseExprBp(p, prefixBp)), l)
+  | Op("~~~") =>
+    bump(p)
+    mk(Unary(BitNot, parseExprBp(p, prefixBp)), l)
+  | _ => parsePostfix(p, parsePrimary(p))
   }
+}
+
+and parseArgs = (p, ~fn): array<expr> => {
+  expectOp(p, ~fn, "(")
+  let args = []
+  if isOp(p, ")") {
+    bump(p)
+  } else {
+    args->Array.push(parseExpr(p))
+    while isOp(p, ",") {
+      bump(p)
+      if !isOp(p, ")") {
+        args->Array.push(parseExpr(p))
+      }
+    }
+    expectOp(p, ~fn, ")")
+  }
+  // `f()` passes unit; drop it so arity matches the parameter list
+  switch args {
+  | [{desc: Unit}] => []
+  | _ => args
+  }
+}
+
+// Qualified callee: `Math.sqrt`, `IC10.l`, `Float.toInt`
+and parseQualifiedName = (p, ~fn, first: string): string => {
+  let name = ref(first)
+  let continue = ref(true)
+  while continue.contents && isOp(p, ".") {
+    switch peekAt(p, 1).tok {
+    | Ident(n) =>
+      // a lowercase segment ends the path: Math.sqrt
+      bump(p)
+      bump(p)
+      name := name.contents ++ "." ++ n
+      continue := false
+    | UIdent(n) =>
+      bump(p)
+      bump(p)
+      name := name.contents ++ "." ++ n
+    | other => fail(p, ~fn, `expected a name after '.' but found ${describe(other)}`)
+    }
+  }
+  name.contents
+}
+
+and parsePostfix = (p, base: expr): expr => {
+  let fn = "parsePostfix"
+  let e = ref(base)
+  let continue = ref(true)
+  while continue.contents {
+    if isOp(p, ".") {
+      bump(p)
+      switch tok(p) {
+      | Ident("contents") =>
+        let l = loc(p)
+        bump(p)
+        e := mk(Deref(e.contents), l)
+      | other =>
+        fail(
+          p,
+          ~fn,
+          `field access '.${Lexer.tokenToString(other)}' is not supported`,
+          ~hint="only `ref.contents` is supported (records are not)",
+        )
+      }
+    } else if isOp(p, "->") {
+      let l = loc(p)
+      bump(p)
+      let name = switch tok(p) {
+      | Ident(n) =>
+        bump(p)
+        n
+      | UIdent(n) =>
+        bump(p)
+        parseQualifiedName(p, ~fn, n)
+      | other => fail(p, ~fn, `expected a function name after '->' but found ${describe(other)}`)
+      }
+      let args = if isOp(p, "(") && !cur(p).nl {
+        parseArgs(p, ~fn)
+      } else {
+        []
+      }
+      e := mk(Call(name, [e.contents, ...args]), l)
+    } else {
+      continue := false
+    }
+  }
+  e.contents
+}
+
+and parseLambda = (p): expr => {
+  let fn = "parseLambda"
+  let l = loc(p)
+  let params = []
+  switch tok(p) {
+  | Ident(name) =>
+    params->Array.push({pname: name, ptype: None, paramLoc: loc(p)})
+    bump(p)
+  | _ =>
+    expectOp(p, ~fn, "(")
+    let parseParam = () => {
+      let paramLoc = loc(p)
+      switch tok(p) {
+      | Op(")") => ()
+      | Ident(name) =>
+        bump(p)
+        let ptype = if isOp(p, ":") {
+          bump(p)
+          parseType(p)
+        } else {
+          None
+        }
+        params->Array.push({pname: name, ptype, paramLoc})
+      | Op("~") => fail(p, ~fn, "labeled arguments are not supported")
+      | other => fail(p, ~fn, `expected a parameter name but found ${describe(other)}`)
+      }
+    }
+    parseParam()
+    while isOp(p, ",") {
+      bump(p)
+      parseParam()
+    }
+    expectOp(p, ~fn, ")")
+    if isOp(p, ":") {
+      bump(p)
+      let _ = parseType(p)
+    }
+  }
+  expectOp(p, ~fn, "=>")
+  let body = parseExpr(p)
+  mk(Fun(params, body), l)
+}
+
+and parsePrimary = (p): expr => {
+  let fn = "parsePrimary"
+  let l = loc(p)
+  switch tok(p) {
+  | Number(n, isFloat) =>
+    bump(p)
+    mk(Number(n, isFloat), l)
+  | String(s) =>
+    bump(p)
+    mk(String(s), l)
+  | Keyword("true") =>
+    bump(p)
+    mk(Bool(true), l)
+  | Keyword("false") =>
+    bump(p)
+    mk(Bool(false), l)
+  | Ident(name) =>
+    if peekAt(p, 1).tok == Op("=>") {
+      parseLambda(p)
+    } else {
+      bump(p)
+      if isOp(p, "(") && !cur(p).nl {
+        mk(Call(name, parseArgs(p, ~fn)), l)
+      } else {
+        mk(Ident(name), l)
+      }
+    }
+  | UIdent(name) =>
+    bump(p)
+    if isOp(p, ".") {
+      // Module path: Math.sqrt(x), IC10.l(...)
+      let qualified = parseQualifiedName(p, ~fn, name)
+      if isOp(p, "(") && !cur(p).nl {
+        mk(Call(qualified, parseArgs(p, ~fn)), l)
+      } else {
+        mk(Ident(qualified), l)
+      }
+    } else if isOp(p, "(") && !cur(p).nl {
+      mk(Constructor(name, parseArgs(p, ~fn)), l)
+    } else {
+      mk(Constructor(name, []), l)
+    }
+  | Op("(") =>
+    if looksLikeLambda(p) {
+      parseLambda(p)
+    } else {
+      bump(p)
+      if isOp(p, ")") {
+        bump(p)
+        mk(Unit, l)
+      } else {
+        let inner = parseExpr(p)
+        if isOp(p, ":") {
+          // (e: type)
+          bump(p)
+          let _ = parseType(p)
+        }
+        if isOp(p, ",") {
+          fail(p, ~fn, "tuples are not supported")
+        }
+        expectOp(p, ~fn, ")")
+        inner
+      }
+    }
+  | Op("{") => parseBlock(p)
+  | Keyword("if") => parseIf(p)
+  | Keyword("switch") => parseSwitch(p)
+  | Keyword("while") =>
+    bump(p)
+    let cond = parseExpr(p)
+    let body = parseBlock(p)
+    mk(While(cond, body), l)
+  | Keyword("for") =>
+    bump(p)
+    let var = expectIdent(p, ~fn)
+    expectKeyword(p, ~fn, "in")
+    let from = parseExpr(p)
+    let down = if isKeyword(p, "downto") {
+      bump(p)
+      true
+    } else {
+      expectKeyword(p, ~fn, "to")
+      false
+    }
+    let to_ = parseExpr(p)
+    let body = parseBlock(p)
+    mk(For(var, from, to_, down, body), l)
+  | Extension("raw") =>
+    bump(p)
+    expectOp(p, ~fn, "(")
+    let text = switch tok(p) {
+    | String(s) =>
+      bump(p)
+      s
+    | other => fail(p, ~fn, `expected a string literal in %raw() but found ${describe(other)}`)
+    }
+    expectOp(p, ~fn, ")")
+    mk(Raw(text), l)
+  | Extension(name) => fail(p, ~fn, `extension point %${name} is not supported`)
+  | Op("[") => fail(p, ~fn, "arrays are not supported")
+  | Op("#") => fail(p, ~fn, "polymorphic variants are not supported")
+  | Keyword(kw) => fail(p, ~fn, `unexpected keyword '${kw}' in expression`)
+  | other => fail(p, ~fn, `unexpected ${describe(other)} in expression`)
+  }
+}
+
+and parseIf = (p): expr => {
+  let fn = "parseIf"
+  let l = loc(p)
+  expectKeyword(p, ~fn, "if")
+  let cond = parseExpr(p)
+  let thenE = parseBlock(p)
+  let elseE = if isKeyword(p, "else") {
+    bump(p)
+    if isKeyword(p, "if") {
+      Some(parseIf(p))
+    } else {
+      Some(parseBlock(p))
+    }
+  } else {
+    None
+  }
+  mk(If(cond, thenE, elseE), l)
+}
+
+and parseSwitch = (p): expr => {
+  let fn = "parseSwitch"
+  let l = loc(p)
+  expectKeyword(p, ~fn, "switch")
+  let scrutinee = parseExpr(p)
+  expectOp(p, ~fn, "{")
+  let cases = []
+  while !isOp(p, "}") {
+    let caseLoc = loc(p)
+    expectOp(p, ~fn, "|")
+    let pattern = parsePattern(p)
+    let guard = if isKeyword(p, "if") || isKeyword(p, "when") {
+      bump(p)
+      Some(parseExpr(p))
+    } else {
+      None
+    }
+    expectOp(p, ~fn, "=>")
+    // Case body: a sequence of statements up to the next `|` or `}`
+    let bodyLoc = loc(p)
+    let stmts = []
+    while !isOp(p, "|") && !isOp(p, "}") {
+      if tok(p) == EOF {
+        fail(p, ~fn, "unterminated switch: expected '}'")
+      }
+      stmts->Array.push(parseStatement(p))
+      skipSemis(p)
+    }
+    let body = switch stmts {
+    | [Expr(e)] => e
+    | _ => mk(Block(stmts), bodyLoc)
+    }
+    cases->Array.push({pattern, guard, body, caseLoc})
+  }
+  expectOp(p, ~fn, "}")
+  if cases->Array.length == 0 {
+    Errors.fail(~file, ~fn, ~loc=l, "switch must have at least one case")
+  }
+  mk(Switch(scrutinee, cases), l)
+}
+
+and parseBlock = (p): expr => {
+  let fn = "parseBlock"
+  let l = loc(p)
+  expectOp(p, ~fn, "{")
+  let stmts = []
+  skipSemis(p)
+  while !isOp(p, "}") {
+    if tok(p) == EOF {
+      fail(p, ~fn, "expected '}' but reached end of file")
+    }
+    stmts->Array.push(parseStatement(p))
+    skipSemis(p)
+  }
+  expectOp(p, ~fn, "}")
+  mk(Block(stmts), l)
+}
+
+and parseTypeDecl = (p): option<stmt> => {
+  let fn = "parseTypeDecl"
+  let l = loc(p)
+  expectKeyword(p, ~fn, "type")
+  if isKeyword(p, "rec") {
+    bump(p)
+  }
+  let name = expectIdent(p, ~fn)
+  if isOp(p, "<") {
+    fail(p, ~fn, "generic types are not supported")
+  }
+  expectOp(p, ~fn, "=")
+  let isVariant = switch (tok(p), peekAt(p, 1).tok) {
+  | (Op("|"), _) => true
+  | (UIdent(_), Op(".")) => false
+  | (UIdent(_), _) => true
+  | _ => false
+  }
+  if isOp(p, "{") {
+    fail(p, ~fn, "record types are not supported", ~hint="use a variant with payload instead")
+  } else if !isVariant {
+    // type alias: `type temp = float` - nothing to compile
+    let _ = parseType(p)
+    None
+  } else {
+    let ctors = []
+    if isOp(p, "|") {
+      bump(p)
+    }
+    let parseCtor = () => {
+      let cloc = loc(p)
+      switch tok(p) {
+      | UIdent(cname) =>
+        bump(p)
+        let argTypes = []
+        if isOp(p, "(") {
+          bump(p)
+          argTypes->Array.push(parseType(p)->Option.getOr(""))
+          while isOp(p, ",") {
+            bump(p)
+            argTypes->Array.push(parseType(p)->Option.getOr(""))
+          }
+          expectOp(p, ~fn, ")")
+        }
+        ctors->Array.push({cname, argTypes, cloc})
+      | other => fail(p, ~fn, `expected a constructor name but found ${describe(other)}`)
+      }
+    }
+    parseCtor()
+    while isOp(p, "|") {
+      bump(p)
+      parseCtor()
+    }
+    Some(TypeDecl(name, ctors, l))
+  }
+}
+
+and parseStatement = (p): stmt => {
+  let fn = "parseStatement"
+  let l = loc(p)
+  switch tok(p) {
+  | Keyword("let") =>
+    bump(p)
+    if isKeyword(p, "rec") {
+      fail(p, ~fn, "recursive functions are not supported", ~hint="IC10 has no call stack frames; use a while loop")
+    }
+    let name = switch tok(p) {
+    | Ident(n) =>
+      bump(p)
+      n
+    | Op("(") => fail(p, ~fn, "destructuring is not supported")
+    | other => fail(p, ~fn, `expected a name after 'let' but found ${describe(other)}`)
+    }
+    if isOp(p, ":") {
+      bump(p)
+      let _ = parseType(p)
+    }
+    expectOp(p, ~fn, "=")
+    let value = parseExpr(p)
+    if isKeyword(p, "and") {
+      fail(p, ~fn, "'let ... and ...' is not supported")
+    }
+    Let(name, value, l)
+  | Keyword("type") =>
+    switch parseTypeDecl(p) {
+    | Some(s) => s
+    | None => Expr(mk(Unit, l))
+    }
+  | Keyword("open") =>
+    // `open IC10` is accepted and ignored: bindings are always in scope
+    bump(p)
+    switch tok(p) {
+    | UIdent(_) =>
+      bump(p)
+      let _ = parseQualifiedName(p, ~fn, "")
+      Expr(mk(Unit, l))
+    | other => fail(p, ~fn, `expected a module name after 'open' but found ${describe(other)}`)
+    }
+  | Keyword("module") => fail(p, ~fn, "modules are not supported")
+  | Keyword("external") => fail(p, ~fn, "externals are not supported")
+  | Keyword("exception") | Keyword("try") => fail(p, ~fn, "exceptions are not supported")
+  | Op("@") => fail(p, ~fn, "attributes are not supported")
+  | _ => Expr(parseExpr(p))
+  }
+}
+
+let parse = (tokens: array<Lexer.t>): program => {
+  let p = {tokens, pos: 0}
+  let stmts = []
+  skipSemis(p)
+  while tok(p) != EOF {
+    stmts->Array.push(parseStatement(p))
+    skipSemis(p)
+  }
+  stmts
 }

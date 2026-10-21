@@ -1,91 +1,87 @@
-// IC10.res - ReScript bindings for IC10 assembly instructions
-// These are stub implementations that exist purely for type checking.
-// The actual compiler recognizes these function names and generates IC10 assembly instead.
-
-// Device references (d0-d5, db)
-type device = int
-
-// Bulk operation modes for lb/lbn operations
-module Mode = {
-  // String constants for bulk operations
-  let maximum = "Maximum"
-  let minimum = "Minimum"
-  let average = "Average"
-  let sum = "Sum"
-}
-
-// Device reference - creates a device reference from a device string
-// Examples:
-//   let furnace = device("d0")   // Device pin 0
-//   let pump = device("d1")      // Device pin 1
-//   let housing = device("db")   // Database device
-//   let sensor = device("d2")    // Device pin 2
+// IC10.res - ReScript bindings for the ric10 compiler.
 //
-// Use descriptive variable names for better code clarity:
-//   let mainFurnace = device("d0")
-//   let backupFurnace = device("d1")
-//   let tempSensor = device("d2")
-let device = (_deviceRef: string): device => {
-  0
-}
+// These are type-checking stubs: running your program through the real
+// ReScript compiler (with `-open IC10`) proves it is well-typed, while ric10
+// recognises the same names and emits IC10 instructions for them.
+// Math: use the standard library (Math.abs, Math.sqrt, Math.floor, Math.min,
+// Math.max, Math.sin, ..., Float.toInt, Int.toFloat) - ric10 maps those too.
 
-// Load operations - read from devices
-// l r0 d0 Temperature
-let l = (_device: device, _property: string): int => {
-  0
-}
+type device
 
-// lb r0 typeHash Temperature Maximum
-// typeHash should be a variable from hash("StructureTank")
-let lb = (_typeHash: string, _property: string, _mode: string): int => {
-  0
-}
+type batchMode = Average | Sum | Minimum | Maximum
 
-// lbn r0 typeHash nameHash Property Mode
-// typeHash and nameHash should be variables from hash()
-let lbn = (_typeHash: string, _nameHash: string, _property: string, _mode: string): int => {
-  0
-}
+type reagentMode = Contents | Required | Recipe | TotalContents
 
-// Store operations - write to devices
-// s d0 Setting 1
-let s = (_device: device, _property: string, _value: int): unit => {
-  () // Stub - never executed
-}
+// Values written to devices may be int, float or bool (true = 1).
 
-// sb typeHash Setting 1
-// typeHash should be a variable from hash("StructureTank")
-let sb = (_typeHash: string, _property: string, _value: int): unit => {
-  ()
-}
+// --- devices -------------------------------------------------------------
 
-// sbn typeHash nameHash Property Value
-// typeHash and nameHash should be variables from hash()
-let sbn = (_typeHash: string, _nameHash: string, _property: string, _value: int): unit => {
-  ()
-}
+// Device pin: device("d0") .. device("d5"), device("db") (the IC housing)
+let device = (_pin: string): device => Obj.magic(0)
+let d0: device = Obj.magic(0)
+let d1: device = Obj.magic(1)
+let d2: device = Obj.magic(2)
+let d3: device = Obj.magic(3)
+let d4: device = Obj.magic(4)
+let d5: device = Obj.magic(5)
+let db: device = Obj.magic(-1)
 
-// hash("StructureTank") -> defines a hash constant
-// Usage: let typeHash = hash("StructureTank")
-let hash = (_string: string): string => {
-  "" // Returns the variable name (compiler recognizes this)
-}
+// Device by ReferenceId (uses ld / sd)
+let deviceId = (_referenceId: float): device => Obj.magic(0)
 
-// Common IC10 properties for convenience and documentation
-module Property = {
-  // Environmental
-  let temperature = "Temperature"
-  let pressure = "Pressure"
-  let volume = "Volume"
+// HASH("StructureVolumePump")
+let hash = (_name: string): int => 0
 
-  // Power
-  let setting = "Setting"
-  let on = "On"
-  let power = "Power"
-  let mode = "Mode"
+// l r? d? logicType
+let l = (_device: device, _logicType: string): float => 0.0
+// s d? logicType value
+let s = (_device: device, _logicType: string, _value: 'a): unit => ()
+// ls r? d? slot slotLogicType
+let ls = (_device: device, _slot: int, _slotLogicType: string): float => 0.0
+// ss d? slot slotLogicType value
+let ss = (_device: device, _slot: int, _slotLogicType: string, _value: 'a): unit => ()
+// lr r? d? reagentMode reagentHash
+let lr = (_device: device, _mode: reagentMode, _reagent: int): float => 0.0
+// sdse / sdns: is a device connected to the pin?
+let isSet = (_device: device): bool => false
+let isNotSet = (_device: device): bool => true
 
-  // Logic
-  let activate = "Activate"
-  let open_ = "Open" // 'open' is reserved keyword
-  let lock = "Lock"
-}
+// --- batch operations on every device of a prefab type ---------------------
+
+let lb = (_prefabHash: int, _logicType: string, _mode: batchMode): float => 0.0
+let lbn = (_prefabHash: int, _nameHash: int, _logicType: string, _mode: batchMode): float => 0.0
+let lbs = (_prefabHash: int, _slot: int, _slotLogicType: string, _mode: batchMode): float => 0.0
+let lbns = (
+  _prefabHash: int,
+  _nameHash: int,
+  _slot: int,
+  _slotLogicType: string,
+  _mode: batchMode,
+): float => 0.0
+let sb = (_prefabHash: int, _logicType: string, _value: 'a): unit => ()
+let sbn = (_prefabHash: int, _nameHash: int, _logicType: string, _value: 'a): unit => ()
+let sbs = (_prefabHash: int, _slot: int, _slotLogicType: string, _value: 'a): unit => ()
+
+// --- execution ----------------------------------------------------------
+
+// Pause until the next game tick
+let yield = (): unit => ()
+// Pause for a number of seconds
+let sleep = (_seconds: float): unit => ()
+
+// --- stack memory (512 slots) ---------------------------------------------
+
+let push = (_value: 'a): unit => ()
+let pop = (): float => 0.0
+let peek = (): float => 0.0
+let poke = (_address: int, _value: 'a): unit => ()
+let get = (_device: device, _address: int): float => 0.0
+let put = (_device: device, _address: int, _value: 'a): unit => ()
+let clr = (_device: device): unit => ()
+
+// --- misc -----------------------------------------------------------------
+
+// Branch-free conditional: select r? cond a b
+let select = (cond: bool, a: 'a, b: 'a): 'a => cond ? a : b
+let lerp = (a: float, b: float, t: float): float => a +. (b -. a) *. t
+let rand = (): float => 0.0

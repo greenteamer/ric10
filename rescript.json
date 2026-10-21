@@ -2,8 +2,10 @@
   "name": "rescript-ic10-compiler",
   "sources": [
     {
-      "dir": "src/compiler",
-      "subdirs": true
+      "dir": "src/compiler"
+    },
+    {
+      "dir": "src/compiler/IR"
     },
     {
       "dir": "scripts",
@@ -16,11 +18,13 @@
   ],
   "package-specs": [
     {
-      "module": "commonjs",
+      "module": "esmodule",
       "in-source": true
     }
   ],
-  "suffix": ".res.js",
+  "suffix": ".res.mjs",
   "dependencies": [],
-  "compiler-flags": ["-open IC10"]
+  "compiler-flags": [
+    "-open IC10"
+  ]
 }

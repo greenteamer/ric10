@@ -1,4 +1,4 @@
-type state = Idle | Loading(int) | Unloading(int)
+type state = Idle | Loading(float) | Unloading(float)
 let state = ref(Idle)
 
 type action = Start | Stop
@@ -24,7 +24,7 @@ let unloading = () => {
 
 let resolveAction = () => {
   let activateBtnState = l(activateBtn, "Open")
-  if activateBtnState == 1 {
+  if activateBtnState == 1. {
     action := Start
   } else {
     action := Stop
@@ -45,7 +45,7 @@ while true {
   | Loading(p) =>
     switch action.contents {
     | Start =>
-      if p > 55000 {
+      if p > 55000. {
         state := Unloading(p)
       } else {
         loading()
@@ -55,7 +55,7 @@ while true {
   | Unloading(p) =>
     switch action.contents {
     | Start =>
-      if p < 500 {
+      if p < 500. {
         state := Loading(p)
       } else {
         unloading()
@@ -63,5 +63,5 @@ while true {
     | Stop => state := Idle
     }
   }
-  %raw("yield")
+  yield()
 }

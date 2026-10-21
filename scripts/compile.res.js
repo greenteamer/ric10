@@ -2,86 +2,95 @@
 'use strict';
 
 let Fs = require("fs");
+let Errors = require("../src/compiler/Errors.res.js");
 let Compiler = require("../src/compiler/Compiler.res.js");
+let Stdlib_Option = require("@rescript/runtime/lib/js/Stdlib_Option.js");
+let Primitive_object = require("@rescript/runtime/lib/js/Primitive_object.js");
 
-function compileFile(src, dest, backend) {
-  let content = Fs.readFileSync(src, "utf8");
-  let options = {
-    debugAST: false,
-    includeComments: false,
-    backend: backend
-  };
-  let code = Compiler.compile(content, options, undefined);
-  if (code.TAG === "Ok") {
-    Fs.writeFileSync(dest, code._0, "utf8");
-    console.log(`✓ Success: Generated ` + dest);
-    return;
-  }
-  console.log(`✗ Error: ` + code._0);
+function usage() {
+  console.log(`Usage: ric10 <source.res> [options]
+
+Options:
+  -o <file>   output file (default: <source>.ic10)
+  --stdout    print the assembly instead of writing a file
+  --debug     print the IR before and after optimization
+
+Examples:
+  ric10 furnace.res
+  ric10 furnace.res -o furnace.ic10
+  ric10 furnace.res --stdout`);
 }
 
-function generateDestPath(src, backend) {
-  let baseName = src.endsWith(".res") ? src.slice(0, src.length - 4 | 0) : src;
-  if (backend === "IC10") {
-    return baseName + ".ic10";
+function defaultDest(src) {
+  if (src.endsWith(".res")) {
+    return src.slice(0, src.length - 4 | 0) + ".ic10";
   } else {
-    return baseName + ".wat";
+    return src + ".ic10";
   }
 }
 
-function parseBackend(arg) {
-  let match = arg.toLowerCase();
-  switch (match) {
-    case "ic10" :
-      return "IC10";
-    case "wasm" :
-    case "wat" :
-      return "WASM";
-    default:
-      return;
-  }
+let args = process.argv.slice(2);
+
+function flag(name) {
+  return args.includes(name);
 }
 
-let match = process.argv[2];
+let i = args.findIndex(a => a === "-o");
 
-let match$1 = process.argv[3];
+let output = i !== -1 ? args[i + 1 | 0] : undefined;
 
-if (match !== undefined) {
-  if (match$1 !== undefined) {
-    let backend = parseBackend(match$1);
-    if (backend !== undefined) {
-      let dest = generateDestPath(match, backend);
-      console.log(`Compiling: ` + match + ` -> ` + dest + ` (backend: ` + match$1 + `)`);
-      compileFile(match, dest, backend);
+let positional = args.filter((a, i) => {
+  if (a.startsWith("-")) {
+    return false;
+  } else if (i === 0) {
+    return true;
+  } else {
+    return Primitive_object.notequal(args[i - 1 | 0], "-o");
+  }
+});
+
+let src = positional[0];
+
+if (src !== undefined) {
+  let source = Fs.readFileSync(src, "utf8");
+  let d = Compiler.compileWithDiagnostics(source, {
+    debug: args.includes("--debug")
+  });
+  d.warnings.forEach(w => {
+    console.error(`warning: ` + Errors.format(w));
+  });
+  if (d.ok) {
+    if (args.includes("--stdout")) {
+      console.log(d.code);
     } else {
-      console.log(`Error: Unknown backend '` + match$1 + `'`);
-      console.log(`Usage: node scripts/compile.res.js <source.res> [ic10|wasm]`);
-      console.log(`  ic10 - Compile to IC10 assembly (.ic10)`);
-      console.log(`  wasm - Compile to WebAssembly text format (.wat)`);
+      let dest = Stdlib_Option.getOr(output, defaultDest(src));
+      Fs.writeFileSync(dest, d.code + "\n", "utf8");
+      console.log(`✓ ` + src + ` -> ` + dest + ` (` + d.stats.lines.toString() + ` lines, ` + d.stats.registers.toString() + ` registers)`);
     }
   } else {
-    let dest$1 = generateDestPath(match, "IC10");
-    console.log(`Compiling: ` + match + ` -> ` + dest$1 + ` (backend: ic10)`);
-    compileFile(match, dest$1, "IC10");
+    d.errors.forEach(e => {
+      console.error(`✗ ` + src + `: ` + Errors.format(e));
+    });
+    process.exit(1);
   }
 } else {
-  console.log(`Usage: node scripts/compile.res.js <source.res> [backend]`);
-  console.log(``);
-  console.log(`Arguments:`);
-  console.log(`  source.res - ReScript source file to compile`);
-  console.log(`  backend    - Target backend (optional, default: ic10)`);
-  console.log(``);
-  console.log(`Backends:`);
-  console.log(`  ic10 - IC10 assembly language (default) -> .ic10`);
-  console.log(`  wasm - WebAssembly text format         -> .wat`);
-  console.log(``);
-  console.log(`Examples:`);
-  console.log(`  node scripts/compile.res.js src/basic.res`);
-  console.log(`  node scripts/compile.res.js src/basic.res ic10`);
-  console.log(`  node scripts/compile.res.js src/basic.res wasm`);
+  console.log(`Usage: ric10 <source.res> [options]
+
+Options:
+  -o <file>   output file (default: <source>.ic10)
+  --stdout    print the assembly instead of writing a file
+  --debug     print the IR before and after optimization
+
+Examples:
+  ric10 furnace.res
+  ric10 furnace.res -o furnace.ic10
+  ric10 furnace.res --stdout`);
 }
 
-exports.compileFile = compileFile;
-exports.generateDestPath = generateDestPath;
-exports.parseBackend = parseBackend;
-/* match Not a pure module */
+exports.usage = usage;
+exports.defaultDest = defaultDest;
+exports.args = args;
+exports.flag = flag;
+exports.output = output;
+exports.positional = positional;
+/* args Not a pure module */

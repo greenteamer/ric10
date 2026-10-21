@@ -58,20 +58,20 @@ let openAtmValveCmd = () => {
 }
 
 while true {
-  let fTemp = lbn(furnaceType, furnaceName, "Temperature", "Maximum")
-  let fPress = lbn(furnaceType, furnaceName, "Pressure", "Maximum")
+  let fTemp = lbn(furnaceType, furnaceName, "Temperature", Maximum)
+  let fPress = lbn(furnaceType, furnaceName, "Pressure", Maximum)
   let atmTemp = l(atmSensor, "Temperature")
   let tankTemp = l(tank, "Temperature")
   let isEmergencyLeverOpen = l(emergencyLever, "Open")
   let isDepleteLeverOpen = l(depleteLever, "Open")
-  let confTemp = lbn(dialType, dialTempName, "Setting", "Maximum") * 100
-  let confPress = lbn(dialType, dialPressName, "Setting", "Maximum") * 1000
+  let confTemp = lbn(dialType, dialTempName, "Setting", Maximum) * 100.
+  let confPress = lbn(dialType, dialPressName, "Setting", Maximum) * 1000.
 
-  if fPress > 55000 {
+  if fPress > 55000. {
     state := Emergency
   }
 
-  if isEmergencyLeverOpen == 1 {
+  if isEmergencyLeverOpen == 1. {
     state := Emergency
   }
 
@@ -79,16 +79,16 @@ while true {
 
   switch state.contents {
   | Emergency =>
-    if isEmergencyLeverOpen == 0 {
+    if isEmergencyLeverOpen == 0. {
       state := Idle
-    } else if isDepleteLeverOpen == 1 {
+    } else if isDepleteLeverOpen == 1. {
       openAtmValveCmd()
       depressurizeCmd()
     }
 
   | Idle => {
       stopCmd()
-      if isEmergencyLeverOpen == 1 {
+      if isEmergencyLeverOpen == 1. {
         state := Emergency
       } else if fPress > confPress {
         if fTemp > confTemp {
@@ -126,5 +126,5 @@ while true {
     }
   }
 
-  %raw("yield")
+  yield()
 }

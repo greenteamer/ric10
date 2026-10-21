@@ -1,93 +1,63 @@
-@scope("process") @val
-external argv: array<string> = "argv"
+// ric10 CLI: compile a ReScript file to IC10 assembly.
+//
+//   ric10 <file.res> [-o out.ic10] [--stdout] [--debug]
 
+@scope("process") @val external argv: array<string> = "argv"
+@scope("process") @val external exit: int => unit = "exit"
 @module("fs") external readFileSync: (string, string) => string = "readFileSync"
 @module("fs") external writeFileSync: (string, string, string) => unit = "writeFileSync"
 
-// Compile a ReScript file to the specified backend format
-let compileFile = (src: string, dest: string, backend: CodegenTypes.backend) => {
-  let content = readFileSync(src, "utf8")
-  let options: CodegenTypes.compilerOptions = {
-    includeComments: false,
-    debugAST: false,
-    backend: backend,
-  }
+let usage = () => {
+  Console.log(`Usage: ric10 <source.res> [options]
 
-  switch Compiler.compile(content, ~options, ()) {
-  | Ok(code) => {
-      writeFileSync(dest, code, "utf8")
-      Console.log(`✓ Success: Generated ${dest}`)
-    }
-  | Error(message) => {
-      Console.log(`✗ Error: ${message}`)
-    }
-  }
+Options:
+  -o <file>   output file (default: <source>.ic10)
+  --stdout    print the assembly instead of writing a file
+  --debug     print the IR before and after optimization
+
+Examples:
+  ric10 furnace.res
+  ric10 furnace.res -o furnace.ic10
+  ric10 furnace.res --stdout`)
 }
 
-// Generate destination filename based on backend
-let generateDestPath = (src: string, backend: CodegenTypes.backend) => {
-  let baseName = if src->String.endsWith(".res") {
-    src->String.slice(~start=0, ~end=String.length(src) - 4)
+let defaultDest = (src: string) =>
+  if src->String.endsWith(".res") {
+    src->String.slice(~start=0, ~end=String.length(src) - 4) ++ ".ic10"
   } else {
-    src
+    src ++ ".ic10"
   }
 
-  switch backend {
-  | CodegenTypes.IC10 => baseName ++ ".ic10"
-  | CodegenTypes.WASM => baseName ++ ".wat"
-  }
+let args = argv->Array.sliceToEnd(~start=2)
+let flag = name => args->Array.includes(name)
+let output = switch args->Array.findIndex(a => a == "-o") {
+| -1 => None
+| i => args[i + 1]
 }
+let positional = args->Array.filterWithIndex((a, i) =>
+  !(a->String.startsWith("-")) && (i == 0 || args[i - 1] != Some("-o"))
+)
 
-// Parse backend from command line argument
-let parseBackend = (arg: string): option<CodegenTypes.backend> => {
-  switch arg->String.toLowerCase {
-  | "ic10" => Some(CodegenTypes.IC10)
-  | "wasm" | "wat" => Some(CodegenTypes.WASM)
-  | _ => None
-  }
-}
-
-// Main CLI logic
-switch (argv[2], argv[3]) {
-// Two arguments: source file and backend
-| (Some(src), Some(backendArg)) =>
-  switch parseBackend(backendArg) {
-  | Some(backend) => {
-      let dest = generateDestPath(src, backend)
-      Console.log(`Compiling: ${src} -> ${dest} (backend: ${backendArg})`)
-      compileFile(src, dest, backend)
+switch positional[0] {
+| None => usage()
+| Some(src) =>
+  let source = readFileSync(src, "utf8")
+  let d = Compiler.compileWithDiagnostics(source, ~options={debug: flag("--debug")})
+  d.warnings->Array.forEach(w => Console.error(`warning: ${Errors.format(w)}`))
+  if d.ok {
+    if flag("--stdout") {
+      Console.log(d.code)
+    } else {
+      let dest = output->Option.getOr(defaultDest(src))
+      writeFileSync(dest, d.code ++ "\n", "utf8")
+      Console.log(
+        `✓ ${src} -> ${dest} (${Int.toString(d.stats.lines)} lines, ${Int.toString(
+            d.stats.registers,
+          )} registers)`,
+      )
     }
-  | None => {
-      Console.log(`Error: Unknown backend '${backendArg}'`)
-      Console.log(`Usage: node scripts/compile.res.js <source.res> [ic10|wasm]`)
-      Console.log(`  ic10 - Compile to IC10 assembly (.ic10)`)
-      Console.log(`  wasm - Compile to WebAssembly text format (.wat)`)
-    }
-  }
-
-// One argument: source file (default to IC10)
-| (Some(src), None) => {
-    let backend = CodegenTypes.IC10
-    let dest = generateDestPath(src, backend)
-    Console.log(`Compiling: ${src} -> ${dest} (backend: ic10)`)
-    compileFile(src, dest, backend)
-  }
-
-// No arguments: show usage
-| _ => {
-    Console.log(`Usage: node scripts/compile.res.js <source.res> [backend]`)
-    Console.log(``)
-    Console.log(`Arguments:`)
-    Console.log(`  source.res - ReScript source file to compile`)
-    Console.log(`  backend    - Target backend (optional, default: ic10)`)
-    Console.log(``)
-    Console.log(`Backends:`)
-    Console.log(`  ic10 - IC10 assembly language (default) -> .ic10`)
-    Console.log(`  wasm - WebAssembly text format         -> .wat`)
-    Console.log(``)
-    Console.log(`Examples:`)
-    Console.log(`  node scripts/compile.res.js src/basic.res`)
-    Console.log(`  node scripts/compile.res.js src/basic.res ic10`)
-    Console.log(`  node scripts/compile.res.js src/basic.res wasm`)
+  } else {
+    d.errors->Array.forEach(e => Console.error(`✗ ${src}: ${Errors.format(e)}`))
+    exit(1)
   }
 }

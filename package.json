@@ -15,11 +15,11 @@
     "res:clean": "rescript clean",
     "res:build": "rescript",
     "res:dev": "rescript watch",
-    "compile": "node scripts/compile.res.js",
-    "test": "jest",
+    "compile": "node dist/compile.js",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "build:bundle": "npm run build:compile && npm run build:init",
-    "build:compile": "esbuild scripts/compile.res.js --bundle --platform=node --outfile=dist/compile.js --format=cjs --external:fs --external:path",
-    "build:init": "esbuild scripts/init.res.js --bundle --platform=node --outfile=dist/init.js --format=cjs --external:fs --external:path",
+    "build:compile": "esbuild scripts/compile.res.mjs --bundle --platform=node --outfile=dist/compile.js --format=cjs --external:fs --external:path",
+    "build:init": "esbuild scripts/init.res.mjs --bundle --platform=node --outfile=dist/init.js --format=cjs --external:fs --external:path",
     "prepublishOnly": "npm run res:build && npm run build:bundle"
   },
   "devDependencies": {
@@ -33,9 +33,13 @@
     "roots": [
       "<rootDir>/tests"
     ],
+    "testMatch": [
+      "**/*.test.mjs"
+    ],
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/.claude/"
-    ]
+    ],
+    "transform": {}
   }
 }

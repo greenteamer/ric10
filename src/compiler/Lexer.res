@@ -1,280 +1,282 @@
-// Simple lexer for ReScript → IC10 compiler
-// Tokenizes ReScript source code into a stream of tokens
-type lexer2<'a, 'b> = 'a => ('a, 'b)
+// Lexer: ReScript source -> tokens with source positions.
+//
+// Covers the ReScript 12 subset the compiler understands: numbers (int, float,
+// hex, binary, exponent, `_` separators), strings, identifiers, keywords,
+// all arithmetic/bitwise/comparison operators, `->`, `%raw`, line and block
+// comments.
 
-// Token type definitions
 type token =
-  | Let // keyword: let
-  | If // keyword: if
-  | Else // keyword: else
-  | While // keyword: while
-  | Type // keyword: type
-  | Switch // keyword: switch
-  | Ref // keyword: ref
-  | True // keyword: true
-  | Identifier(string) // variable names, function names
-  | IntLiteral(int) // integer literals
-  | StringLiteral(string) // string literals
-  | Plus // +
-  | Minus // -
-  | Multiply // *
-  | Divide // /
-  | GreaterThan // >
-  | LessThan // <
-  | Assign // =
-  | EqualEqual // ==
-  | Arrow // =>
-  | Pipe // |
-  | ColonEqual // :=
-  | Dot // .
-  | Percent // %
-  | Comma // ,
-  | LeftParen // (
-  | RightParen // )
-  | LeftBrace // {
-  | RightBrace // }
-  | EOF // End of file
-  | Invalid(string) // Invalid token (for error reporting)
+  | Number(float, bool) // value, written as a float literal (`1.5`, `2.`, `1e3`)
+  | String(string)
+  | Ident(string) // lowercase / `_` identifiers
+  | UIdent(string) // Capitalized identifiers: constructors, modules
+  | Keyword(string) // let, if, else, while, for, in, to, downto, switch, type, true, false, rec, and
+  | Extension(string) // %raw -> Extension("raw")
+  | Op(string) // operators and punctuation
+  | EOF
 
-// Lexer state
-type lexer = {
-  source: string,
-  position: int,
-  length: int,
+type t = {
+  tok: token,
+  loc: Errors.loc,
+  nl: bool, // preceded by a line break (used to stop function application across lines)
 }
 
-// Create a new lexer from source code
-let create = (source: string): lexer => {
-  {
-    source,
-    position: 0,
-    length: source->String.length,
+let keywords = ["let", "if", "else", "while", "for", "in", "to", "downto", "switch", "type", "true", "false", "rec", "and", "mutable", "module", "open", "external", "exception", "try", "when", "as", "of", "assert", "lazy"]
+
+// Longest match first
+let operators = [
+  "...",
+  "===",
+  "!==",
+  ">>>",
+  "&&&",
+  "|||",
+  "^^^",
+  "~~~",
+  "**",
+  "+.",
+  "-.",
+  "*.",
+  "/.",
+  "==",
+  "!=",
+  "<=",
+  ">=",
+  "&&",
+  "||",
+  "<<",
+  ">>",
+  ":=",
+  "=>",
+  "->",
+  "|>",
+  "+",
+  "-",
+  "*",
+  "/",
+  "%",
+  "<",
+  ">",
+  "!",
+  "=",
+  "|",
+  "?",
+  ":",
+  ".",
+  ",",
+  ";",
+  "(",
+  ")",
+  "{",
+  "}",
+  "[",
+  "]",
+  "@",
+  "#",
+  "~",
+  "^",
+  "&",
+]
+
+let isDigit = c => c >= "0" && c <= "9"
+let isLower = c => (c >= "a" && c <= "z") || c == "_"
+let isUpper = c => c >= "A" && c <= "Z"
+let isIdentChar = c => isLower(c) || isUpper(c) || isDigit(c) || c == "'"
+let isHexDigit = c => isDigit(c) || (c >= "a" && c <= "f") || (c >= "A" && c <= "F")
+
+let tokenToString = (tok: token): string =>
+  switch tok {
+  | Number(n, true) => Float.toString(n) ++ (NumUtil.isInteger(n) ? "." : "")
+  | Number(n, false) => Float.toString(n)
+  | String(s) => `"${s}"`
+  | Ident(s) | UIdent(s) | Keyword(s) | Op(s) => s
+  | Extension(s) => "%" ++ s
+  | EOF => "end of file"
   }
-}
 
-// Check if we've reached end of input
-let isEOF = (lexer: lexer): bool => {
-  lexer.position >= lexer.length
-}
+let fail = (loc, message) => Errors.fail(~file="Lexer.res", ~fn="tokenize", ~loc, message)
 
-// Peek at current character without advancing
-let peekChar = (lexer: lexer): option<string> => {
-  if isEOF(lexer) {
-    None
-  } else {
-    Some(String.slice(lexer.source, ~start=lexer.position, ~end=lexer.position + 1))
-  }
-}
+let tokenize = (source: string): array<t> => {
+  let len = String.length(source)
+  let pos = ref(0)
+  let line = ref(1)
+  let col = ref(1)
+  let sawNewline = ref(true)
+  let tokens = []
 
-// Advance position by one
-let advance = (lexer: lexer): lexer => {
-  {...lexer, position: lexer.position + 1}
-}
-
-// Skip whitespace characters
-let skipWhitespace = (lexer: lexer): lexer => {
-  let rec loop = (l: lexer): lexer => {
-    switch peekChar(l) {
-    | Some(" ") | Some("\t") | Some("\n") | Some("\r") => loop(advance(l))
-    | _ => l
+  let charAt = i => i < len ? String.charAt(source, i) : ""
+  let peek = (~offset=0) => charAt(pos.contents + offset)
+  let advance = () => {
+    let c = peek()
+    pos := pos.contents + 1
+    if c == "\n" {
+      line := line.contents + 1
+      col := 1
+      sawNewline := true
+    } else {
+      col := col.contents + 1
     }
   }
-  loop(lexer)
-}
-
-// Read an integer literal
-let readInteger = (lexer: lexer): (lexer, int) => {
-  let isDigit = (c: string): bool => {
-    c == "0" ||
-    c == "1" ||
-    c == "2" ||
-    c == "3" ||
-    c == "4" ||
-    c == "5" ||
-    c == "6" ||
-    c == "7" ||
-    c == "8" ||
-    c == "9"
+  let here = (): Errors.loc => {line: line.contents, col: col.contents}
+  let push = (tok, loc) => {
+    tokens->Array.push({tok, loc, nl: sawNewline.contents})
+    sawNewline := false
   }
-  let rec loop = (l: lexer, acc: string): (lexer, int) => {
-    switch peekChar(l) {
-    | Some(c) if isDigit(c) =>
-      let l = advance(l)
-      loop(l, acc ++ c)
-    | _ =>
-      switch Int.fromString(acc) {
-      | Some(n) => (l, n)
-      | None => (l, 0)
+
+  let rec skipBlockComment = (startLoc, depth) =>
+    if pos.contents >= len {
+      fail(startLoc, "unterminated block comment")
+    } else if peek() == "*" && peek(~offset=1) == "/" {
+      advance()
+      advance()
+      if depth > 1 {
+        skipBlockComment(startLoc, depth - 1)
+      }
+    } else if peek() == "/" && peek(~offset=1) == "*" {
+      advance()
+      advance()
+      skipBlockComment(startLoc, depth + 1)
+    } else {
+      advance()
+      skipBlockComment(startLoc, depth)
+    }
+
+  let readWhile = pred => {
+    let start = pos.contents
+    while pos.contents < len && pred(peek()) {
+      advance()
+    }
+    String.slice(source, ~start, ~end=pos.contents)
+  }
+
+  let readNumber = (loc: Errors.loc) => {
+    let stripUnderscores = s => s->String.replaceAll("_", "")
+    if peek() == "0" && (peek(~offset=1) == "x" || peek(~offset=1) == "X") {
+      advance()
+      advance()
+      let digits = readWhile(c => isHexDigit(c) || c == "_")->stripUnderscores
+      switch Int.fromString(digits, ~radix=16) {
+      | Some(n) => Number(Int.toFloat(n), false)
+      | None => fail(loc, "invalid hexadecimal literal")
+      }
+    } else if peek() == "0" && (peek(~offset=1) == "b" || peek(~offset=1) == "B") {
+      advance()
+      advance()
+      let digits = readWhile(c => c == "0" || c == "1" || c == "_")->stripUnderscores
+      switch Int.fromString(digits, ~radix=2) {
+      | Some(n) => Number(Int.toFloat(n), false)
+      | None => fail(loc, "invalid binary literal")
+      }
+    } else {
+      let intPart = readWhile(c => isDigit(c) || c == "_")
+      let isFloat = ref(false)
+      let frac = if peek() == "." && !isLower(peek(~offset=1)) && !isUpper(peek(~offset=1)) {
+        // `5.` and `5.25` are floats; `x.contents` never starts with a digit
+        advance()
+        isFloat := true
+        "." ++ readWhile(c => isDigit(c) || c == "_")
+      } else {
+        ""
+      }
+      let exp = if (
+        (peek() == "e" || peek() == "E") &&
+          (isDigit(peek(~offset=1)) ||
+          ((peek(~offset=1) == "-" || peek(~offset=1) == "+") && isDigit(peek(~offset=2))))
+      ) {
+        let e = peek()
+        advance()
+        let sign = if peek() == "-" || peek() == "+" {
+          let s = peek()
+          advance()
+          s
+        } else {
+          ""
+        }
+        isFloat := true
+        e ++ sign ++ readWhile(isDigit)
+      } else {
+        ""
+      }
+      let text = stripUnderscores(intPart ++ frac ++ exp)
+      let text = text->String.endsWith(".") ? text ++ "0" : text
+      switch Float.fromString(text) {
+      | Some(n) => Number(n, isFloat.contents)
+      | None => fail(loc, `invalid number literal '${text}'`)
       }
     }
   }
-  switch peekChar(lexer) {
-  | Some(c) if isDigit(c) => loop(advance(lexer), c)
-  | _ => (lexer, 0)
-  }
-}
 
-// Read an identifier (starts with letter or _, followed by letters, digits, or _)
-let readIdentifier = (lexer: lexer): (lexer, string) => {
-  let isLetterOrUnderscore = (c: string): bool => {
-    (c >= "a" && c <= "z") || c >= "A" && c <= "Z" || c == "_"
+  let readString = (loc: Errors.loc) => {
+    advance() // opening quote
+    let buf = ref("")
+    let closed = ref(false)
+    while !closed.contents {
+      if pos.contents >= len || peek() == "\n" {
+        fail(loc, "unterminated string literal")
+      }
+      let c = peek()
+      advance()
+      if c == "\"" {
+        closed := true
+      } else if c == "\\" {
+        let e = peek()
+        advance()
+        buf :=
+          buf.contents ++
+          switch e {
+          | "n" => "\n"
+          | "t" => "\t"
+          | "\\" => "\\"
+          | "\"" => "\""
+          | other => other
+          }
+      } else {
+        buf := buf.contents ++ c
+      }
+    }
+    String(buf.contents)
   }
-  let isAlphanumericOrUnderscore = (c: string): bool => {
-    isLetterOrUnderscore(c) || (c >= "0" && c <= "9")
-  }
-  let rec loop = (l: lexer, acc: string): (lexer, string) => {
-    switch peekChar(l) {
-    | Some(c) if isAlphanumericOrUnderscore(c) =>
-      let l = advance(l)
-      loop(l, acc ++ c)
-    | _ => (l, acc)
+
+  while pos.contents < len {
+    let c = peek()
+    let loc = here()
+    if c == " " || c == "\t" || c == "\r" || c == "\n" {
+      advance()
+    } else if c == "/" && peek(~offset=1) == "/" {
+      while pos.contents < len && peek() != "\n" {
+        advance()
+      }
+    } else if c == "/" && peek(~offset=1) == "*" {
+      advance()
+      advance()
+      skipBlockComment(loc, 1)
+    } else if isDigit(c) {
+      push(readNumber(loc), loc)
+    } else if c == "\"" {
+      push(readString(loc), loc)
+    } else if c == "`" {
+      fail(loc, "template strings are not supported; use \"...\"")
+    } else if isLower(c) {
+      let word = readWhile(isIdentChar)
+      push(keywords->Array.includes(word) ? Keyword(word) : Ident(word), loc)
+    } else if isUpper(c) {
+      push(UIdent(readWhile(isIdentChar)), loc)
+    } else if c == "%" && (isLower(peek(~offset=1)) || isUpper(peek(~offset=1))) {
+      advance()
+      push(Extension(readWhile(c => isIdentChar(c) || c == ".")), loc)
+    } else {
+      switch operators->Array.find(op =>
+        String.slice(source, ~start=pos.contents, ~end=pos.contents + String.length(op)) == op
+      ) {
+      | Some(op) =>
+        for _ in 1 to String.length(op) {
+          advance()
+        }
+        push(Op(op), loc)
+      | None => fail(loc, `unexpected character '${c}'`)
+      }
     }
   }
-  switch peekChar(lexer) {
-  | Some(c) if isLetterOrUnderscore(c) =>
-    let l = advance(lexer)
-    loop(l, c)
-  | _ => (lexer, "")
-  }
-}
-
-// Read a string literal (handles "string")
-let readStringLiteral = (lexer: lexer): (lexer, string) => {
-  let rec loop = (l: lexer, acc: string): (lexer, string) => {
-    switch peekChar(l) {
-    | Some("\"") => (advance(l), acc) // End quote
-    | Some("\\") =>
-      // Handle escape sequences
-      let l = advance(l)
-      switch peekChar(l) {
-      | Some("n") => loop(advance(l), acc ++ "\n")
-      | Some("t") => loop(advance(l), acc ++ "\t")
-      | Some("\\") => loop(advance(l), acc ++ "\\")
-      | Some("\"") => loop(advance(l), acc ++ "\"")
-      | Some(c) => loop(advance(l), acc ++ c) // Unknown escape, keep as is
-      | None => (l, acc)
-      }
-    | Some(c) => loop(advance(l), acc ++ c)
-    | None => (l, acc) // Unterminated string
-    }
-  }
-  switch peekChar(lexer) {
-  | Some("\"") => loop(advance(lexer), "")
-  | _ => (lexer, "")
-  }
-}
-
-// Read next token from source
-let nextToken = (lexer: lexer): (lexer, token) => {
-  let lexer = skipWhitespace(lexer)
-  if isEOF(lexer) {
-    (lexer, EOF)
-  } else {
-    switch peekChar(lexer) {
-    | None => (lexer, EOF)
-    | Some("+") => (advance(lexer), Plus)
-    | Some("-") => (advance(lexer), Minus)
-    | Some("*") => (advance(lexer), Multiply)
-    | Some("/") => (advance(lexer), Divide)
-    | Some(">") => (advance(lexer), GreaterThan)
-    | Some("<") => (advance(lexer), LessThan)
-    | Some("|") => (advance(lexer), Pipe)
-    | Some(".") => (advance(lexer), Dot)
-    | Some("%") => (advance(lexer), Percent)
-    | Some(",") => (advance(lexer), Comma)
-    | Some("(") => (advance(lexer), LeftParen)
-    | Some(")") => (advance(lexer), RightParen)
-    | Some("{") => (advance(lexer), LeftBrace)
-    | Some("}") => (advance(lexer), RightBrace)
-    | Some("\"") =>
-      let (lexer, str) = readStringLiteral(lexer)
-      (lexer, StringLiteral(str))
-    | Some(":") =>
-      let lexer = advance(lexer)
-      switch peekChar(lexer) {
-      | Some("=") => (advance(lexer), ColonEqual)
-      | _ => (lexer, Invalid("Unexpected character ':'"))
-      }
-    | Some("=") =>
-      let lexer = advance(lexer)
-      switch peekChar(lexer) {
-      | Some("=") => (advance(lexer), EqualEqual)
-      | Some(">") => (advance(lexer), Arrow)
-      | _ => (lexer, Assign)
-      }
-    | Some(c) if c >= "0" && c <= "9" =>
-      let (lexer, value) = readInteger(lexer)
-      (lexer, IntLiteral(value))
-    | Some(c) if (c >= "a" && c <= "z") || c >= "A" && c <= "Z" || c == "_" =>
-      let (lexer, ident) = readIdentifier(lexer)
-      switch ident {
-      | "let" => (lexer, Let)
-      | "if" => (lexer, If)
-      | "else" => (lexer, Else)
-      | "while" => (lexer, While)
-      | "type" => (lexer, Type)
-      | "switch" => (lexer, Switch)
-      | "ref" => (lexer, Ref)
-      | "true" => (lexer, True)
-      | _ => (lexer, Identifier(ident))
-      }
-    | Some(c) =>
-      let lexer = advance(lexer)
-      (lexer, Invalid("Unexpected character: " ++ c))
-    }
-  }
-}
-
-// Tokenize entire source code into array of tokens
-// Uses List for O(1) cons operations, then converts to array
-let tokenize = (source: string): result<array<token>, string> => {
-  let rec loop = (lexer: lexer, acc: list<token>): result<list<token>, string> => {
-    let (lexer, token) = nextToken(lexer)
-    switch token {
-    | EOF => Ok(acc)
-    | Invalid(msg) => Error("[Lexer.res][tokenize]: " ++ msg)
-    | _ => loop(lexer, list{token, ...acc}) // O(1) cons operation
-    }
-  }
-  switch loop(create(source), list{}) {
-  | Ok(tokens) => Ok(List.toArray(List.reverse(tokens))) // Convert list to array
-  | Error(msg) => Error("[Lexer.res][tokenize]<-" ++ msg)
-  }
-}
-
-// Helper: Convert token to string for debugging
-let tokenToString = (token: token): string => {
-  switch token {
-  | Let => "Let"
-  | If => "If"
-  | Else => "Else"
-  | While => "While"
-  | Type => "Type"
-  | Switch => "Switch"
-  | Ref => "Ref"
-  | True => "True"
-  | Identifier(name) => "Identifier(" ++ name ++ ")"
-  | IntLiteral(n) => "IntLiteral(" ++ Int.toString(n) ++ ")"
-  | StringLiteral(str) => "StringLiteral(" ++ str ++ ")"
-  | Plus => "Plus"
-  | Minus => "Minus"
-  | Multiply => "Multiply"
-  | Divide => "Divide"
-  | GreaterThan => "GreaterThan"
-  | LessThan => "LessThan"
-  | Assign => "Assign"
-  | EqualEqual => "EqualEqual"
-  | Arrow => "Arrow"
-  | Pipe => "Pipe"
-  | ColonEqual => "ColonEqual"
-  | Dot => "Dot"
-  | Percent => "Percent"
-  | Comma => "Comma"
-  | LeftParen => "LeftParen"
-  | RightParen => "RightParen"
-  | LeftBrace => "LeftBrace"
-  | RightBrace => "RightBrace"
-  | EOF => "EOF"
-  | Invalid(msg) => "Invalid(" ++ msg ++ ")"
-  }
+  tokens->Array.push({tok: EOF, loc: here(), nl: true})
+  tokens
 }

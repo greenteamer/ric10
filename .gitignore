@@ -56,3 +56,6 @@ coverage/
 
 # Claude Code worktrees
 .claude/worktrees/
+
+# ReScript ES module output
+*.res.mjs

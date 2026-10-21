@@ -1,31 +1,35 @@
-type state = Idle(int, int) | Fill(int, int) | Purge(int, int)
-type atmState = Day | Night | Storm
-type confState = Heating | Pressuring
+// Thermostat: keeps a room between two temperatures with a heater and a cooler.
+let sensor = device("d0")
+let heater = device("d1")
+let cooler = device("d2")
 
-let state = ref(Idle(0, 0))
-let atmState = ref(Day)
+let low = 290.
+let high = 300.
+
+type mode = Heating | Cooling | Idle
+
+let mode = ref(Idle)
 
 while true {
-  let fTemp = l(0, "Temperature")
-  let fPress = l(0, "Pressure")
-  let tankTemp = l(1, "Temperature")
-  let tankPress = l(1, "Pressure")
-  let atmTemp = l(2, "Temperature")
-  let confTemp = l(3, "Setting")
-  let confPress = l(4, "Setting")
-
-  switch atmState.contents {
-  | Day =>
-    switch state.contents {
-    | Idle(_t, _p) =>
-      if fTemp < 1000 {
-        state := Fill(tankTemp, atmTemp)
-      } else {
-        state := Purge(tankTemp, atmTemp)
-      }
+  let t = l(sensor, "Temperature")
+  mode :=
+    if t < low {
+      Heating
+    } else if t > high {
+      Cooling
+    } else {
+      Idle
     }
-  | Night => state := Fill(tankTemp, atmTemp)
-  | Storm => state := Purge(tankTemp, atmTemp)
+  switch mode.contents {
+  | Heating =>
+    s(heater, "On", 1)
+    s(cooler, "On", 0)
+  | Cooling =>
+    s(heater, "On", 0)
+    s(cooler, "On", 1)
+  | Idle =>
+    s(heater, "On", 0)
+    s(cooler, "On", 0)
   }
-  %raw("yield")
+  yield()
 }

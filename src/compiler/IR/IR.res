@@ -1,58 +1,241 @@
+// Intermediate representation.
+//
+// A program is a list of blocks: the main block first, then one block per
+// out-of-line function. Instructions use an unlimited number of virtual
+// registers (vregs); IRToIC10 maps them onto r0..r15 after register allocation.
+//
+// The IR is backend-agnostic in spirit but mirrors IC10's value model: every
+// value is a double, booleans are 0/1.
+
 type vreg = int
 
 type operand =
   | VReg(vreg)
-  | Num(int)
-  | Name(string)  // Reference to a defined constant (e.g., "a" in "move r0 a")
-  | Hash(string)  // Inline hash value (e.g., HASH("StructureTank"))
+  | Num(float)
+  | Name(string) // reference to a `define`d constant
+  | Hash(string) // HASH("...") evaluated by the game
+  | Special(string) // physical register that is not allocatable: "ra", "sp"
 
 type device =
-  | DevicePin(string) // "d0", "d1", "db", etc. → l/s
-  | DeviceReg(vreg) // device stored in register → l/s
-  | DeviceType(string) // type hash → lb/sb
-  | DeviceNamed(string, string) // type hash + name hash → lbn/sbn
+  | Pin(string) // d0..d5, db                  -> l / s
+  | ById(operand) // ReferenceId                -> ld / sd
+  | Batch(operand) // prefab hash               -> lb / sb
+  | BatchNamed(operand, operand) // prefab + name hash -> lbn / sbn
 
 type binOp =
-  | AddOp
-  | SubOp
-  | MulOp
-  | DivOp
+  | Add
+  | Sub
+  | Mul
+  | Div
+  | Mod
+  | Min
+  | Max
+  | And
+  | Or
+  | Xor
+  | Sll
+  | Srl
+  | Sra
+  | Atan2
 
-type compareOp =
-  | GtOp
-  | LtOp
-  | EqOp
-  | GeOp
-  | LeOp
-  | NeOp
+type unOp =
+  | Abs
+  | Sqrt
+  | Floor
+  | Ceil
+  | Round
+  | Trunc
+  | Sin
+  | Cos
+  | Tan
+  | Asin
+  | Acos
+  | Atan
+  | Exp
+  | Log
+  | BitNot
 
-type unOp = Abs
+type cmpOp =
+  | Lt
+  | Le
+  | Gt
+  | Ge
+  | Eq
+  | Ne
+
+// Argument of a native (table-driven) IC10 instruction
+type arg =
+  | AOp(operand)
+  | ATok(string) // logic type, slot logic type, batch mode, reagent mode
+  | ADev(string) // device pin d0..d5/db
 
 type instr =
-  | DefInt(string, int)
-  | DefHash(string, string)
+  | DefNum(string, float) // define name value
+  | DefHash(string, string) // define name HASH("...")
   | Move(vreg, operand)
-  | DeviceLoad(vreg, device, string, option<string>) // dest, device, property, bulk_option?
-  | DeviceStore(device, string, operand) // device, property, value
   | Unary(vreg, unOp, operand)
   | Binary(vreg, binOp, operand, operand)
-  | Compare(vreg, compareOp, operand, operand)
-  | Goto(string)
+  | Compare(vreg, cmpOp, operand, operand) // slt/sgt/... (sXXz when rhs is 0)
+  | Select(vreg, operand, operand, operand) // select dst cond a b
   | Label(string)
-  | Bnez(operand, string)
-  | Call(string) // jal label - jump and link (stores return address in ra/r17)
-  | Return // j ra - return from function call
-  // Stack operations for variant support
-  | StackAlloc(int) // Reserve N stack slots (emit N × push 0)
-  | StackPoke(int, operand) // poke address value (write to stack without changing sp)
-  | StackGet(vreg, int) // get vreg db address (read from stack without changing sp)
-  | StackPush(operand) // push value (write and increment sp)
-  // Raw IC10 assembly
-  | RawInstruction(string) // Emit raw IC10 assembly directly (e.g., yield)
+  | Goto(string)
+  | Branch(cmpOp, operand, operand, string) // blt/bgt/... (bXXz when rhs is 0)
+  | Call(string) // jal
+  | Return // j ra
+  | ReturnVia(vreg) // j rX (ra saved in a register by non-leaf functions)
+  | DeviceLoad(vreg, device, string, option<string>) // l/ld/lb/lbn dst dev logicType [batchMode]
+  | DeviceStore(device, string, operand) // s/sd/sb/sbn dev logicType value
+  | Native(string, option<vreg>, array<arg>, bool) // opcode, dst, args, hasSideEffects
+  | Raw(string)
 
 type block = {
-  name: string,
-  instructions: list<instr>,
+  name: string, // "main" or the function label
+  instructions: array<instr>,
 }
 
-type t = list<block>
+type t = array<block>
+
+// ---------------------------------------------------------------------------
+// Analysis helpers shared by the optimizer, liveness and the backends
+
+let operandVRegs = (op: operand): array<vreg> =>
+  switch op {
+  | VReg(v) => [v]
+  | Num(_) | Name(_) | Hash(_) | Special(_) => []
+  }
+
+let deviceVRegs = (d: device): array<vreg> =>
+  switch d {
+  | Pin(_) => []
+  | ById(op) | Batch(op) => operandVRegs(op)
+  | BatchNamed(a, b) => Array.concat(operandVRegs(a), operandVRegs(b))
+  }
+
+// Virtual registers read by an instruction
+let uses = (i: instr): array<vreg> =>
+  switch i {
+  | DefNum(_) | DefHash(_) | Label(_) | Goto(_) | Call(_) | Return | Raw(_) => []
+  | Move(_, a) | Unary(_, _, a) => operandVRegs(a)
+  | Binary(_, _, a, b) | Compare(_, _, a, b) | Branch(_, a, b, _) =>
+    Array.concat(operandVRegs(a), operandVRegs(b))
+  | Select(_, c, a, b) => Array.flat([operandVRegs(c), operandVRegs(a), operandVRegs(b)])
+  | ReturnVia(v) => [v]
+  | DeviceLoad(_, d, _, _) => deviceVRegs(d)
+  | DeviceStore(d, _, v) => Array.concat(deviceVRegs(d), operandVRegs(v))
+  | Native(_, _, args, _) =>
+    args->Array.flatMap(a =>
+      switch a {
+      | AOp(op) => operandVRegs(op)
+      | ATok(_) | ADev(_) => []
+      }
+    )
+  }
+
+// Virtual register written by an instruction
+let def = (i: instr): option<vreg> =>
+  switch i {
+  | Move(d, _)
+  | Unary(d, _, _)
+  | Binary(d, _, _, _)
+  | Compare(d, _, _, _)
+  | Select(d, _, _, _)
+  | DeviceLoad(d, _, _, _) =>
+    Some(d)
+  | Native(_, d, _, _) => d
+  | DefNum(_)
+  | DefHash(_)
+  | Label(_)
+  | Goto(_)
+  | Branch(_)
+  | Call(_)
+  | Return
+  | ReturnVia(_)
+  | DeviceStore(_)
+  | Raw(_) =>
+    None
+  }
+
+// Can the instruction be deleted when its result is unused?
+let isPure = (i: instr): bool =>
+  switch i {
+  | Move(_) | Unary(_) | Binary(_) | Compare(_) | Select(_) | DeviceLoad(_) => true
+  | Native(_, Some(_), _, hasSideEffects) => !hasSideEffects
+  | Native(_, None, _, _)
+  | DefNum(_)
+  | DefHash(_)
+  | Label(_)
+  | Goto(_)
+  | Branch(_)
+  | Call(_)
+  | Return
+  | ReturnVia(_)
+  | DeviceStore(_)
+  | Raw(_) => false
+  }
+
+// Control never falls through to the next instruction
+let isTerminator = (i: instr): bool =>
+  switch i {
+  | Goto(_) | Return | ReturnVia(_) => true
+  | _ => false
+  }
+
+let branchTarget = (i: instr): option<string> =>
+  switch i {
+  | Goto(l) | Branch(_, _, _, l) => Some(l)
+  | _ => None
+  }
+
+let invertCmp = (op: cmpOp): cmpOp =>
+  switch op {
+  | Lt => Ge
+  | Le => Gt
+  | Gt => Le
+  | Ge => Lt
+  | Eq => Ne
+  | Ne => Eq
+  }
+
+let evalCmp = (op: cmpOp, a: float, b: float): bool =>
+  switch op {
+  | Lt => a < b
+  | Le => a <= b
+  | Gt => a > b
+  | Ge => a >= b
+  | Eq => a == b
+  | Ne => a != b
+  }
+
+// Replace every vreg operand read by `i` using `f` (writes are untouched)
+let mapUses = (i: instr, f: operand => operand): instr => {
+  let mapDev = d =>
+    switch d {
+    | Pin(_) => d
+    | ById(op) => ById(f(op))
+    | Batch(op) => Batch(f(op))
+    | BatchNamed(a, b) => BatchNamed(f(a), f(b))
+    }
+  switch i {
+  | Move(d, a) => Move(d, f(a))
+  | Unary(d, op, a) => Unary(d, op, f(a))
+  | Binary(d, op, a, b) => Binary(d, op, f(a), f(b))
+  | Compare(d, op, a, b) => Compare(d, op, f(a), f(b))
+  | Select(d, c, a, b) => Select(d, f(c), f(a), f(b))
+  | Branch(op, a, b, l) => Branch(op, f(a), f(b), l)
+  | DeviceLoad(d, dev, p, m) => DeviceLoad(d, mapDev(dev), p, m)
+  | DeviceStore(dev, p, v) => DeviceStore(mapDev(dev), p, f(v))
+  | Native(op, d, args, se) =>
+    Native(
+      op,
+      d,
+      args->Array.map(a =>
+        switch a {
+        | AOp(o) => AOp(f(o))
+        | ATok(_) | ADev(_) => a
+        }
+      ),
+      se,
+    )
+  | DefNum(_) | DefHash(_) | Label(_) | Goto(_) | Call(_) | Return | ReturnVia(_) | Raw(_) => i
+  }
+}

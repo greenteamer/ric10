@@ -1,1280 +1,1584 @@
-// IR Generation - Convert AST to IR
-// Phase 1: Simple expressions and variables only
+// IR generation: AST -> IR.
+//
+// Design:
+// - Every expression produces a `value`. Scalars live in operands (vregs or
+//   immediates); variants are a tag operand plus `maxArgs` payload operands, so
+//   variant values live in registers and can be bound, passed and returned.
+// - `ref(...)` allocates a mutable cell (one vreg per scalar slot). Reading
+//   `.contents` copies the cell; the register allocator coalesces copies away
+//   whenever the cell does not change while the copy is alive.
+// - Conditions are lowered straight to IC10 branches (`genCond`), never to a
+//   compare + test pair.
+// - Functions are inlined when called once, when tiny, or when they receive
+//   compile-time values (devices, strings, refs, functions). Otherwise they are
+//   compiled once into their own block and called with `jal`; argument and
+//   result slots are ordinary vregs, so whole-program register allocation keeps
+//   caller and callee registers apart.
+// - Device pins, logic types and strings are compile-time values.
 
-// Variable info: vreg and whether it's a ref
-type varInfo = {
-  vreg: int,
-  isRef: bool,
+open AST
+
+let file = "IRGen.res"
+
+type kind = KInt | KFloat | KUnknown
+
+type variantType = {
+  typeName: string,
+  ctors: array<AST.ctorDecl>,
+  maxArgs: int,
 }
 
-// Variant type metadata
-type variantTypeInfo = {
-  constructors: array<AST.variantConstructor>,
-  baseAddr: int, // Stack base address for this type
-  maxArgs: int, // Maximum arguments across all constructors
-  allocated: bool, // Whether a ref has been created for this type
+type rec value =
+  | VScalar(IR.operand, kind)
+  | VVariant(variantType, IR.operand, array<IR.operand>)
+  | VDevice(IR.device)
+  | VString(string)
+  | VUnit
+  | VFun(funInfo)
+  | VRef(cell)
+
+and cell =
+  | CScalar(IR.vreg, kind)
+  | CVariant(variantType, IR.vreg, array<IR.vreg>)
+
+and funInfo = {
+  fname: string,
+  params: array<AST.param>,
+  body: AST.expr,
+  env: env,
+  floc: loc,
+  mutable compiled: option<compiledFun>,
 }
 
-// Stack allocator state
-type stackAllocator = {nextFreeSlot: int}
-
-// State for IR generation
-type state = {
-  nextVReg: int, // Counter for virtual register allocation
-  instructions: list<IR.instr>, // Accumulated IR instructions for main code
-  nextLabel: int, // Counter for label generation
-  varMap: Belt.Map.String.t<varInfo>, // Variable name → variable info mapping
-  // Variant type support
-  variantTypes: Belt.Map.String.t<variantTypeInfo>, // typeName → type metadata
-  variantTags: Belt.Map.String.t<int>, // constructorName → tag
-  refToTypeName: Belt.Map.String.t<string>, // refName → typeName
-  stackAllocator: stackAllocator, // Stack memory allocator
-  // Device tracking
-  deviceMap: Belt.Map.String.t<string>, // variableName → device ref (e.g., "furnace" → "d0", "housing" → "db")
-  // Constants tracking
-  constants: Belt.Set.String.t, // Set of variable names that are constants (use Name operand)
-  // Function tracking
-  functions: Belt.Set.String.t, // Set of declared function names
-  functionBlocks: list<IR.block>, // Accumulated function blocks (separate from main)
+and compiledFun = {
+  label: string,
+  paramCells: array<cell>,
+  result: option<cell>,
 }
 
-// Create initial state
-let createState = (): state => {
-  nextVReg: 0,
-  instructions: list{},
-  nextLabel: 0,
-  varMap: Belt.Map.String.empty,
-  variantTypes: Belt.Map.String.empty,
-  variantTags: Belt.Map.String.empty,
-  refToTypeName: Belt.Map.String.empty,
-  stackAllocator: {nextFreeSlot: 0},
-  deviceMap: Belt.Map.String.empty,
-  constants: Belt.Set.String.empty,
-  functions: Belt.Set.String.empty,
-  functionBlocks: list{},
+and env = Belt.Map.String.t<value>
+
+type ctx = {
+  mutable buf: array<IR.instr>,
+  mutable nextVReg: int,
+  mutable nextLabel: int,
+  types: Dict.t<variantType>,
+  ctors: Dict.t<(variantType, int)>,
+  defines: Dict.t<bool>,
+  defs: array<IR.instr>,
+  functions: array<IR.block>,
+  labels: Dict.t<bool>,
+  callCounts: Dict.t<int>,
+  vregNames: Dict.t<string>,
+  warnings: array<Errors.t>,
+  mutable active: array<string>, // functions being inlined or compiled (recursion check)
 }
 
-// Allocate a new virtual register
-let allocVReg = (state: state): (state, IR.vreg) => {
-  let vreg = state.nextVReg
-  let newState = {...state, nextVReg: state.nextVReg + 1}
-  (newState, vreg)
-}
+let fail = (~fn, ~loc, ~hint=?, message) => Errors.fail(~file, ~fn, ~loc, ~hint?, message)
 
-// Emit an instruction
-let emit = (state: state, instr: IR.instr): state => {
-  {...state, instructions: list{instr, ...state.instructions}}
-}
+let warn = (ctx, ~fn, ~loc, ~hint=?, message) =>
+  ctx.warnings->Array.push(Errors.warning(~file, ~fn, ~loc, ~hint?, message))
 
-// Allocate stack segment
-let allocateStackSegment = (allocator: stackAllocator, slotCount: int): (stackAllocator, int) => {
-  let baseAddr = allocator.nextFreeSlot
-  let newAllocator = {nextFreeSlot: allocator.nextFreeSlot + slotCount}
-  (newAllocator, baseAddr)
-}
+let emit = (ctx, i: IR.instr) => ctx.buf->Array.push(i)
 
-// Get variant type name from constructor name
-let getTypeNameFromConstructor = (state: state, constructorName: string): option<string> => {
-  Belt.Map.String.findFirstBy(state.variantTypes, (_typeName, typeInfo) => {
-    Array.some(typeInfo.constructors, constructor => constructor.name == constructorName)
-  })->Option.map(((typeName, _)) => typeName)
-}
-
-// Calculate maximum arguments across all constructors
-let getMaxArgsForVariantType = (constructors: array<AST.variantConstructor>): int => {
-  Array.reduce(constructors, 0, (maxArgs, constructor) => {
-    if constructor.argCount > maxArgs {
-      constructor.argCount
-    } else {
-      maxArgs
-    }
-  })
-}
-
-// Convert AST binary operator to IR binary operator
-let convertBinOp = (op: AST.binaryOp): result<IR.binOp, string> => {
-  switch op {
-  | Add => Ok(IR.AddOp)
-  | Sub => Ok(IR.SubOp)
-  | Mul => Ok(IR.MulOp)
-  | Div => Ok(IR.DivOp)
-  | Lt | Gt | Eq =>
-    Error("[IRGen.res][convertArithOp]: comparison operators should use convertCompareOp")
+let newVReg = (ctx, ~name=?) => {
+  let v = ctx.nextVReg
+  ctx.nextVReg = v + 1
+  switch name {
+  | Some(n) => ctx.vregNames->Dict.set(Int.toString(v), n)
+  | None => ()
   }
+  v
 }
 
-// Convert AST comparison operator to IR comparison operator (normal)
-let normalCompareOp = (op: AST.binaryOp): result<IR.compareOp, string> => {
-  switch op {
-  | Lt => Ok(IR.LtOp)
-  | Gt => Ok(IR.GtOp)
-  | Eq => Ok(IR.EqOp)
-  | _ => Error("[IRGen.res][normalCompareOp]: not a comparison operator")
+let newLabel = (ctx, prefix) => {
+  let n = ctx.nextLabel
+  ctx.nextLabel = n + 1
+  let l = `${prefix}${Int.toString(n)}`
+  ctx.labels->Dict.set(l, true)
+  l
+}
+
+let combine = (a: kind, b: kind): kind =>
+  switch (a, b) {
+  | (KFloat, _) | (_, KFloat) => KFloat
+  | (KInt, _) | (_, KInt) => KInt
+  | _ => KUnknown
   }
-}
 
-// Invert comparison operator for if-only statements
-// Used when we want to skip the then-block if condition is FALSE
-let invertCompareOp = (op: AST.binaryOp): result<IR.compareOp, string> => {
-  switch op {
-  | Lt => Ok(IR.GeOp) // NOT(a < b) is (a >= b)
-  | Gt => Ok(IR.LeOp) // NOT(a > b) is (a <= b)
-  | Eq => Ok(IR.NeOp) // NOT(a == b) is (a != b)
-  | _ => Error("[IRGen.res][invertCompareOp]: not a comparison operator")
+let kindOfTypeName = (t: string): kind =>
+  switch t {
+  | "int" | "bool" => KInt
+  | "float" => KFloat
+  | _ => KUnknown
   }
-}
 
-// Generate IR for an expression
-// Returns (newState, vreg) where vreg contains the result
-let rec generateExpr = (state: state, expr: AST.expr): result<(state, IR.vreg), string> => {
-  switch expr {
-  // Literal: allocate vreg, emit Move with immediate value
-  | Literal(n) => {
-      let (state, vreg) = allocVReg(state)
-      let state = emit(state, IR.Move(vreg, IR.Num(n)))
-      Ok(state, vreg)
-    }
+let isRegisterLike = (name: string) => RegExp.test(/^(r\d+|d\d|db|sp|ra|dr\d+)$/, name)
 
-  // LiteralBool: only used for while true, error in expression context
-  | LiteralBool(_) =>
-    Error("[IRGen.res][generateExpr]: boolean literals can only be used in 'while true' loops")
-
-  // Identifier: check if constant, then lookup variable, allocate new vreg, emit Move
-  // OR check if it's a zero-arg variant constructor
-  | Identifier(name) =>
-    // First check if this is a constant
-    if Belt.Set.String.has(state.constants, name) {
-      // This is a constant - allocate vreg and emit Move with Name operand
-      let (state, vreg) = allocVReg(state)
-      let state = emit(state, IR.Move(vreg, IR.Name(name)))
-      Ok(state, vreg)
-    } else {
-      // Not a constant - check varMap
-      switch state.varMap->Belt.Map.String.get(name) {
-      | Some(varInfo) => {
-          let (state, vreg) = allocVReg(state)
-          let state = emit(state, IR.Move(vreg, IR.VReg(varInfo.vreg)))
-          Ok(state, vreg)
-        }
-      | None =>
-        // Check if this identifier is a zero-arg variant constructor
-        switch getTypeNameFromConstructor(state, name) {
-        | Some(_typeName) =>
-          // This is a zero-arg variant constructor - treat as VariantConstructor(name, [])
-          // Note: In expression context, this represents the constructor value itself
-          // In ref context (handled in VariableDeclaration/RefAssignment), it will be properly initialized
-          Error(
-            `Zero-arg variant constructor '${name}' cannot be used directly in expressions. ` ++
-            `Use it in ref() or assignment context: ref(${name}) or varName := ${name}`,
-          )
-        | None => Error(`Variable '${name}' not found`)
-        }
-      }
-    }
-
-  // BinaryExpression: check if arithmetic or comparison
-  | BinaryExpression(op, left, right) =>
-    // Check if it's a comparison operator
-    switch op {
-    | Lt | Gt | Eq =>
-      // Comparison: emit Compare instruction
-      normalCompareOp(op)->Result.flatMap(cmpOp => {
-        generateExpr(state, left)->Result.flatMap(((state, leftVreg)) => {
-          generateExpr(state, right)->Result.flatMap(
-            ((state, rightVreg)) => {
-              let (state, resultVreg) = allocVReg(state)
-              let state = emit(
-                state,
-                IR.Compare(resultVreg, cmpOp, IR.VReg(leftVreg), IR.VReg(rightVreg)),
-              )
-              Ok(state, resultVreg)
-            },
-          )
-        })
-      })
-    | Add | Sub | Mul | Div =>
-      // Arithmetic: emit Binary instruction
-      convertBinOp(op)->Result.flatMap(irOp => {
-        generateExpr(state, left)->Result.flatMap(((state, leftVreg)) => {
-          generateExpr(state, right)->Result.flatMap(
-            ((state, rightVreg)) => {
-              let (state, resultVreg) = allocVReg(state)
-              let state = emit(
-                state,
-                IR.Binary(resultVreg, irOp, IR.VReg(leftVreg), IR.VReg(rightVreg)),
-              )
-              Ok(state, resultVreg)
-            },
-          )
-        })
-      })
-    }
-
-  // RefCreation: ref(expr) - same as regular variable, just generates the value
-  | RefCreation(valueExpr) => generateExpr(state, valueExpr)
-
-  // RefAccess: identifier.contents - lookup ref variable and return its vreg
-  | RefAccess(name) =>
-    switch state.varMap->Belt.Map.String.get(name) {
-    | Some(varInfo) =>
-      if !varInfo.isRef {
-        Error(`Variable '${name}' is not a ref, cannot use .contents`)
-      } else {
-        // For simple refs, just return the vreg (no instruction needed)
-        // Allocate new vreg and move the ref's value
-        let (state, vreg) = allocVReg(state)
-        let state = emit(state, IR.Move(vreg, IR.VReg(varInfo.vreg)))
-        Ok(state, vreg)
-      }
-    | None => Error(`Variable '${name}' not found`)
-    }
-
-  // FunctionCall: IC10 functions like l(), s(), etc.
-  | FunctionCall(funcName, args) =>
-    switch funcName {
-    | "device" =>
-      // device() should only be used in variable declarations, not in expressions
-      Error(
-        "[IRGen.res][generateExpr]: device() can only be used in variable declarations: let furnace = device(0)",
-      )
-
-    | "l" =>
-      // l(device, "Property") - Load instruction
-      if Array.length(args) != 2 {
-        Error("[IRGen.res][generateExpr]: l() expects 2 arguments: device and property name")
-      } else {
-        switch (args[0], args[1]) {
-        | (Some(AST.ArgExpr(AST.Literal(devicePin))), Some(AST.ArgString(property))) =>
-          // Allocate vreg for result
-          let (state, resultVReg) = allocVReg(state)
-
-          // Emit DeviceLoad instruction with property as string
-          // Convert integer device pin to string reference (0 → "d0", etc.)
-          let deviceRef = `d${Int.toString(devicePin)}`
-          let state = emit(state, IR.DeviceLoad(resultVReg, IR.DevicePin(deviceRef), property, None))
-
-          Ok((state, resultVReg))
-
-        | (Some(AST.ArgDevice(deviceName)), Some(AST.ArgString(property))) =>
-          // Direct device reference (d0, d1, db, etc.)
-          // Allocate vreg for result
-          let (state, resultVReg) = allocVReg(state)
-
-          // Emit DeviceLoad instruction - deviceName is already a string like "d0" or "db"
-          let state = emit(state, IR.DeviceLoad(resultVReg, IR.DevicePin(deviceName), property, None))
-
-          Ok((state, resultVReg))
-
-        | (Some(AST.ArgExpr(AST.Identifier(deviceVar))), Some(AST.ArgString(property))) =>
-          // Look up device variable in deviceMap
-          switch state.deviceMap->Belt.Map.String.get(deviceVar) {
-          | Some(deviceRef) =>
-            // Allocate vreg for result
-            let (state, resultVReg) = allocVReg(state)
-
-            // Emit DeviceLoad instruction - deviceRef is already a string like "d0" or "db"
-            let state = emit(state, IR.DeviceLoad(resultVReg, IR.DevicePin(deviceRef), property, None))
-
-            Ok((state, resultVReg))
-          | None =>
-            Error(`[IRGen.res][generateExpr]: Variable '${deviceVar}' is not a device`)
-          }
-
-        | _ => Error("[IRGen.res][generateExpr]: l() expects (device: int or identifier, property: string)")
-        }
-      }
-
-    | "lb" =>
-      // lb(typeHash, "Property", "Mode") - Batch load by type
-      if Array.length(args) != 3 {
-        Error("[IRGen.res][generateExpr]: lb() expects 3 arguments: type hash, property, mode")
-      } else {
-        switch (args[0], args[1], args[2]) {
-        | (Some(AST.ArgExpr(AST.Identifier(typeHashVar))), Some(AST.ArgString(property)), Some(AST.ArgMode(mode))) =>
-          // Allocate vreg for result
-          let (state, resultVReg) = allocVReg(state)
-
-          // Emit DeviceLoad with DeviceType
-          let state = emit(state, IR.DeviceLoad(resultVReg, IR.DeviceType(typeHashVar), property, Some(mode)))
-
-          Ok((state, resultVReg))
-        | (Some(AST.ArgExpr(AST.Identifier(typeHashVar))), Some(AST.ArgString(property)), Some(AST.ArgString(mode))) =>
-          // Allocate vreg for result
-          let (state, resultVReg) = allocVReg(state)
-
-          // Emit DeviceLoad with DeviceType
-          let state = emit(state, IR.DeviceLoad(resultVReg, IR.DeviceType(typeHashVar), property, Some(mode)))
-
-          Ok((state, resultVReg))
-        | _ => Error("[IRGen.res][generateExpr]: lb() expects (typeHash: identifier, property: string, mode: string)")
-        }
-      }
-
-    | "lbn" =>
-      // lbn(typeHash, nameHash, "Property", "Mode") - Batch load by type and name
-      if Array.length(args) != 4 {
-        Error("[IRGen.res][generateExpr]: lbn() expects 4 arguments: type hash, name hash, property, mode")
-      } else {
-        switch (args[0], args[1], args[2], args[3]) {
-        | (
-            Some(AST.ArgExpr(AST.Identifier(typeHashVar))),
-            Some(AST.ArgExpr(AST.Identifier(nameHashVar))),
-            Some(AST.ArgString(property)),
-            Some(AST.ArgMode(mode))
-          ) =>
-          // Allocate vreg for result
-          let (state, resultVReg) = allocVReg(state)
-
-          // Emit DeviceLoad with DeviceNamed
-          let state = emit(state, IR.DeviceLoad(resultVReg, IR.DeviceNamed(typeHashVar, nameHashVar), property, Some(mode)))
-
-          Ok((state, resultVReg))
-        | (
-            Some(AST.ArgExpr(AST.Identifier(typeHashVar))),
-            Some(AST.ArgExpr(AST.Identifier(nameHashVar))),
-            Some(AST.ArgString(property)),
-            Some(AST.ArgString(mode))
-          ) =>
-          // Allocate vreg for result
-          let (state, resultVReg) = allocVReg(state)
-
-          // Emit DeviceLoad with DeviceNamed
-          let state = emit(state, IR.DeviceLoad(resultVReg, IR.DeviceNamed(typeHashVar, nameHashVar), property, Some(mode)))
-
-          Ok((state, resultVReg))
-        | _ => Error("[IRGen.res][generateExpr]: lbn() expects (typeHash: identifier, nameHash: identifier, property: string, mode: string)")
-        }
-      }
-
-    | _ => Error(`Function '${funcName}' not yet implemented in IR mode`)
-    }
-
-  // SwitchExpression: switch scrutinee.contents { | Pattern => body }
-  | SwitchExpression(scrutinee, cases) =>
-    // Check if this is a variant ref switch
-    switch scrutinee {
-    | RefAccess(refName) =>
-      // Check if this ref is a variant ref
-      switch Belt.Map.String.get(state.refToTypeName, refName) {
-      | Some(typeName) =>
-        // This is a variant ref - use stack-based approach
-        switch Belt.Map.String.get(state.variantTypes, typeName) {
-        | None => Error(`Variant type not found: ${typeName}`)
-        | Some(typeInfo) =>
-          // Allocate vreg for tag
-          let (state, tagVReg) = allocVReg(state)
-
-          // Read tag from stack using StackGet
-          let state = emit(state, IR.StackGet(tagVReg, typeInfo.baseAddr))
-
-          // Generate labels for each case and end label
-          let matchEndLabel = `match_end_${Int.toString(state.nextLabel)}`
-          let state = {...state, nextLabel: state.nextLabel + 1}
-
-          // Generate branch instructions for each case
-          let (state, caseLabels) = Array.reduceWithIndex(cases, (state, []), (
-            (state, labels),
-            matchCase,
-            _idx,
-          ) => {
-            // Look up constructor tag
-            switch Belt.Map.String.get(state.variantTags, matchCase.constructorName) {
-            | None => (state, labels) // Skip unknown constructors
-            | Some(tag) =>
-              let caseLabel = `match_case_${Int.toString(state.nextLabel)}`
-              let state = {...state, nextLabel: state.nextLabel + 1}
-
-              // Generate: Compare tagVReg == tag, then Bnez to caseLabel
-              let (state, cmpVReg) = allocVReg(state)
-              let state = emit(state, IR.Compare(cmpVReg, IR.EqOp, IR.VReg(tagVReg), IR.Num(tag)))
-              let state = emit(state, IR.Bnez(IR.VReg(cmpVReg), caseLabel))
-
-              (state, Array.concat(labels, [(caseLabel, matchCase, tag)]))
-            }
-          })
-
-          // Jump to end if no case matched (fallthrough)
-          let state = emit(state, IR.Goto(matchEndLabel))
-
-          // Generate code for each case body
-          let stateResult = Array.reduce(caseLabels, Ok(state), (
-            stateResult,
-            (label, matchCase, tag),
-          ) => {
-            stateResult->Result.flatMap(state => {
-              // Add case label
-              let state = emit(state, IR.Label(label))
-
-              // Extract argument bindings from stack
-              let stateResult = Array.reduceWithIndex(
-                matchCase.argumentBindings,
-                Ok(state),
-                (stateResult, bindingName, index) => {
-                  stateResult->Result.flatMap(
-                    state => {
-                      // Allocate vreg for binding
-                      let (state, bindingVReg) = allocVReg(state)
-
-                      // Calculate address: baseAddr + tag * maxArgs + 1 + index
-                      let address = typeInfo.baseAddr + tag * typeInfo.maxArgs + 1 + index
-
-                      // Emit StackGet to read value
-                      let state = emit(state, IR.StackGet(bindingVReg, address))
-
-                      // Add to varMap
-                      let varMap = Belt.Map.String.set(
-                        state.varMap,
-                        bindingName,
-                        {vreg: bindingVReg, isRef: false},
-                      )
-
-                      Ok({...state, varMap})
-                    },
-                  )
-                },
-              )
-
-              stateResult->Result.flatMap(
-                state => {
-                  // Generate case body
-                  generateBlock(state, matchCase.body)->Result.map(
-                    state => {
-                      // Jump to match end
-                      emit(state, IR.Goto(matchEndLabel))
-                    },
-                  )
-                },
-              )
-            })
-          })
-
-          stateResult->Result.map(state => {
-            // Add match end label
-            let state = emit(state, IR.Label(matchEndLabel))
-
-            // Allocate result vreg (even if not used)
-            let (state, resultVReg) = allocVReg(state)
-
-            (state, resultVReg)
-          })
-        }
-
-      | None =>
-        // Not a variant ref
-        Error("[IRGen.res][generateExpr]: switch expression only supports variant refs in IR mode")
-      }
-
-    | _ =>
-      Error(
-        "[IRGen.res][generateExpr]: switch expression scrutinee must be a ref access (e.g., state.contents)",
-      )
-    }
-
-  // Phase 1: Only support simple expressions
-  | _ => {
-      Console.log2("Unsupported expression type:", expr)
-      Error("[IRGen.res][generateExpr]: expression type not supported in Phase 1")
-    }
+let describeValue = (v: value) =>
+  switch v {
+  | VScalar(_) => "a number"
+  | VVariant(t, _, _) => `a value of type '${t.typeName}'`
+  | VDevice(_) => "a device"
+  | VString(_) => "a string"
+  | VUnit => "unit"
+  | VFun(f) => `the function '${f.fname}'`
+  | VRef(_) => "a ref (use .contents to read it)"
   }
-}
 
-// Generate IR for a block of statements
-and generateBlock = (state: state, block: AST.blockStatement): result<state, string> => {
-  let rec processStmts = (state: state, stmts: array<AST.stmt>, index: int): result<
-    state,
-    string,
-  > => {
-    if index >= Array.length(stmts) {
-      Ok(state)
-    } else {
-      switch stmts[index] {
-      | Some(stmt) =>
-        generateStmt(state, stmt)->Result.flatMap(state => processStmts(state, stmts, index + 1))
-      | None => Error("[IRGen.res][generateBlock]: internal error: array index out of bounds")
-      }
-    }
+let scalar = (v: value, ~fn, ~loc, ~what="value"): (IR.operand, kind) =>
+  switch v {
+  | VScalar(op, k) => (op, k)
+  | other => fail(~fn, ~loc, `expected a number for ${what}, got ${describeValue(other)}`)
   }
-  processStmts(state, block, 0)
-}
 
-// Generate if-only statement (no else block)
-// Uses INVERTED comparison + Bnez to skip then-block when condition is FALSE
-and generateIfOnly = (state: state, condition: AST.expr, thenBlock: AST.blockStatement): result<
-  state,
-  string,
-> => {
-  // Extract comparison from condition
-  switch condition {
-  | BinaryExpression(op, left, right) =>
-    switch op {
-    | Lt | Gt | Eq =>
-      // Generate left and right operands
-      generateExpr(state, left)->Result.flatMap(((state, leftVreg)) => {
-        generateExpr(state, right)->Result.flatMap(((state, rightVreg)) => {
-          // Use INVERTED comparison
-          invertCompareOp(op)->Result.flatMap(
-            invertedOp => {
-              let (state, resultVreg) = allocVReg(state)
-              let state = emit(
-                state,
-                IR.Compare(resultVreg, invertedOp, IR.VReg(leftVreg), IR.VReg(rightVreg)),
-              )
+// ---------------------------------------------------------------------------
+// Cells (mutable storage behind refs, function parameters and results)
 
-              // Allocate end label
-              let endLabel = `label${Belt.Int.toString(state.nextLabel)}`
-              let state = {...state, nextLabel: state.nextLabel + 1}
-
-              // Emit Bnez - if inverted condition is true (original is false), skip then block
-              let state = emit(state, IR.Bnez(IR.VReg(resultVreg), endLabel))
-
-              // Generate then block
-              generateBlock(state, thenBlock)->Result.flatMap(
-                state => {
-                  // Emit end label
-                  let state = emit(state, IR.Label(endLabel))
-                  Ok(state)
-                },
-              )
-            },
-          )
-        })
-      })
-    | _ => Error("[IRGen.res][generateIfOnly]: if condition must be a comparison expression")
-    }
-  | _ => Error("[IRGen.res][generateIfOnly]: if condition must be a comparison expression")
+let cellFor = (ctx, v: value, ~fn, ~loc, ~name=?): cell =>
+  switch v {
+  | VScalar(_, k) => CScalar(newVReg(ctx, ~name?), k)
+  | VVariant(t, _, _) =>
+    let tag = newVReg(ctx, ~name?)
+    let payload = Array.fromInitializer(~length=t.maxArgs, _ => newVReg(ctx, ~name?))
+    CVariant(t, tag, payload)
+  | other => fail(~fn, ~loc, `cannot store ${describeValue(other)} in a register`)
   }
-}
 
-// Generate if-else statement
-// Uses NORMAL comparison + Bnez to jump to then-block when condition is TRUE
-and generateIfElse = (
-  state: state,
-  condition: AST.expr,
-  thenBlock: AST.blockStatement,
-  elseBlock: AST.blockStatement,
-): result<state, string> => {
-  // Extract comparison from condition
-  switch condition {
-  | BinaryExpression(op, left, right) =>
-    switch op {
-    | Lt | Gt | Eq =>
-      // Generate left and right operands
-      generateExpr(state, left)->Result.flatMap(((state, leftVreg)) => {
-        generateExpr(state, right)->Result.flatMap(((state, rightVreg)) => {
-          // Use NORMAL comparison
-          normalCompareOp(op)->Result.flatMap(
-            normalOp => {
-              let (state, resultVreg) = allocVReg(state)
-              let state = emit(
-                state,
-                IR.Compare(resultVreg, normalOp, IR.VReg(leftVreg), IR.VReg(rightVreg)),
-              )
-
-              // Allocate labels
-              let thenLabel = `label${Belt.Int.toString(state.nextLabel)}`
-              let endLabel = `label${Belt.Int.toString(state.nextLabel + 1)}`
-              let state = {...state, nextLabel: state.nextLabel + 2}
-
-              // Emit Bnez - if condition is true, jump to then
-              let state = emit(state, IR.Bnez(IR.VReg(resultVreg), thenLabel))
-
-              // Generate else block (falls through)
-              generateBlock(state, elseBlock)->Result.flatMap(
-                state => {
-                  // Jump over then block
-                  let state = emit(state, IR.Goto(endLabel))
-
-                  // Then block label
-                  let state = emit(state, IR.Label(thenLabel))
-
-                  // Generate then block
-                  generateBlock(state, thenBlock)->Result.flatMap(
-                    state => {
-                      // End label
-                      let state = emit(state, IR.Label(endLabel))
-                      Ok(state)
-                    },
-                  )
-                },
-              )
-            },
-          )
-        })
-      })
-    | _ => Error("[IRGen.res][generateIfElse]: if condition must be a comparison expression")
-    }
-  | _ => Error("[IRGen.res][generateIfElse]: if condition must be a comparison expression")
+let ctorArity = (t: variantType, tag: int) =>
+  switch t.ctors[tag] {
+  | Some(c) => Array.length(c.argTypes)
+  | None => t.maxArgs
   }
-}
 
-// Generate while loop
-// Uses INVERTED comparison + Bnez to exit loop when condition is FALSE (same as if-only)
-and generateWhileLoop = (state: state, condition: AST.expr, body: AST.blockStatement): result<
-  state,
-  string,
-> => {
-  // Allocate loop start and exit labels
-  let loopLabel = `label${Belt.Int.toString(state.nextLabel)}`
-  let exitLabel = `label${Belt.Int.toString(state.nextLabel + 1)}`
-  let state = {...state, nextLabel: state.nextLabel + 2}
-
-  // Emit loop start label
-  let state = emit(state, IR.Label(loopLabel))
-
-  // Handle different condition types
-  switch condition {
-  // Comparison expression: use inverted comparison (like if-only)
-  | BinaryExpression(op, left, right) =>
-    switch op {
-    | Lt | Gt | Eq =>
-      // Generate left and right operands
-      generateExpr(state, left)->Result.flatMap(((state, leftVreg)) => {
-        generateExpr(state, right)->Result.flatMap(((state, rightVreg)) => {
-          // Use INVERTED comparison (exit when condition is false)
-          invertCompareOp(op)->Result.flatMap(
-            invertedOp => {
-              let (state, resultVreg) = allocVReg(state)
-              let state = emit(
-                state,
-                IR.Compare(resultVreg, invertedOp, IR.VReg(leftVreg), IR.VReg(rightVreg)),
-              )
-
-              // Emit Bnez - if inverted condition is true (original is false), exit loop
-              let state = emit(state, IR.Bnez(IR.VReg(resultVreg), exitLabel))
-
-              // Generate loop body
-              generateBlock(state, body)->Result.flatMap(
-                state => {
-                  // Jump back to loop start
-                  let state = emit(state, IR.Goto(loopLabel))
-
-                  // Emit exit label
-                  let state = emit(state, IR.Label(exitLabel))
-                  Ok(state)
-                },
-              )
-            },
-          )
-        })
-      })
-    | _ => Error("[IRGen.res][generateWhileLoop]: while condition must be a comparison expression")
+let storeCell = (ctx, c: cell, v: value, ~fn, ~loc) =>
+  switch (c, v) {
+  | (CScalar(dst, _), VScalar(op, _)) => emit(ctx, Move(dst, op))
+  | (CVariant(t, tagReg, payloadRegs), VVariant(t2, tag, payload)) if t.typeName == t2.typeName =>
+    emit(ctx, Move(tagReg, tag))
+    let slots = switch tag {
+    | Num(n) => ctorArity(t, Float.toInt(n))
+    | _ => t.maxArgs
     }
+    for i in 0 to slots - 1 {
+      emit(ctx, Move(payloadRegs->Array.getUnsafe(i), payload->Array.getUnsafe(i)))
+    }
+  | (CScalar(_), other) => fail(~fn, ~loc, `expected a number, got ${describeValue(other)}`)
+  | (CVariant(t, _, _), other) =>
+    fail(~fn, ~loc, `expected a value of type '${t.typeName}', got ${describeValue(other)}`)
+  }
 
-  // LiteralBool(true): infinite loop with no condition check
-  | LiteralBool(true) =>
-    // Generate loop body
-    generateBlock(state, body)->Result.flatMap(state => {
-      // Jump back to loop start (infinite loop)
-      let state = emit(state, IR.Goto(loopLabel))
-      Ok(state)
+// Read a cell into fresh registers (the cell may change later)
+let loadCell = (ctx, c: cell): value =>
+  switch c {
+  | CScalar(src, k) =>
+    let d = newVReg(ctx)
+    emit(ctx, Move(d, VReg(src)))
+    VScalar(VReg(d), k)
+  | CVariant(t, tagReg, payloadRegs) =>
+    let tag = newVReg(ctx)
+    emit(ctx, Move(tag, VReg(tagReg)))
+    let payload = payloadRegs->Array.map(r => {
+      let d = newVReg(ctx)
+      emit(ctx, Move(d, VReg(r)))
+      IR.VReg(d)
     })
+    VVariant(t, VReg(tag), payload)
+  }
 
-  // LiteralBool(false): loop that never executes (skip to exit)
-  | LiteralBool(false) =>
-    // Skip loop body entirely, just emit exit label
-    let state = emit(state, IR.Label(exitLabel))
-    Ok(state)
+// View a cell as a value without copying (for slots that are stable while used)
+let viewCell = (c: cell): value =>
+  switch c {
+  | CScalar(r, k) => VScalar(VReg(r), k)
+  | CVariant(t, tag, payload) => VVariant(t, VReg(tag), payload->Array.map(r => IR.VReg(r)))
+  }
 
-  // Integer literals: not supported - use 'while true' instead
-  | Literal(_) =>
-    Error(
-      "Integer literals are not supported in while conditions - use 'while true' for infinite loops",
-    )
+let sameShape = (c: cell, v: value) =>
+  switch (c, v) {
+  | (CScalar(_), VScalar(_)) => true
+  | (CVariant(t, _, _), VVariant(t2, _, _)) => t.typeName == t2.typeName
+  | _ => false
+  }
 
-  // Other expression types: not supported
-  | _ =>
-    Error(
-      "[IRGen.res][generateWhileLoop]: while condition must be a comparison expression or 'while true'",
-    )
+// ---------------------------------------------------------------------------
+// AST helpers
+
+let rec astSize = (e: expr): int =>
+  switch e.desc {
+  | Number(_) | Bool(_) | String(_) | Unit | Ident(_) | Raw(_) => 1
+  | Constructor(_, args) | Call(_, args) => 1 + args->Array.reduce(0, (acc, a) => acc + astSize(a))
+  | Unary(_, a) | Deref(a) | Fun(_, a) => 1 + astSize(a)
+  | Binary(_, a, b) | Assign(a, b) | While(a, b) => 1 + astSize(a) + astSize(b)
+  | If(c, t, el) => 1 + astSize(c) + astSize(t) + el->Option.mapOr(0, astSize)
+  | For(_, a, b, _, c) => 1 + astSize(a) + astSize(b) + astSize(c)
+  | Block(stmts) => stmts->Array.reduce(0, (acc, s) => acc + stmtSize(s))
+  | Switch(s, cases) =>
+    1 + astSize(s) + cases->Array.reduce(0, (acc, c) => acc + 1 + astSize(c.body))
+  }
+and stmtSize = s =>
+  switch s {
+  | Let(_, e, _) => astSize(e)
+  | TypeDecl(_) => 0
+  | Expr(e) => astSize(e)
+  }
+
+let rec countCalls = (counts: Dict.t<int>, e: expr) => {
+  let go = countCalls(counts, ...)
+  switch e.desc {
+  | Call(name, args) =>
+    counts->Dict.set(name, counts->Dict.get(name)->Option.getOr(0) + 1)
+    args->Array.forEach(go)
+  | Number(_) | Bool(_) | String(_) | Unit | Ident(_) | Raw(_) => ()
+  | Constructor(_, args) => args->Array.forEach(go)
+  | Unary(_, a) | Deref(a) | Fun(_, a) => go(a)
+  | Binary(_, a, b) | Assign(a, b) | While(a, b) =>
+    go(a)
+    go(b)
+  | If(c, t, el) =>
+    go(c)
+    go(t)
+    el->Option.forEach(go)
+  | For(_, a, b, _, c) =>
+    go(a)
+    go(b)
+    go(c)
+  | Block(stmts) => stmts->Array.forEach(s => countCallsStmt(counts, s))
+  | Switch(s, cases) =>
+    go(s)
+    cases->Array.forEach(c => {
+      c.guard->Option.forEach(go)
+      go(c.body)
+    })
+  }
+}
+and countCallsStmt = (counts, s) =>
+  switch s {
+  | Let(_, e, _) | Expr(e) => countCalls(counts, e)
+  | TypeDecl(_) => ()
+  }
+
+// Builtins without side effects (safe to evaluate eagerly, e.g. in `select`)
+let pureBuiltins = [
+  "l",
+  "lb",
+  "lbn",
+  "ls",
+  "lbs",
+  "lbns",
+  "lr",
+  "hash",
+  "device",
+  "isSet",
+  "isNotSet",
+  "abs",
+  "sqrt",
+  "floor",
+  "ceil",
+  "round",
+  "trunc",
+  "sin",
+  "cos",
+  "tan",
+  "asin",
+  "acos",
+  "atan",
+  "atan2",
+  "exp",
+  "log",
+  "min",
+  "max",
+  "select",
+  "lerp",
+  "toFloat",
+  "toInt",
+]
+
+// Strip module qualifiers the bindings may be called through
+let normalizeBuiltin = (name: string): string =>
+  switch name {
+  | "Math.abs" | "Math.Int.abs" => "abs"
+  | "Math.sqrt" => "sqrt"
+  | "Math.floor" => "floor"
+  | "Math.ceil" => "ceil"
+  | "Math.round" => "round"
+  | "Math.trunc" => "trunc"
+  | "Math.sin" => "sin"
+  | "Math.cos" => "cos"
+  | "Math.tan" => "tan"
+  | "Math.asin" => "asin"
+  | "Math.acos" => "acos"
+  | "Math.atan" => "atan"
+  | "Math.atan2" => "atan2"
+  | "Math.exp" => "exp"
+  | "Math.log" => "log"
+  | "Math.min" | "Math.Int.min" => "min"
+  | "Math.max" | "Math.Int.max" => "max"
+  | "Math.random" => "rand"
+  | "Int.toFloat" | "Float.fromInt" => "toFloat"
+  | "Float.toInt" | "Int.fromFloat" => "toInt"
+  | other =>
+    if other->String.startsWith("IC10.") {
+      other->String.sliceToEnd(~start=5)
+    } else {
+      other
+    }
+  }
+
+let rec isPure = (env: env, e: expr): bool => {
+  let go = isPure(env, ...)
+  switch e.desc {
+  | Number(_) | Bool(_) | String(_) | Unit | Ident(_) => true
+  | Constructor(_, args) => args->Array.every(go)
+  | Unary(_, a) | Deref(a) => go(a)
+  | Binary(_, a, b) => go(a) && go(b)
+  | If(c, t, Some(el)) => go(c) && go(t) && go(el)
+  | Block([Expr(x)]) => go(x)
+  | Call(name, args) =>
+    switch env->Belt.Map.String.get(name) {
+    | Some(_) => false
+    | None => pureBuiltins->Array.includes(normalizeBuiltin(name)) && args->Array.every(go)
+    }
+  | If(_, _, None)
+  | Block(_)
+  | Switch(_)
+  | While(_)
+  | For(_)
+  | Assign(_)
+  | Fun(_)
+  | Raw(_) => false
   }
 }
 
-// Generate IR for a statement
-and generateStmt = (state: state, stmt: AST.stmt): result<state, string> => {
-  switch stmt {
-  // FunctionDeclaration: create a separate function block
-  | FunctionDeclaration(name, body) => {
-      // 1. Add function name to functions set
-      let functions = Belt.Set.String.add(state.functions, name)
+let rec unwrapBlock = (e: expr): expr =>
+  switch e.desc {
+  | Block([Expr(x)]) => unwrapBlock(x)
+  | _ => e
+  }
 
-      // 2. Create a new temporary state for the function body
-      // (inherits varMap and other context, but has its own instruction list)
-      let funcState = {...state, functions, instructions: list{}}
+let tokenRe = /^[A-Za-z][A-Za-z0-9_]*$/
 
-      // 3. Emit function label
-      let funcState = emit(funcState, IR.Label(name))
+// ---------------------------------------------------------------------------
+// Expressions
 
-      // 4. Generate function body
-      generateBlock(funcState, body)->Result.map(funcState => {
-        // 5. Emit return instruction
-        let funcState = emit(funcState, IR.Return)
-
-        // 6. Create a function block with all the function's instructions
-        let funcBlock: IR.block = {
-          name,
-          instructions: funcState.instructions->List.reverse,
-        }
-
-        // 7. Add the function block to the state's functionBlocks list
-        // Return the original state (with main instructions unchanged)
-        // but with the new function block added
-        {
-          ...state,
-          functions,
-          functionBlocks: list{funcBlock, ...state.functionBlocks},
-        }
-      })
-    }
-
-  // TypeDeclaration: store metadata but don't allocate yet
-  | TypeDeclaration(typeName, constructors) => {
-      // 1. Calculate maximum arguments across all constructors
-      let maxArgs = getMaxArgsForVariantType(constructors)
-
-      // 2. Calculate total slots needed: 1 (tag) + N (constructors) * M (max args)
-      let numConstructors = Array.length(constructors)
-      let slotCount = 1 + numConstructors * maxArgs
-
-      // 3. Reserve stack segment but don't emit StackAlloc yet
-      let (stackAllocator, baseAddr) = allocateStackSegment(state.stackAllocator, slotCount)
-
-      // 4. Build constructor tag mappings
-      let variantTags = Array.reduceWithIndex(constructors, state.variantTags, (
-        tags,
-        constructor,
-        index,
-      ) => Belt.Map.String.set(tags, constructor.name, index))
-
-      // 5. Store type metadata (allocated: false means no StackAlloc emitted yet)
-      let typeInfo = {
-        constructors,
-        baseAddr,
-        maxArgs,
-        allocated: false, // No StackAlloc emitted yet
-      }
-      let variantTypes = Belt.Map.String.set(state.variantTypes, typeName, typeInfo)
-
-      // 6. Don't emit StackAlloc until a ref is created - this allows dead code elimination
-      //    to remove unused types completely
-
-      Ok({
-        ...state,
-        stackAllocator,
-        variantTypes,
-        variantTags,
-      })
-    }
-
-  // VariableDeclaration: generate expression, store vreg in varMap
-  | VariableDeclaration(name, init) =>
-    // Check if this is a variant constructor ref
-    switch init {
-    | RefCreation(VariantConstructor(constructorName, args)) =>
-      // This is a variant ref - use stack-based approach
-      // 1. Determine type name from constructor
-      switch getTypeNameFromConstructor(state, constructorName) {
-      | None => Error(`Unknown variant constructor: ${constructorName}`)
-      | Some(typeName) =>
-        // 2. Get type metadata
-        switch Belt.Map.String.get(state.variantTypes, typeName) {
-        | None => Error(`Variant type not found: ${typeName}`)
-        | Some(typeInfo) =>
-          // 3. Check if type already has a ref allocated
-          if typeInfo.allocated {
-            Error(
-              `Type '${typeName}' already has a ref allocated. ` ++
-              `IC10 compiler supports one ref per variant type. ` ++
-              `Workaround: Define a second type (e.g., 'type ${typeName}2 = ...')`,
-            )
-          } else {
-            // 4. Get constructor tag
-            switch Belt.Map.String.get(state.variantTags, constructorName) {
-            | None => Error(`Constructor tag not found: ${constructorName}`)
-            | Some(tag) =>
-              // 5. Emit StackAlloc now that the type is actually used
-              let slotCount = 1 + Array.length(typeInfo.constructors) * typeInfo.maxArgs
-              let state = emit(state, IR.StackAlloc(slotCount))
-
-              // 6. Mark type as allocated
-              let updatedTypeInfo = {...typeInfo, allocated: true}
-              let variantTypes = Belt.Map.String.set(state.variantTypes, typeName, updatedTypeInfo)
-
-              // 7. Store ref → type mapping
-              let refToTypeName = Belt.Map.String.set(state.refToTypeName, name, typeName)
-
-              // 8. Allocate vreg for ref variable
-              let (state, refVReg) = allocVReg(state)
-              let varMap = Belt.Map.String.set(state.varMap, name, {vreg: refVReg, isRef: true})
-
-              // 9. Initialize ref to point to base address
-              let state = emit(state, IR.Move(refVReg, IR.Num(typeInfo.baseAddr)))
-
-              // 10. Initialize variant data on stack using StackPoke
-              // 10a. Poke tag
-              let state = emit(state, IR.StackPoke(typeInfo.baseAddr, IR.Num(tag)))
-
-              // 9b. Poke all arguments
-              let stateResult = Array.reduceWithIndex(args, Ok(state), (
-                stateResult,
-                arg,
-                index,
-              ) => {
-                stateResult->Result.flatMap(state => {
-                  // Generate argument expression
-                  generateExpr(state, arg)->Result.map(
-                    ((state, argVReg)) => {
-                      // Calculate address: baseAddr + tag * maxArgs + 1 + index
-                      let address = typeInfo.baseAddr + tag * typeInfo.maxArgs + 1 + index
-
-                      // Emit StackPoke
-                      emit(state, IR.StackPoke(address, IR.VReg(argVReg)))
-                    },
-                  )
-                })
-              })
-
-              stateResult->Result.map(state => {
-                {...state, variantTypes, refToTypeName, varMap}
-              })
-            }
-          }
-        }
-      }
-
-    | RefCreation(Identifier(constructorName)) =>
-      // Check if this identifier is a zero-arg variant constructor
-      switch getTypeNameFromConstructor(state, constructorName) {
-      | Some(typeName) =>
-        // This is a zero-arg variant constructor - treat as VariantConstructor(name, [])
-        // Reuse the same logic as VariantConstructor case
-        switch Belt.Map.String.get(state.variantTypes, typeName) {
-        | None => Error(`Variant type not found: ${typeName}`)
-        | Some(typeInfo) =>
-          // Check if type already has a ref allocated
-          if typeInfo.allocated {
-            Error(
-              `Type '${typeName}' already has a ref allocated. ` ++
-              `IC10 compiler supports one ref per variant type. ` ++
-              `Workaround: Define a second type (e.g., 'type ${typeName}2 = ...')`,
-            )
-          } else {
-            // Get constructor tag
-            switch Belt.Map.String.get(state.variantTags, constructorName) {
-            | None => Error(`Constructor tag not found: ${constructorName}`)
-            | Some(tag) =>
-              // Emit StackAlloc now that the type is actually used
-              let slotCount = 1 + Array.length(typeInfo.constructors) * typeInfo.maxArgs
-              let state = emit(state, IR.StackAlloc(slotCount))
-
-              // Mark type as allocated
-              let updatedTypeInfo = {...typeInfo, allocated: true}
-              let variantTypes = Belt.Map.String.set(state.variantTypes, typeName, updatedTypeInfo)
-
-              // Store ref → type mapping
-              let refToTypeName = Belt.Map.String.set(state.refToTypeName, name, typeName)
-
-              // Allocate vreg for ref variable
-              let (state, refVReg) = allocVReg(state)
-              let varMap = Belt.Map.String.set(state.varMap, name, {vreg: refVReg, isRef: true})
-
-              // Initialize ref to point to base address
-              let state = emit(state, IR.Move(refVReg, IR.Num(typeInfo.baseAddr)))
-
-              // Initialize variant data on stack using StackPoke
-              // Poke tag (no arguments for zero-arg constructor)
-              let state = emit(state, IR.StackPoke(typeInfo.baseAddr, IR.Num(tag)))
-
-              Ok({...state, variantTypes, refToTypeName, varMap})
-            }
-          }
-        }
-      | None =>
-        // Not a variant constructor - use simple ref approach
-        generateExpr(state, Identifier(constructorName))->Result.map(((state, vreg)) => {
-          {...state, varMap: state.varMap->Belt.Map.String.set(name, {vreg, isRef: true})}
-        })
-      }
-
-    | RefCreation(valueExpr) =>
-      // Non-variant ref - use simple approach
-      generateExpr(state, valueExpr)->Result.map(((state, vreg)) => {
-        {...state, varMap: state.varMap->Belt.Map.String.set(name, {vreg, isRef: true})}
-      })
-
-    | _ =>
-      // Check if this is a device() or hash() call
-      switch init {
-      | FunctionCall("device", args) =>
-        // Track this as a device variable (no code generation needed)
-        switch args[0] {
-        | Some(AST.ArgString(deviceRef)) =>
-          // Just add to deviceMap, don't generate any IR or allocate vreg
-          // deviceRef can be "d0", "d1", "db", etc.
-          let deviceMap = Belt.Map.String.set(state.deviceMap, name, deviceRef)
-          Ok({...state, deviceMap})
-        | _ => Error("[IRGen.res][generateStmt]: device() expects a string device reference: device(\"d0\") or device(\"db\")")
-        }
-      | FunctionCall("hash", args) =>
-        // hash("StructureTank") -> emit DefHash and track name as hash constant
-        switch args[0] {
-        | Some(AST.ArgString(hashInput)) =>
-          // Emit DefHash instruction
-          let state = emit(state, IR.DefHash(name, hashInput))
-          // Hash constants don't need vregs - they're just references in device operations
-          Ok(state)
-        | _ => Error("[IRGen.res][generateStmt]: hash() expects a string literal: hash(\"StructureTank\")")
-        }
-      | Literal(value) =>
-        // Integer constant - emit DefInt instruction
-        // Constants don't need vregs - they can be referenced directly by name
-        let state = emit(state, IR.DefInt(name, value))
-        // Track this as a constant so we can reference it by name later
-        let constants = Belt.Set.String.add(state.constants, name)
-        Ok({...state, constants})
-      | _ =>
-        // Not a ref, not a device, not a hash, not a constant - normal variable
-        generateExpr(state, init)->Result.map(((state, vreg)) => {
-          {...state, varMap: state.varMap->Belt.Map.String.set(name, {vreg, isRef: false})}
-        })
-      }
-    }
-
-  // IfStatement: handle if-only and if-else
-  | IfStatement(condition, thenBlock, elseBlock) =>
-    switch elseBlock {
-    | None => generateIfOnly(state, condition, thenBlock)
-    | Some(block) => generateIfElse(state, condition, thenBlock, block)
-    }
-
-  // RefAssignment: identifier := expr
-  | RefAssignment(name, valueExpr) =>
-    switch state.varMap->Belt.Map.String.get(name) {
-    | Some(varInfo) =>
-      if !varInfo.isRef {
-        Error(`Variable '${name}' is not a ref, cannot use := assignment`)
-      } else {
-        // Check if this is a variant ref assignment
-        switch Belt.Map.String.get(state.refToTypeName, name) {
-        | Some(typeName) =>
-          // This is a variant ref - use stack poke approach
-          switch valueExpr {
-          | VariantConstructor(constructorName, args) =>
-            // Get type metadata
-            switch Belt.Map.String.get(state.variantTypes, typeName) {
-            | None => Error(`Variant type not found: ${typeName}`)
-            | Some(typeInfo) =>
-              // Get constructor tag
-              switch Belt.Map.String.get(state.variantTags, constructorName) {
-              | None => Error(`Constructor tag not found: ${constructorName}`)
-              | Some(tag) =>
-                // Poke tag to baseAddr
-                let state = emit(state, IR.StackPoke(typeInfo.baseAddr, IR.Num(tag)))
-
-                // Poke all arguments
-                Array.reduceWithIndex(args, Ok(state), (stateResult, arg, index) => {
-                  stateResult->Result.flatMap(state => {
-                    // Generate argument expression
-                    generateExpr(state, arg)->Result.map(
-                      ((state, argVReg)) => {
-                        // Calculate address: baseAddr + tag * maxArgs + 1 + index
-                        let address = typeInfo.baseAddr + tag * typeInfo.maxArgs + 1 + index
-
-                        // Emit StackPoke
-                        emit(state, IR.StackPoke(address, IR.VReg(argVReg)))
-                      },
-                    )
-                  })
-                })
-              }
-            }
-
-          | Identifier(constructorName) =>
-            // Check if this identifier is a zero-arg variant constructor
-            switch getTypeNameFromConstructor(state, constructorName) {
-            | Some(_identTypeName) =>
-              // This is a zero-arg variant constructor - treat as VariantConstructor(name, [])
-              // Get type metadata
-              switch Belt.Map.String.get(state.variantTypes, typeName) {
-              | None => Error(`Variant type not found: ${typeName}`)
-              | Some(typeInfo) =>
-                // Get constructor tag
-                switch Belt.Map.String.get(state.variantTags, constructorName) {
-                | None => Error(`Constructor tag not found: ${constructorName}`)
-                | Some(tag) =>
-                  // Poke tag to baseAddr (no arguments for zero-arg constructor)
-                  let state = emit(state, IR.StackPoke(typeInfo.baseAddr, IR.Num(tag)))
-                  Ok(state)
-                }
-              }
-            | None =>
-              Error(
-                "[IRGen.res][generateStmt]: variant ref can only be assigned variant constructors",
-              )
-            }
-
-          | _ =>
-            Error(
-              "[IRGen.res][generateStmt]: variant ref can only be assigned variant constructors",
-            )
-          }
-
-        | None =>
-          // Not a variant ref - use simple approach
-          generateExpr(state, valueExpr)->Result.map(((state, valueVreg)) => {
-            // Emit Move to overwrite the ref's vreg
-            emit(state, IR.Move(varInfo.vreg, IR.VReg(valueVreg)))
-          })
-        }
-      }
-    | None => Error(`Variable '${name}' not found`)
-    }
-
-  // WhileLoop: while condition { body }
-  | WhileLoop(condition, body) => generateWhileLoop(state, condition, body)
-
-  // RawInstruction: raw IC10 assembly (e.g., yield)
-  | RawInstruction(instruction) =>
-    // Emit raw instruction directly to IR
-    let state = emit(state, IR.RawInstruction(instruction))
-    Ok(state)
-
-  // BlockStatement: { stmt1; stmt2; ... }
-  | BlockStatement(block) => generateBlock(state, block)
-
-  // SwitchExpression: when used as a statement (for side effects)
-  | SwitchExpression(scrutinee, cases) =>
-    // Generate the switch expression and discard the result vreg
-    generateExpr(state, SwitchExpression(scrutinee, cases))->Result.map(((state, _resultVreg)) =>
-      state
+let rec gen = (ctx, env: env, e: expr, ~want: bool): value => {
+  let fn = "gen"
+  switch e.desc {
+  | Number(n, isFloat) => VScalar(Num(n), isFloat ? KFloat : KInt)
+  | Bool(b) => VScalar(Num(b ? 1. : 0.), KInt)
+  | String(s) => VString(s)
+  | Unit => VUnit
+  | Ident(name) => lookup(env, name, e.loc)
+  | Constructor(name, args) => genConstructor(ctx, env, name, args, e.loc)
+  | Unary(op, a) => genUnary(ctx, env, op, a, e.loc)
+  | Binary(And | Or, _, _) => genLogicalValue(ctx, env, e)
+  | Binary(op, a, b) => genBinary(ctx, env, op, a, b, e.loc)
+  | Call(name, args) => genCall(ctx, env, name, args, e.loc, ~want)
+  | If(c, t, el) => genIf(ctx, env, c, t, el, ~want, ~loc=e.loc)
+  | Block(stmts) => genBlock(ctx, env, stmts, ~want, ~topLevel=false)
+  | Switch(s, cases) => genSwitch(ctx, env, s, cases, ~want, ~loc=e.loc)
+  | While(c, body) =>
+    let top = newLabel(ctx, "while")
+    let exit = newLabel(ctx, "endwhile")
+    emit(ctx, Label(top))
+    genCond(ctx, env, c, exit)
+    let _ = gen(ctx, env, body, ~want=false)
+    emit(ctx, Goto(top))
+    emit(ctx, Label(exit))
+    VUnit
+  | For(var, from, to_, down, body) =>
+    let (fromOp, _) = scalar(
+      gen(ctx, env, from, ~want=true),
+      ~fn,
+      ~loc=from.loc,
+      ~what="loop start",
     )
-
-  // VariantConstructor: check if it's a function call (0 args) or variant constructor
-  | VariantConstructor(name, args) =>
-    if Array.length(args) == 0 {
-      // Check if this is a function call
-      if Belt.Set.String.has(state.functions, name) {
-        // This is a function call - emit Call instruction
-        let state = emit(state, IR.Call(name))
-        Ok(state)
-      } else {
-        // Check if this is a variant constructor
-        switch getTypeNameFromConstructor(state, name) {
-        | Some(_) =>
-          Error(
-            `Zero-arg variant constructor '${name}' cannot be used as a statement. ` ++
-            `Use it in ref() or assignment context: let x = ref(${name}) or varName := ${name}`,
-          )
-        | None => Error(`Unknown identifier '${name}'. Did you forget to declare the function?`)
-        }
-      }
-    } else {
-      Error(
-        "[IRGen.res][generateStmt]: variant constructors with arguments cannot be used as statements",
+    let (toOp, _) = scalar(gen(ctx, env, to_, ~want=true), ~fn, ~loc=to_.loc, ~what="loop end")
+    let i = newVReg(ctx, ~name=var)
+    emit(ctx, Move(i, fromOp))
+    let top = newLabel(ctx, "for")
+    let exit = newLabel(ctx, "endfor")
+    emit(ctx, Label(top))
+    emit(ctx, Branch(down ? Lt : Gt, VReg(i), toOp, exit))
+    let _ = gen(ctx, env->Belt.Map.String.set(var, VScalar(VReg(i), KInt)), body, ~want=false)
+    emit(ctx, Binary(i, down ? Sub : Add, VReg(i), Num(1.)))
+    emit(ctx, Goto(top))
+    emit(ctx, Label(exit))
+    VUnit
+  | Deref(target) =>
+    switch gen(ctx, env, target, ~want=true) {
+    | VRef(c) => loadCell(ctx, c)
+    | other => fail(~fn, ~loc=e.loc, `.contents expects a ref, got ${describeValue(other)}`)
+    }
+  | Assign(target, valueExpr) =>
+    let refExpr = switch target.desc {
+    | Deref(inner) => inner
+    | _ => target
+    }
+    let c = switch gen(ctx, env, refExpr, ~want=true) {
+    | VRef(c) => c
+    | other =>
+      fail(
+        ~fn,
+        ~loc=target.loc,
+        `cannot assign to ${describeValue(other)}`,
+        ~hint="only refs are mutable: let x = ref(0); x := 1",
       )
     }
+    let v = gen(ctx, env, valueExpr, ~want=true)
+    storeCell(ctx, c, v, ~fn, ~loc=valueExpr.loc)
+    VUnit
+  | Fun(_) =>
+    fail(~fn, ~loc=e.loc, "anonymous functions are only supported as `let name = (...) => ...`")
+  | Raw(text) =>
+    emit(ctx, Raw(text))
+    VUnit
+  }
+}
 
-  // FunctionCall as statement: s(device, property, value)
-  | FunctionCall(funcName, args) =>
-    switch funcName {
-    | "s" =>
-      // s(device, "Property", value) - Store instruction
-      if Array.length(args) != 3 {
-        Error(
-          "[IRGen.res][generateStmt]: s() expects 3 arguments: device, property name, and value",
+and lookup = (env: env, name: string, loc): value =>
+  switch env->Belt.Map.String.get(name) {
+  | Some(v) => v
+  | None =>
+    switch name {
+    | "d0" | "d1" | "d2" | "d3" | "d4" | "d5" | "db" => VDevice(Pin(name))
+    | _ =>
+      let hint = if pureBuiltins->Array.includes(normalizeBuiltin(name)) {
+        Some(`'${name}' is a builtin function; call it with arguments`)
+      } else {
+        None
+      }
+      fail(~fn="lookup", ~loc, ~hint?, `unknown identifier '${name}'`)
+    }
+  }
+
+and genConstructor = (ctx, env, name, args: array<expr>, loc): value => {
+  let fn = "genConstructor"
+  switch ctx.ctors->Dict.get(name) {
+  | Some((t, tag)) =>
+    let arity = ctorArity(t, tag)
+    if Array.length(args) != arity {
+      fail(
+        ~fn,
+        ~loc,
+        `constructor ${name} expects ${Int.toString(arity)} argument(s), got ${Int.toString(
+            Array.length(args),
+          )}`,
+      )
+    }
+    let payload = Array.fromInitializer(~length=t.maxArgs, i =>
+      switch args[i] {
+      | Some(a) =>
+        let (op, _) = scalar(
+          gen(ctx, env, a, ~want=true),
+          ~fn,
+          ~loc=a.loc,
+          ~what="constructor payload",
         )
-      } else {
-        switch (args[0], args[1], args[2]) {
-        // Case 1: s(deviceRef, "Property", value) - ArgDevice direct device reference
-        | (
-            Some(AST.ArgDevice(deviceName)),
-            Some(AST.ArgString(property)),
-            Some(AST.ArgExpr(valueExpr)),
-          ) =>
-          // deviceName is already a string like "d0" or "db"
-          switch valueExpr {
-          | AST.Literal(n) =>
-            // Use immediate value directly
-            Ok(emit(state, IR.DeviceStore(IR.DevicePin(deviceName), property, IR.Num(n))))
-          | _ =>
-            // Generate value expression into a vreg
-            generateExpr(state, valueExpr)->Result.map(((state, valueVReg)) => {
-              // Emit DeviceStore instruction with vreg
-              emit(state, IR.DeviceStore(IR.DevicePin(deviceName), property, IR.VReg(valueVReg)))
-            })
-          }
-
-        // Case 2: s(identifier, "Property", value) - device variable
-        | (
-            Some(AST.ArgExpr(AST.Identifier(deviceVar))),
-            Some(AST.ArgString(property)),
-            Some(AST.ArgExpr(valueExpr)),
-          ) =>
-          // Look up device variable in deviceMap
-          switch state.deviceMap->Belt.Map.String.get(deviceVar) {
-          | Some(deviceRef) =>
-            // Check if value is a literal - use immediate value
-            // deviceRef is already a string like "d0" or "db"
-            switch valueExpr {
-            | AST.Literal(n) =>
-              // Use immediate value directly
-              Ok(emit(state, IR.DeviceStore(IR.DevicePin(deviceRef), property, IR.Num(n))))
-            | _ =>
-              // Generate value expression into a vreg
-              generateExpr(state, valueExpr)->Result.map(((state, valueVReg)) => {
-                // Emit DeviceStore instruction with vreg
-                emit(state, IR.DeviceStore(IR.DevicePin(deviceRef), property, IR.VReg(valueVReg)))
-              })
-            }
-          | None =>
-            Error(`[IRGen.res][generateStmt]: Variable '${deviceVar}' is not a device. Use: let ${deviceVar} = device("d0")`)
-          }
-
-        // Case 3: s(literal, "Property", value) - direct device pin
-        | (
-            Some(AST.ArgExpr(AST.Literal(devicePin))),
-            Some(AST.ArgString(property)),
-            Some(AST.ArgExpr(valueExpr)),
-          ) =>
-          // Check if value is a literal - use immediate value
-          // Convert integer device pin to string reference (0 → "d0", etc.)
-          let deviceRef = `d${Int.toString(devicePin)}`
-          switch valueExpr {
-          | AST.Literal(n) =>
-            // Use immediate value directly
-            Ok(emit(state, IR.DeviceStore(IR.DevicePin(deviceRef), property, IR.Num(n))))
-          | _ =>
-            // Generate value expression into a vreg
-            generateExpr(state, valueExpr)->Result.map(((state, valueVReg)) => {
-              // Emit DeviceStore instruction with vreg
-              emit(state, IR.DeviceStore(IR.DevicePin(deviceRef), property, IR.VReg(valueVReg)))
-            })
-          }
-
-        | _ =>
-          Error(
-            "[IRGen.res][generateStmt]: s() expects (device: identifier or int, property: string, value: expr)",
-          )
-        }
+        op
+      | None => IR.Num(0.)
       }
-
-    | "sb" =>
-      // sb(typeHash, "Property", value) - Batch store by type
-      if Array.length(args) != 3 {
-        Error("[IRGen.res][generateStmt]: sb() expects 3 arguments: type hash, property, value")
-      } else {
-        switch (args[0], args[1], args[2]) {
-        | (
-            Some(AST.ArgExpr(AST.Identifier(typeHashVar))),
-            Some(AST.ArgString(property)),
-            Some(AST.ArgExpr(valueExpr)),
-          ) =>
-          // Check if value is a literal
-          switch valueExpr {
-          | AST.Literal(n) =>
-            Ok(emit(state, IR.DeviceStore(IR.DeviceType(typeHashVar), property, IR.Num(n))))
-          | _ =>
-            generateExpr(state, valueExpr)->Result.map(((state, valueVReg)) => {
-              emit(state, IR.DeviceStore(IR.DeviceType(typeHashVar), property, IR.VReg(valueVReg)))
-            })
-          }
-        | _ =>
-          Error("[IRGen.res][generateStmt]: sb() expects (typeHash: identifier, property: string, value: expr)")
-        }
-      }
-
-    | "sbn" =>
-      // sbn(typeHash, nameHash, "Property", value) - Batch store by type and name
-      if Array.length(args) != 4 {
-        Error("[IRGen.res][generateStmt]: sbn() expects 4 arguments: type hash, name hash, property, value")
-      } else {
-        switch (args[0], args[1], args[2], args[3]) {
-        | (
-            Some(AST.ArgExpr(AST.Identifier(typeHashVar))),
-            Some(AST.ArgExpr(AST.Identifier(nameHashVar))),
-            Some(AST.ArgString(property)),
-            Some(AST.ArgExpr(valueExpr)),
-          ) =>
-          // Check if value is a literal
-          switch valueExpr {
-          | AST.Literal(n) =>
-            Ok(emit(state, IR.DeviceStore(IR.DeviceNamed(typeHashVar, nameHashVar), property, IR.Num(n))))
-          | _ =>
-            generateExpr(state, valueExpr)->Result.map(((state, valueVReg)) => {
-              emit(state, IR.DeviceStore(IR.DeviceNamed(typeHashVar, nameHashVar), property, IR.VReg(valueVReg)))
-            })
-          }
-        | _ =>
-          Error("[IRGen.res][generateStmt]: sbn() expects (typeHash: identifier, nameHash: identifier, property: string, value: expr)")
-        }
-      }
-
+    )
+    VVariant(t, Num(Int.toFloat(tag)), payload)
+  | None =>
+    switch name {
+    | "Average" | "Sum" | "Minimum" | "Maximum" =>
+      fail(~fn, ~loc, `batch mode ${name} can only be used as an argument of lb/lbn/lbs/lbns`)
+    | "None" | "Some" | "Ok" | "Error" =>
+      fail(~fn, ~loc, `${name}: option/result are not supported`)
     | _ =>
-      Error(
-        `[IRGen.res][generateStmt]: function '${funcName}' not yet implemented as statement in IR mode`,
-      )
-    }
-
-  // Phase 2: Support variable declarations and if statements
-  | _ => {
-      // Debug: log the unsupported statement type
-      Console.log2("Unsupported statement type:", stmt)
-      Error("[IRGen.res][generateStmt]: statement type not supported in Phase 2")
+      fail(~fn, ~loc, `unknown constructor '${name}'`, ~hint="declare it: type t = A | B(float)")
     }
   }
 }
 
-// Generate IR for entire program
-let generate = (ast: AST.program): result<IR.t, string> => {
-  let initialState = createState()
+and genUnary = (ctx, env, op: unop, a: expr, loc): value => {
+  let fn = "genUnary"
+  let inverse = (op: binop): option<binop> =>
+    switch op {
+    | Lt => Some(Ge)
+    | Le => Some(Gt)
+    | Gt => Some(Le)
+    | Ge => Some(Lt)
+    | Eq => Some(Ne)
+    | Ne => Some(Eq)
+    | _ => None
+    }
+  switch (op, a.desc) {
+  // !(a < b) is a single `sge`
+  | (Not, Binary(cmp, x, y)) if inverse(cmp) != None =>
+    genBinary(ctx, env, inverse(cmp)->Option.getOrThrow, x, y, loc)
+  | _ =>
+    let (o, k) = scalar(gen(ctx, env, a, ~want=true), ~fn, ~loc)
+    switch op {
+    | Neg =>
+      switch o {
+      | Num(n) => VScalar(Num(-.n), k)
+      | _ =>
+        let d = newVReg(ctx)
+        emit(ctx, Binary(d, Sub, Num(0.), o))
+        VScalar(VReg(d), k)
+      }
+    | Not =>
+      let d = newVReg(ctx)
+      emit(ctx, Compare(d, Eq, o, Num(0.)))
+      VScalar(VReg(d), KInt)
+    | BitNot =>
+      let d = newVReg(ctx)
+      emit(ctx, Unary(d, BitNot, o))
+      VScalar(VReg(d), KInt)
+    }
+  }
+}
 
-  // Process all statements
-  let rec processStmts = (state: state, stmts: array<AST.stmt>, index: int): result<
-    state,
-    string,
-  > => {
-    if index >= Array.length(stmts) {
-      Ok(state)
+// Operands of a comparison, such that `left CMP right` is the condition.
+// Variant equality compares tags (and payloads when the constructor is known).
+and comparison = (ctx, env, op: binop, a: expr, b: expr, loc): (IR.cmpOp, IR.operand, IR.operand) => {
+  let fn = "comparison"
+  let va = gen(ctx, env, a, ~want=true)
+  let vb = gen(ctx, env, b, ~want=true)
+  switch (va, vb) {
+  | (VScalar(oa, _), VScalar(ob, _)) => (cmpOf(op), oa, ob)
+  | (VVariant(t1, tagA, pa), VVariant(t2, tagB, pb)) if t1.typeName == t2.typeName =>
+    if op != Eq && op != Ne {
+      fail(~fn, ~loc, "variants can only be compared with == and !=")
+    }
+    if t1.maxArgs == 0 {
+      (cmpOf(op), tagA, tagB)
     } else {
-      switch stmts[index] {
-      | Some(stmt) =>
-        generateStmt(state, stmt)->Result.flatMap(state => {
-          processStmts(state, stmts, index + 1)
-        })
-      | None => Error("[IRGen.res][generate]: internal error: array index out of bounds")
+      let slots = switch (tagA, tagB) {
+      | (Num(k), _) | (_, Num(k)) => ctorArity(t1, Float.toInt(k))
+      | _ =>
+        fail(
+          ~fn,
+          ~loc,
+          "comparing two variant values with payloads is not supported",
+          ~hint="compare against a constructor, or use switch",
+        )
+      }
+      let acc = newVReg(ctx)
+      emit(ctx, Compare(acc, Eq, tagA, tagB))
+      for i in 0 to slots - 1 {
+        let e = newVReg(ctx)
+        emit(ctx, Compare(e, Eq, pa->Array.getUnsafe(i), pb->Array.getUnsafe(i)))
+        emit(ctx, Binary(acc, And, VReg(acc), VReg(e)))
+      }
+      (op == Eq ? Ne : Eq, VReg(acc), Num(0.))
+    }
+  | (VScalar(_), other) | (other, _) =>
+    fail(~fn, ~loc, `cannot compare ${describeValue(other)}`)
+  }
+}
+
+and genBinary = (ctx, env, op: binop, a: expr, b: expr, loc): value =>
+  switch op {
+  | Lt | Le | Gt | Ge | Eq | Ne =>
+    let (c, oa, ob) = comparison(ctx, env, op, a, b, loc)
+    let d = newVReg(ctx)
+    emit(ctx, Compare(d, c, oa, ob))
+    VScalar(VReg(d), KInt)
+  | _ => genArith(ctx, env, op, a, b, loc)
+  }
+
+and genArith = (ctx, env, op: binop, a: expr, b: expr, loc): value => {
+  let fn = "genArith"
+  let (oa, ka) = scalar(gen(ctx, env, a, ~want=true), ~fn, ~loc=a.loc)
+  let (ob, kb) = scalar(gen(ctx, env, b, ~want=true), ~fn, ~loc=b.loc)
+  let k = combine(ka, kb)
+  let bin = (irOp, kind) => {
+    let d = newVReg(ctx)
+    emit(ctx, Binary(d, irOp, oa, ob))
+    VScalar(VReg(d), kind)
+  }
+  let cmp = irOp => {
+    let d = newVReg(ctx)
+    emit(ctx, Compare(d, irOp, oa, ob))
+    VScalar(VReg(d), KInt)
+  }
+  switch op {
+  | Add => bin(Add, k)
+  | Sub => bin(Sub, k)
+  | Mul => bin(Mul, k)
+  | Div =>
+    switch bin(Div, k) {
+    | VScalar(VReg(q), KInt) =>
+      // ReScript int division truncates; IC10 `div` does not
+      let t = newVReg(ctx)
+      emit(ctx, Unary(t, Trunc, VReg(q)))
+      VScalar(VReg(t), KInt)
+    | v => v
+    }
+  | Mod => bin(Mod, k)
+  | Pow => genPow(ctx, oa, ob, k)
+  | Lt => cmp(Lt)
+  | Le => cmp(Le)
+  | Gt => cmp(Gt)
+  | Ge => cmp(Ge)
+  | Eq => cmp(Eq)
+  | Ne => cmp(Ne)
+  | BitAnd => bin(And, KInt)
+  | BitOr => bin(Or, KInt)
+  | BitXor => bin(Xor, KInt)
+  | Shl => bin(Sll, KInt)
+  | Shr => bin(Sra, KInt)
+  | Ushr => bin(Srl, KInt)
+  | And | Or => fail(~fn, ~loc, "internal error: logical operator reached genBinary")
+  }
+}
+
+and genPow = (ctx, base: IR.operand, exponent: IR.operand, k: kind): value => {
+  switch exponent {
+  | Num(0.) => VScalar(Num(1.), k)
+  | Num(1.) => VScalar(base, k)
+  | Num(0.5) =>
+    let d = newVReg(ctx)
+    emit(ctx, Unary(d, Sqrt, base))
+    VScalar(VReg(d), k)
+  | Num(n) if NumUtil.isInteger(n) && n >= 2. && n <= 4. =>
+    let acc = ref(base)
+    for _ in 2 to Float.toInt(n) {
+      let d = newVReg(ctx)
+      emit(ctx, Binary(d, Mul, acc.contents, base))
+      acc := VReg(d)
+    }
+    VScalar(acc.contents, k)
+  | _ =>
+    // a ** b = exp(b * log(a))
+    let lg = newVReg(ctx)
+    emit(ctx, Unary(lg, Log, base))
+    let m = newVReg(ctx)
+    emit(ctx, Binary(m, Mul, exponent, VReg(lg)))
+    let r = newVReg(ctx)
+    emit(ctx, Unary(r, Exp, VReg(m)))
+    if k == KInt {
+      let rr = newVReg(ctx)
+      emit(ctx, Unary(rr, Round, VReg(r)))
+      VScalar(VReg(rr), k)
+    } else {
+      VScalar(VReg(r), k)
+    }
+  }
+}
+
+// `a && b` / `a || b` used as a value
+and genLogicalValue = (ctx, env, e: expr): value => {
+  let fn = "genLogicalValue"
+  switch e.desc {
+  | Binary((And | Or) as op, a, b) =>
+    if isPure(env, b) {
+      let (oa, _) = scalar(gen(ctx, env, a, ~want=true), ~fn, ~loc=a.loc)
+      let (ob, _) = scalar(gen(ctx, env, b, ~want=true), ~fn, ~loc=b.loc)
+      let d = newVReg(ctx)
+      emit(ctx, Binary(d, op == And ? And : Or, oa, ob))
+      VScalar(VReg(d), KInt)
+    } else {
+      // short-circuit: evaluate b only when needed
+      let d = newVReg(ctx)
+      let done = newLabel(ctx, op == And ? "and" : "or")
+      emit(ctx, Move(d, Num(op == And ? 0. : 1.)))
+      if op == And {
+        genCond(ctx, env, a, done)
+      } else {
+        genCondTrue(ctx, env, a, done)
+      }
+      let (ob, _) = scalar(gen(ctx, env, b, ~want=true), ~fn, ~loc=b.loc)
+      emit(ctx, Move(d, ob))
+      emit(ctx, Label(done))
+      VScalar(VReg(d), KInt)
+    }
+  | _ => gen(ctx, env, e, ~want=true)
+  }
+}
+
+// Jump to `falseLabel` when `e` is false; fall through when true
+and genCond = (ctx, env, e: expr, falseLabel: string) => {
+  let fn = "genCond"
+  switch e.desc {
+  | Bool(true) => ()
+  | Bool(false) => emit(ctx, Goto(falseLabel))
+  | Unary(Not, a) => genCondTrue(ctx, env, a, falseLabel)
+  | Binary(And, a, b) =>
+    genCond(ctx, env, a, falseLabel)
+    genCond(ctx, env, b, falseLabel)
+  | Binary(Or, a, b) =>
+    let ok = newLabel(ctx, "or")
+    genCondTrue(ctx, env, a, ok)
+    genCond(ctx, env, b, falseLabel)
+    emit(ctx, Label(ok))
+  | Binary((Lt | Le | Gt | Ge | Eq | Ne) as op, a, b) =>
+    let (c, oa, ob) = comparison(ctx, env, op, a, b, e.loc)
+    emit(ctx, Branch(IR.invertCmp(c), oa, ob, falseLabel))
+  | _ =>
+    let (o, _) = scalar(gen(ctx, env, e, ~want=true), ~fn, ~loc=e.loc, ~what="condition")
+    emit(ctx, Branch(Eq, o, Num(0.), falseLabel))
+  }
+}
+
+// Jump to `trueLabel` when `e` is true; fall through when false
+and genCondTrue = (ctx, env, e: expr, trueLabel: string) => {
+  let fn = "genCondTrue"
+  switch e.desc {
+  | Bool(true) => emit(ctx, Goto(trueLabel))
+  | Bool(false) => ()
+  | Unary(Not, a) => genCond(ctx, env, a, trueLabel)
+  | Binary(Or, a, b) =>
+    genCondTrue(ctx, env, a, trueLabel)
+    genCondTrue(ctx, env, b, trueLabel)
+  | Binary(And, a, b) =>
+    let skip = newLabel(ctx, "and")
+    genCond(ctx, env, a, skip)
+    genCondTrue(ctx, env, b, trueLabel)
+    emit(ctx, Label(skip))
+  | Binary((Lt | Le | Gt | Ge | Eq | Ne) as op, a, b) =>
+    let (c, oa, ob) = comparison(ctx, env, op, a, b, e.loc)
+    emit(ctx, Branch(c, oa, ob, trueLabel))
+  | _ =>
+    let (o, _) = scalar(gen(ctx, env, e, ~want=true), ~fn, ~loc=e.loc, ~what="condition")
+    emit(ctx, Branch(Ne, o, Num(0.), trueLabel))
+  }
+}
+
+and cmpOf = (op: binop): IR.cmpOp =>
+  switch op {
+  | Lt => Lt
+  | Le => Le
+  | Gt => Gt
+  | Ge => Ge
+  | Eq => Eq
+  | _ => Ne
+  }
+
+// Result storage shared by the branches of if/switch
+and mergeInto = (ctx, result: ref<option<cell>>, v: value, ~unitResult: ref<bool>, ~fn, ~loc) =>
+  switch v {
+  | VUnit => unitResult := true
+  | VScalar(_) | VVariant(_) =>
+    let c = switch result.contents {
+    | Some(c) =>
+      if !sameShape(c, v) {
+        fail(~fn, ~loc, `branches return different types (${describeValue(v)})`)
+      }
+      c
+    | None =>
+      let c = cellFor(ctx, v, ~fn, ~loc)
+      result := Some(c)
+      c
+    }
+    storeCell(ctx, c, v, ~fn, ~loc)
+  | other => fail(~fn, ~loc, `a branch cannot return ${describeValue(other)}`)
+  }
+
+and resultValue = (result: ref<option<cell>>, unitResult: ref<bool>): value =>
+  switch result.contents {
+  | Some(c) if !unitResult.contents => viewCell(c)
+  | _ => VUnit
+  }
+
+and isSimpleScalar = (env: env, e: expr): bool => {
+  let e = unwrapBlock(e)
+  switch e.desc {
+  | Number(_) | Bool(_) => true
+  | Ident(name) =>
+    switch env->Belt.Map.String.get(name) {
+    | Some(VScalar(_)) => true
+    | _ => false
+    }
+  | Unary(Neg, a) => isSimpleScalar(env, a)
+  | Binary(Add | Sub | Mul, a, b) =>
+    astSize(e) <= 3 && isSimpleScalar(env, a) && isSimpleScalar(env, b)
+  | _ => false
+  }
+}
+
+and genIf = (ctx, env, c: expr, t: expr, el: option<expr>, ~want, ~loc): value => {
+  let fn = "genIf"
+  let literalBool = (e: expr) =>
+    switch unwrapBlock(e).desc {
+    | Number(1., false) | Bool(true) => Some(true)
+    | Number(0., false) | Bool(false) => Some(false)
+    | _ => None
+    }
+  switch el {
+  // `c ? 1 : 0` is the condition itself, `c ? 0 : 1` its negation
+  | Some(elseE) if want && literalBool(t) == Some(true) && literalBool(elseE) == Some(false) =>
+    genCondValue(ctx, env, c)
+  | Some(elseE) if want && literalBool(t) == Some(false) && literalBool(elseE) == Some(true) =>
+    genCondValue(ctx, env, {...c, desc: Unary(Not, c)})
+  | Some(elseE) if want && isPure(env, c) && isSimpleScalar(env, t) && isSimpleScalar(env, elseE) =>
+    // branch-free: select dst cond a b
+    let (oc, _) = scalar(genCondValue(ctx, env, c), ~fn, ~loc=c.loc, ~what="condition")
+    let (oa, ka) = scalar(gen(ctx, env, unwrapBlock(t), ~want=true), ~fn, ~loc=t.loc)
+    let (ob, kb) = scalar(gen(ctx, env, unwrapBlock(elseE), ~want=true), ~fn, ~loc=elseE.loc)
+    let d = newVReg(ctx)
+    emit(ctx, Select(d, oc, oa, ob))
+    VScalar(VReg(d), combine(ka, kb))
+  | _ =>
+    let elseL = newLabel(ctx, "else")
+    genCond(ctx, env, c, elseL)
+    let result = ref(None)
+    let unitResult = ref(false)
+    let tv = gen(ctx, env, t, ~want)
+    if want {
+      mergeInto(ctx, result, tv, ~unitResult, ~fn, ~loc=t.loc)
+    }
+    switch el {
+    | None =>
+      emit(ctx, Label(elseL))
+      VUnit
+    | Some(elseE) =>
+      let endL = newLabel(ctx, "endif")
+      emit(ctx, Goto(endL))
+      emit(ctx, Label(elseL))
+      let ev = gen(ctx, env, elseE, ~want)
+      if want {
+        mergeInto(ctx, result, ev, ~unitResult, ~fn, ~loc=elseE.loc)
+      }
+      emit(ctx, Label(endL))
+      want ? resultValue(result, unitResult) : VUnit
+    }
+  }
+}
+
+// Condition as a 0/1 value
+and genCondValue = (ctx, env, c: expr): value =>
+  switch c.desc {
+  | Binary(And | Or, _, _) => genLogicalValue(ctx, env, c)
+  | _ => gen(ctx, env, c, ~want=true)
+  }
+
+and genBlock = (ctx, env, stmts: array<stmt>, ~want, ~topLevel): value => {
+  let envRef = ref(env)
+  let last = ref(VUnit)
+  let n = Array.length(stmts)
+  stmts->Array.forEachWithIndex((s, i) => {
+    let isLast = i == n - 1
+    switch s {
+    | Let(name, valueExpr, loc) =>
+      let v = genLet(ctx, envRef.contents, name, valueExpr, loc, ~topLevel)
+      envRef := envRef.contents->Belt.Map.String.set(name, v)
+      last := VUnit
+    | TypeDecl(name, ctors, loc) =>
+      registerType(ctx, name, ctors, loc)
+      last := VUnit
+    | Expr(e) => last := gen(ctx, envRef.contents, e, ~want=want && isLast)
+    }
+  })
+  last.contents
+}
+
+and registerType = (ctx, name, ctors: array<ctorDecl>, loc) => {
+  let fn = "registerType"
+  let maxArgs = ctors->Array.reduce(0, (m, c) => Math.Int.max(m, Array.length(c.argTypes)))
+  let t = {typeName: name, ctors, maxArgs}
+  ctx.types->Dict.set(name, t)
+  ctors->Array.forEachWithIndex((c, tag) => {
+    switch ctx.ctors->Dict.get(c.cname) {
+    | Some((other, _)) if other.typeName != name =>
+      warn(
+        ctx,
+        ~fn,
+        ~loc=c.cloc,
+        `constructor ${c.cname} shadows the one from type '${other.typeName}'`,
+      )
+    | _ => ()
+    }
+    ctx.ctors->Dict.set(c.cname, (t, tag))
+  })
+  if Array.length(ctors) == 0 {
+    fail(~fn, ~loc, `type '${name}' has no constructors`)
+  }
+}
+
+and genLet = (ctx, env, name, valueExpr: expr, loc, ~topLevel): value => {
+  let canDefine = topLevel && !isRegisterLike(name) && ctx.defines->Dict.get(name) == None
+  switch valueExpr.desc {
+  | Fun(params, body) => VFun({fname: name, params, body, env, floc: loc, compiled: None})
+  | Number(n, isFloat) if canDefine =>
+    ctx.defines->Dict.set(name, true)
+    ctx.defs->Array.push(DefNum(name, n))
+    VScalar(Name(name), isFloat ? KFloat : KInt)
+  | Call("hash", [{desc: String(s)}]) if canDefine =>
+    ctx.defines->Dict.set(name, true)
+    ctx.defs->Array.push(DefHash(name, s))
+    VScalar(Name(name), KInt)
+  | _ =>
+    let v = gen(ctx, env, valueExpr, ~want=true)
+    switch v {
+    | VScalar(VReg(r), _) =>
+      if ctx.vregNames->Dict.get(Int.toString(r)) == None {
+        ctx.vregNames->Dict.set(Int.toString(r), name)
+      }
+    | VRef(CScalar(r, _)) => ctx.vregNames->Dict.set(Int.toString(r), name)
+    | VRef(CVariant(_, tag, payload)) =>
+      ctx.vregNames->Dict.set(Int.toString(tag), name)
+      payload->Array.forEach(r => ctx.vregNames->Dict.set(Int.toString(r), name))
+    | _ => ()
+    }
+    v
+  }
+}
+
+// ---------------------------------------------------------------------------
+// switch
+
+and patternTags = (ctx, t: variantType, p: pattern): option<array<int>> =>
+  switch p.pdesc {
+  | PWild | PVar(_) => None
+  | PConstr(name, _) =>
+    switch ctx.ctors->Dict.get(name) {
+    | Some((t2, tag)) if t2.typeName == t.typeName => Some([tag])
+    | _ =>
+      fail(
+        ~fn="genSwitch",
+        ~loc=p.ploc,
+        `constructor ${name} does not belong to type '${t.typeName}'`,
+      )
+    }
+  | POr(a, b) =>
+    switch (patternTags(ctx, t, a), patternTags(ctx, t, b)) {
+    | (Some(x), Some(y)) => Some(Array.concat(x, y))
+    | _ => None
+    }
+  | PNumber(_) | PBool(_) =>
+    fail(~fn="genSwitch", ~loc=p.ploc, `expected a constructor of '${t.typeName}'`)
+  }
+
+and payloadIrrefutable = (p: pattern): bool =>
+  switch p.pdesc {
+  | PWild | PVar(_) => true
+  | PConstr(_, subs) =>
+    subs->Array.every(s =>
+      switch s.pdesc {
+      | PWild | PVar(_) => true
+      | _ => false
+      }
+    )
+  | POr(a, b) => payloadIrrefutable(a) && payloadIrrefutable(b)
+  | PNumber(_) | PBool(_) => false
+  }
+
+and hasBindings = (p: pattern): bool =>
+  switch p.pdesc {
+  | PVar(_) => true
+  | PWild | PNumber(_) | PBool(_) => false
+  | PConstr(_, subs) => subs->Array.some(hasBindings)
+  | POr(a, b) => hasBindings(a) || hasBindings(b)
+  }
+
+// Emit the test for `p` against `v`, jumping to `failL` on mismatch.
+// `skipTag`: the tag is already known to match (exhaustiveness).
+and genPatternTest = (ctx, v: value, p: pattern, failL: string, ~skipTag: bool): array<(
+  string,
+  value,
+)> => {
+  let fn = "genPatternTest"
+  switch (p.pdesc, v) {
+  | (PWild, _) => []
+  | (PVar(name), _) => [(name, v)]
+  | (POr(a, b), _) =>
+    if hasBindings(p) {
+      fail(~fn, ~loc=p.ploc, "or-patterns cannot bind variables")
+    }
+    if !skipTag {
+      let ok = newLabel(ctx, "match")
+      let tryB = newLabel(ctx, "alt")
+      let _ = genPatternTest(ctx, v, a, tryB, ~skipTag=false)
+      emit(ctx, Goto(ok))
+      emit(ctx, Label(tryB))
+      let _ = genPatternTest(ctx, v, b, failL, ~skipTag=false)
+      emit(ctx, Label(ok))
+    }
+    []
+  | (PConstr(name, subs), VVariant(t, tag, payload)) =>
+    let k = switch ctx.ctors->Dict.get(name) {
+    | Some((t2, k)) if t2.typeName == t.typeName => k
+    | _ => fail(~fn, ~loc=p.ploc, `constructor ${name} does not belong to type '${t.typeName}'`)
+    }
+    let ctor = t.ctors->Array.getUnsafe(k)
+    let arity = Array.length(ctor.argTypes)
+    if Array.length(subs) != arity {
+      fail(~fn, ~loc=p.ploc, `constructor ${name} has ${Int.toString(arity)} argument(s)`)
+    }
+    if !skipTag {
+      emit(ctx, Branch(Ne, tag, Num(Int.toFloat(k)), failL))
+    }
+    let bindings = []
+    subs->Array.forEachWithIndex((sub, i) => {
+      let slot = payload->Array.getUnsafe(i)
+      let kind = kindOfTypeName(ctor.argTypes->Array.getUnsafe(i))
+      switch sub.pdesc {
+      | PWild => ()
+      | PVar(n) => bindings->Array.push((n, VScalar(slot, kind)))
+      | PNumber(x) => emit(ctx, Branch(Ne, slot, Num(x), failL))
+      | PBool(b) => emit(ctx, Branch(Ne, slot, Num(b ? 1. : 0.), failL))
+      | PConstr(_) | POr(_) =>
+        fail(~fn, ~loc=sub.ploc, "nested patterns in payloads are not supported")
+      }
+    })
+    bindings
+  | (PNumber(x), VScalar(o, _)) =>
+    emit(ctx, Branch(Ne, o, Num(x), failL))
+    []
+  | (PBool(b), VScalar(o, _)) =>
+    emit(ctx, Branch(Ne, o, Num(b ? 1. : 0.), failL))
+    []
+  | (PConstr(name, _), other) =>
+    fail(~fn, ~loc=p.ploc, `pattern ${name} cannot match ${describeValue(other)}`)
+  | (PNumber(_) | PBool(_), other) =>
+    fail(~fn, ~loc=p.ploc, `literal pattern cannot match ${describeValue(other)}`)
+  }
+}
+
+and genSwitch = (ctx, env, scrutinee: expr, cases: array<matchCase>, ~want, ~loc): value => {
+  let fn = "genSwitch"
+  let sv = gen(ctx, env, scrutinee, ~want=true)
+  let endL = newLabel(ctx, "endswitch")
+  let result = ref(None)
+  let unitResult = ref(false)
+  // tags not yet handled by an unconditional case (variants only)
+  let remaining = switch sv {
+  | VVariant(t, _, _) => Some(ref(Array.fromInitializer(~length=Array.length(t.ctors), i => i)))
+  | _ => None
+  }
+  let exhausted = ref(false)
+  cases->Array.forEach(c => {
+    if exhausted.contents {
+      warn(ctx, ~fn, ~loc=c.caseLoc, "this case is unreachable")
+    } else {
+      let next = newLabel(ctx, "case")
+      let (skipTag, coveredTags) = switch (sv, remaining) {
+      | (VVariant(t, _, _), Some(rem)) =>
+        switch patternTags(ctx, t, c.pattern) {
+        | None => (true, rem.contents)
+        | Some(tags) =>
+          let rest = rem.contents->Array.filter(x => !(tags->Array.includes(x)))
+          (Array.length(rest) == 0, tags)
+        }
+      | _ => (false, [])
+      }
+      let bindings = genPatternTest(ctx, sv, c.pattern, next, ~skipTag)
+      let caseEnv = bindings->Array.reduce(env, (acc, (n, v)) => acc->Belt.Map.String.set(n, v))
+      c.guard->Option.forEach(g => genCond(ctx, caseEnv, g, next))
+      let v = gen(ctx, caseEnv, c.body, ~want)
+      if want {
+        mergeInto(ctx, result, v, ~unitResult, ~fn, ~loc=c.body.loc)
+      }
+      emit(ctx, Goto(endL))
+      emit(ctx, Label(next))
+      // update exhaustiveness bookkeeping
+      let unconditional = c.guard == None && payloadIrrefutable(c.pattern)
+      switch remaining {
+      | Some(rem) if unconditional =>
+        rem := rem.contents->Array.filter(x => !(coveredTags->Array.includes(x)))
+        if Array.length(rem.contents) == 0 {
+          exhausted := true
+        }
+      | _ =>
+        switch c.pattern.pdesc {
+        | PWild | PVar(_) if c.guard == None => exhausted := true
+        | _ => ()
+        }
+      }
+    }
+  })
+  if !exhausted.contents {
+    switch (sv, remaining) {
+    | (VVariant(t, _, _), Some(rem)) =>
+      let missing = rem.contents->Array.map(i => (t.ctors->Array.getUnsafe(i)).cname)
+      warn(ctx, ~fn, ~loc, `switch is not exhaustive; missing: ${missing->Array.join(", ")}`)
+    | _ => ()
+    }
+  }
+  emit(ctx, Label(endL))
+  want ? resultValue(result, unitResult) : VUnit
+}
+
+// ---------------------------------------------------------------------------
+// Calls
+
+and genCall = (ctx, env, name, args: array<expr>, loc, ~want): value => {
+  let fn = "genCall"
+  if name == "ref" {
+    switch args {
+    | [a] =>
+      let v = gen(ctx, env, a, ~want=true)
+      let c = cellFor(ctx, v, ~fn, ~loc)
+      storeCell(ctx, c, v, ~fn, ~loc)
+      VRef(c)
+    | _ => fail(~fn, ~loc, "ref() expects exactly one argument")
+    }
+  } else {
+    switch env->Belt.Map.String.get(name) {
+    | Some(VFun(info)) => callUser(ctx, env, info, args, loc, ~want)
+    | Some(other) => fail(~fn, ~loc, `'${name}' is ${describeValue(other)}, not a function`)
+    | None =>
+      switch genBuiltin(ctx, env, normalizeBuiltin(name), args, loc) {
+      | Some(v) => v
+      | None => fail(~fn, ~loc, `unknown function '${name}'`)
       }
     }
   }
+}
 
-  processStmts(initialState, ast, 0)->Result.map(finalState => {
-    // Create main block with main instructions (reversed to correct order)
-    let mainInstructions = finalState.instructions->List.reverse
-
-    // Add a safety mechanism: if there are function blocks, add an infinite loop
-    // at the end of main to prevent falling through into function definitions
-    let mainInstructionsWithSafety = if List.length(finalState.functionBlocks) > 0 {
-      // Append "j 0" at the end to loop back to the beginning
-      // This prevents execution from falling through into function definitions
-      List.concat(mainInstructions, list{IR.Goto("__end")})
-    } else {
-      mainInstructions
+and callUser = (ctx, env, info: funInfo, args: array<expr>, loc, ~want): value => {
+  let fn = "callUser"
+  let arity = Array.length(info.params)
+  if Array.length(args) != arity {
+    fail(
+      ~fn,
+      ~loc,
+      `function '${info.fname}' expects ${Int.toString(arity)} argument(s), got ${Int.toString(
+          Array.length(args),
+        )}`,
+    )
+  }
+  if ctx.active->Array.includes(info.fname) {
+    fail(
+      ~fn,
+      ~loc,
+      `recursive call to '${info.fname}' is not supported`,
+      ~hint="IC10 has no call stack frames; use a while loop",
+    )
+  }
+  let argVals = args->Array.map(a => gen(ctx, env, a, ~want=true))
+  let compileTimeArg = argVals->Array.some(v =>
+    switch v {
+    | VDevice(_) | VString(_) | VRef(_) | VFun(_) => true
+    | _ => false
     }
-
-    let mainBlock: IR.block = {
-      name: "main",
-      instructions: mainInstructionsWithSafety,
-    }
-
-    // If there are functions, add a label for the infinite loop
-    let finalMainBlock = if List.length(finalState.functionBlocks) > 0 {
-      {
-        ...mainBlock,
-        instructions: List.concat(mainBlock.instructions, list{IR.Label("__end"), IR.Goto("__end")}),
+  )
+  let calls = ctx.callCounts->Dict.get(info.fname)->Option.getOr(0)
+  let inline = compileTimeArg || calls <= 1 || astSize(info.body) <= 6
+  if inline {
+    let bodyEnv =
+      info.params->Array.reduceWithIndex(info.env, (acc, p, i) =>
+        acc->Belt.Map.String.set(p.pname, argVals->Array.getUnsafe(i))
+      )
+    ctx.active = Array.concat(ctx.active, [info.fname])
+    let v = gen(ctx, bodyEnv, info.body, ~want)
+    ctx.active = ctx.active->Array.filter(n => n != info.fname)
+    v
+  } else {
+    let compiled = ensureCompiled(ctx, info, argVals, loc)
+    argVals->Array.forEachWithIndex((v, i) => {
+      let c = compiled.paramCells->Array.getUnsafe(i)
+      if !sameShape(c, v) {
+        fail(
+          ~fn,
+          ~loc,
+          `argument ${Int.toString(
+              i + 1,
+            )} of '${info.fname}' has a different type than in other calls`,
+        )
       }
-    } else {
-      mainBlock
+      storeCell(ctx, c, v, ~fn, ~loc)
+    })
+    emit(ctx, Call(compiled.label))
+    switch compiled.result {
+    | Some(c) => loadCell(ctx, c)
+    | None => VUnit
     }
+  }
+}
 
-    // Return: main block first, then all function blocks (reversed to correct order)
-    List.concat(list{finalMainBlock}, List.reverse(finalState.functionBlocks))
-  })
+and functionLabel = (ctx, name: string): string => {
+  let base = if isRegisterLike(name) || ctx.defines->Dict.get(name) != None {
+    "fn_" ++ name
+  } else {
+    name
+  }
+  let label = ref(base)
+  let i = ref(1)
+  while ctx.labels->Dict.get(label.contents) != None {
+    label := `${base}_${Int.toString(i.contents)}`
+    i := i.contents + 1
+  }
+  ctx.labels->Dict.set(label.contents, true)
+  label.contents
+}
+
+and ensureCompiled = (ctx, info: funInfo, argVals: array<value>, loc): compiledFun => {
+  let fn = "ensureCompiled"
+  switch info.compiled {
+  | Some(c) => c
+  | None =>
+    let label = functionLabel(ctx, info.fname)
+    let paramCells = info.params->Array.mapWithIndex((p, i) => {
+      let annotated = p.ptype->Option.flatMap(t => ctx.types->Dict.get(t))
+      switch (annotated, argVals->Array.getUnsafe(i)) {
+      | (Some(t), _) => cellFor(ctx, VVariant(t, Num(0.), []), ~fn, ~loc=p.paramLoc, ~name=p.pname)
+      | (None, v) => cellFor(ctx, v, ~fn, ~loc=p.paramLoc, ~name=p.pname)
+      }
+    })
+    let saved = ctx.buf
+    ctx.buf = [Label(label)]
+    ctx.active = Array.concat(ctx.active, [info.fname])
+    let bodyEnv =
+      info.params->Array.reduceWithIndex(info.env, (acc, p, i) =>
+        acc->Belt.Map.String.set(p.pname, viewCell(paramCells->Array.getUnsafe(i)))
+      )
+    let v = gen(ctx, bodyEnv, info.body, ~want=true)
+    let result = switch v {
+    | VUnit => None
+    | VScalar(_) | VVariant(_) =>
+      let c = cellFor(ctx, v, ~fn, ~loc=info.body.loc, ~name=info.fname ++ "()")
+      storeCell(ctx, c, v, ~fn, ~loc=info.body.loc)
+      Some(c)
+    | other => fail(~fn, ~loc=info.body.loc, `a function cannot return ${describeValue(other)}`)
+    }
+    let isLeaf = !(
+      ctx.buf->Array.some(i =>
+        switch i {
+        | Call(_) => true
+        | _ => false
+        }
+      )
+    )
+    if isLeaf {
+      emit(ctx, Return)
+    } else {
+      // jal overwrites ra: keep our return address in a register
+      let saveRa = newVReg(ctx, ~name=info.fname ++ ".ra")
+      ctx.buf->Array.splice(~start=1, ~remove=0, ~insert=[IR.Move(saveRa, Special("ra"))])
+      emit(ctx, ReturnVia(saveRa))
+    }
+    ctx.active = ctx.active->Array.filter(n => n != info.fname)
+    ctx.functions->Array.push({name: label, instructions: ctx.buf})
+    ctx.buf = saved
+    let compiled = {label, paramCells, result}
+    info.compiled = Some(compiled)
+    compiled
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Builtins (IC10 instructions exposed through src/compiler/IC10.res)
+
+and genBuiltin = (ctx, env, name: string, args: array<expr>, loc): option<value> => {
+  let fn = "genBuiltin"
+  let expectArgs = n =>
+    if Array.length(args) != n {
+      fail(
+        ~fn,
+        ~loc,
+        `${name}() expects ${Int.toString(n)} argument(s), got ${Int.toString(Array.length(args))}`,
+      )
+    }
+  let arg = i => args->Array.getUnsafe(i)
+  let argValue = i => gen(ctx, env, arg(i), ~want=true)
+  let argScalar = i =>
+    fst(
+      scalar(
+        argValue(i),
+        ~fn,
+        ~loc=arg(i).loc,
+        ~what=`argument ${Int.toString(i + 1)} of ${name}()`,
+      ),
+    )
+  let argScalarK = i =>
+    scalar(argValue(i), ~fn, ~loc=arg(i).loc, ~what=`argument ${Int.toString(i + 1)} of ${name}()`)
+  let argDevice = i =>
+    switch argValue(i) {
+    | VDevice(d) => d
+    | other =>
+      fail(
+        ~fn,
+        ~loc=arg(i).loc,
+        `${name}() expects a device, got ${describeValue(other)}`,
+        ~hint="let sensor = device(\"d0\")",
+      )
+    }
+  let argPin = i =>
+    switch argDevice(i) {
+    | Pin(p) => p
+    | _ => fail(~fn, ~loc=arg(i).loc, `${name}() only works with device pins (d0..d5, db)`)
+    }
+  let argToken = i => {
+    let a = arg(i)
+    let t = switch a.desc {
+    | String(s) | Constructor(s, []) => s
+    | Number(n, _) => Float.toString(n)
+    | _ =>
+      switch gen(ctx, env, a, ~want=true) {
+      | VString(s) => s
+      | other =>
+        fail(
+          ~fn,
+          ~loc=a.loc,
+          `${name}() expects a literal name here (e.g. "Temperature"), got ${describeValue(other)}`,
+        )
+      }
+    }
+    if !RegExp.test(tokenRe, t) && Float.fromString(t) == None {
+      fail(~fn, ~loc=a.loc, `'${t}' is not a valid IC10 name`)
+    }
+    t
+  }
+  let dst = () => newVReg(ctx)
+  let native = (op, ~out, ~effects, nargs) => {
+    let d = out ? Some(dst()) : None
+    emit(ctx, Native(op, d, nargs, effects))
+    switch d {
+    | Some(r) => VScalar(VReg(r), KFloat)
+    | None => VUnit
+    }
+  }
+  // kind: None keeps the argument's kind (abs, toFloat-like ops)
+  let unary = (op: IR.unOp, kind: option<kind>) => {
+    expectArgs(1)
+    let (a, ka) = argScalarK(0)
+    let d = dst()
+    emit(ctx, Unary(d, op, a))
+    Some(VScalar(VReg(d), kind->Option.getOr(ka)))
+  }
+  let binary = (op: IR.binOp) => {
+    expectArgs(2)
+    let (a, ka) = argScalarK(0)
+    let (b, kb) = argScalarK(1)
+    let d = dst()
+    emit(ctx, Binary(d, op, a, b))
+    Some(VScalar(VReg(d), combine(ka, kb)))
+  }
+  switch name {
+  | "device" =>
+    expectArgs(1)
+    switch arg(0).desc {
+    | String(("d0" | "d1" | "d2" | "d3" | "d4" | "d5" | "db") as p) => Some(VDevice(Pin(p)))
+    | _ =>
+      fail(
+        ~fn,
+        ~loc,
+        `device() expects "d0".."d5" or "db"`,
+        ~hint="for ReferenceIds use deviceId(id)",
+      )
+    }
+  | "deviceId" =>
+    expectArgs(1)
+    Some(VDevice(ById(argScalar(0))))
+  | "hash" =>
+    expectArgs(1)
+    switch arg(0).desc {
+    | String(s) => Some(VScalar(Hash(s), KInt))
+    | _ => fail(~fn, ~loc, "hash() expects a string literal")
+    }
+  | "l" =>
+    expectArgs(2)
+    let d = argDevice(0)
+    let prop = argToken(1)
+    let r = dst()
+    emit(ctx, DeviceLoad(r, d, prop, None))
+    Some(VScalar(VReg(r), KFloat))
+  | "s" =>
+    expectArgs(3)
+    let d = argDevice(0)
+    let prop = argToken(1)
+    let v = argScalar(2)
+    emit(ctx, DeviceStore(d, prop, v))
+    Some(VUnit)
+  | "lb" =>
+    expectArgs(3)
+    let h = argScalar(0)
+    let prop = argToken(1)
+    let mode = argToken(2)
+    let r = dst()
+    emit(ctx, DeviceLoad(r, Batch(h), prop, Some(mode)))
+    Some(VScalar(VReg(r), KFloat))
+  | "lbn" =>
+    expectArgs(4)
+    let h = argScalar(0)
+    let n = argScalar(1)
+    let prop = argToken(2)
+    let mode = argToken(3)
+    let r = dst()
+    emit(ctx, DeviceLoad(r, BatchNamed(h, n), prop, Some(mode)))
+    Some(VScalar(VReg(r), KFloat))
+  | "sb" =>
+    expectArgs(3)
+    let h = argScalar(0)
+    let prop = argToken(1)
+    let v = argScalar(2)
+    emit(ctx, DeviceStore(Batch(h), prop, v))
+    Some(VUnit)
+  | "sbn" =>
+    expectArgs(4)
+    let h = argScalar(0)
+    let n = argScalar(1)
+    let prop = argToken(2)
+    let v = argScalar(3)
+    emit(ctx, DeviceStore(BatchNamed(h, n), prop, v))
+    Some(VUnit)
+  | "ls" =>
+    expectArgs(3)
+    let p = argPin(0)
+    let slot = argScalar(1)
+    let prop = argToken(2)
+    Some(native("ls", ~out=true, ~effects=false, [ADev(p), AOp(slot), ATok(prop)]))
+  | "ss" =>
+    expectArgs(4)
+    let p = argPin(0)
+    let slot = argScalar(1)
+    let prop = argToken(2)
+    let v = argScalar(3)
+    Some(native("ss", ~out=false, ~effects=true, [ADev(p), AOp(slot), ATok(prop), AOp(v)]))
+  | "lbs" =>
+    expectArgs(4)
+    let h = argScalar(0)
+    let slot = argScalar(1)
+    let prop = argToken(2)
+    let mode = argToken(3)
+    Some(native("lbs", ~out=true, ~effects=false, [AOp(h), AOp(slot), ATok(prop), ATok(mode)]))
+  | "lbns" =>
+    expectArgs(5)
+    let h = argScalar(0)
+    let n = argScalar(1)
+    let slot = argScalar(2)
+    let prop = argToken(3)
+    let mode = argToken(4)
+    Some(
+      native(
+        "lbns",
+        ~out=true,
+        ~effects=false,
+        [AOp(h), AOp(n), AOp(slot), ATok(prop), ATok(mode)],
+      ),
+    )
+  | "sbs" =>
+    expectArgs(4)
+    let h = argScalar(0)
+    let slot = argScalar(1)
+    let prop = argToken(2)
+    let v = argScalar(3)
+    Some(native("sbs", ~out=false, ~effects=true, [AOp(h), AOp(slot), ATok(prop), AOp(v)]))
+  | "lr" =>
+    expectArgs(3)
+    let p = argPin(0)
+    let mode = argToken(1)
+    let reagent = argScalar(2)
+    Some(native("lr", ~out=true, ~effects=false, [ADev(p), ATok(mode), AOp(reagent)]))
+  | "isSet" =>
+    expectArgs(1)
+    let p = argPin(0)
+    let r = native("sdse", ~out=true, ~effects=false, [ADev(p)])
+    Some(
+      switch r {
+      | VScalar(o, _) => VScalar(o, KInt)
+      | v => v
+      },
+    )
+  | "isNotSet" =>
+    expectArgs(1)
+    let p = argPin(0)
+    let r = native("sdns", ~out=true, ~effects=false, [ADev(p)])
+    Some(
+      switch r {
+      | VScalar(o, _) => VScalar(o, KInt)
+      | v => v
+      },
+    )
+  | "yield" =>
+    expectArgs(0)
+    Some(native("yield", ~out=false, ~effects=true, []))
+  | "sleep" =>
+    expectArgs(1)
+    let t = argScalar(0)
+    Some(native("sleep", ~out=false, ~effects=true, [AOp(t)]))
+  | "push" =>
+    expectArgs(1)
+    let v = argScalar(0)
+    Some(native("push", ~out=false, ~effects=true, [AOp(v)]))
+  | "pop" =>
+    expectArgs(0)
+    Some(native("pop", ~out=true, ~effects=true, []))
+  | "peek" =>
+    expectArgs(0)
+    Some(native("peek", ~out=true, ~effects=false, []))
+  | "poke" =>
+    expectArgs(2)
+    let addr = argScalar(0)
+    let v = argScalar(1)
+    Some(native("poke", ~out=false, ~effects=true, [AOp(addr), AOp(v)]))
+  | "get" =>
+    expectArgs(2)
+    let p = argPin(0)
+    let addr = argScalar(1)
+    Some(native("get", ~out=true, ~effects=false, [ADev(p), AOp(addr)]))
+  | "put" =>
+    expectArgs(3)
+    let p = argPin(0)
+    let addr = argScalar(1)
+    let v = argScalar(2)
+    Some(native("put", ~out=false, ~effects=true, [ADev(p), AOp(addr), AOp(v)]))
+  | "clr" =>
+    expectArgs(1)
+    let p = argPin(0)
+    Some(native("clr", ~out=false, ~effects=true, [ADev(p)]))
+  | "abs" => unary(Abs, None)
+  | "sqrt" => unary(Sqrt, Some(KFloat))
+  | "floor" => unary(Floor, Some(KFloat))
+  | "ceil" => unary(Ceil, Some(KFloat))
+  | "round" => unary(Round, Some(KFloat))
+  | "trunc" => unary(Trunc, Some(KFloat))
+  | "sin" => unary(Sin, Some(KFloat))
+  | "cos" => unary(Cos, Some(KFloat))
+  | "tan" => unary(Tan, Some(KFloat))
+  | "asin" => unary(Asin, Some(KFloat))
+  | "acos" => unary(Acos, Some(KFloat))
+  | "atan" => unary(Atan, Some(KFloat))
+  | "exp" => unary(Exp, Some(KFloat))
+  | "log" => unary(Log, Some(KFloat))
+  | "toInt" => unary(Trunc, Some(KInt))
+  | "toFloat" =>
+    expectArgs(1)
+    let a = argScalar(0)
+    Some(VScalar(a, KFloat))
+  | "min" => binary(Min)
+  | "max" => binary(Max)
+  | "atan2" => binary(Atan2)
+  | "rand" =>
+    expectArgs(0)
+    Some(native("rand", ~out=true, ~effects=true, []))
+  | "lerp" =>
+    expectArgs(3)
+    let a = argScalar(0)
+    let b = argScalar(1)
+    let t = argScalar(2)
+    Some(native("lerp", ~out=true, ~effects=false, [AOp(a), AOp(b), AOp(t)]))
+  | "select" =>
+    expectArgs(3)
+    let c = argScalar(0)
+    let (a, ka) = argScalarK(1)
+    let (b, kb) = argScalarK(2)
+    let d = dst()
+    emit(ctx, Select(d, c, a, b))
+    Some(VScalar(VReg(d), combine(ka, kb)))
+  | "ignore" =>
+    expectArgs(1)
+    let _ = gen(ctx, env, arg(0), ~want=false)
+    Some(VUnit)
+  | _ => None
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+// Returns the IR, warnings and a vreg -> source name map (for diagnostics).
+let generate = (program: AST.program): (IR.t, array<Errors.t>, Dict.t<string>) => {
+  let ctx = {
+    buf: [],
+    nextVReg: 0,
+    nextLabel: 0,
+    types: Dict.make(),
+    ctors: Dict.make(),
+    defines: Dict.make(),
+    defs: [],
+    functions: [],
+    labels: Dict.make(),
+    callCounts: Dict.make(),
+    vregNames: Dict.make(),
+    warnings: [],
+    active: [],
+  }
+  program->Array.forEach(s => countCallsStmt(ctx.callCounts, s))
+  let _ = genBlock(ctx, Belt.Map.String.empty, program, ~want=false, ~topLevel=true)
+  let main: IR.block = {name: "main", instructions: Array.concat(ctx.defs, ctx.buf)}
+  (Array.concat([main], ctx.functions), ctx.warnings, ctx.vregNames)
 }
