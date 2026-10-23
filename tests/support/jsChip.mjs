@@ -27,7 +27,18 @@ export class JsChip {
   hash(s) {
     return hash(s);
   }
+  batchDevice(prefab) {
+    return { prefab };
+  }
+  namedDevice(prefab, name) {
+    return { prefab, name };
+  }
+  lm(d, p, mode) {
+    if (d.prefab === undefined) throw new Error("lm needs a batch device");
+    return this.lb(d.prefab, d.name, p, mode);
+  }
   resolve(d) {
+    if (d.prefab !== undefined) throw new Error("a batch device has no pin");
     if (d.pin === "db") return [(this.devices.db ??= {}), "db"];
     const dev = this.devices[d.pin];
     if (!dev) throw new Error(`no device on ${d.pin}`);
@@ -41,10 +52,12 @@ export class JsChip {
     this.writes.push({ tick: this.ticks, target, prop, value });
   }
   l(d, p) {
+    if (d.prefab !== undefined) return this.lb(d.prefab, d.name, p, "Maximum");
     const [dev, label] = this.resolve(d);
     return this.read(dev, p, label);
   }
   s(d, p, v) {
+    if (d.prefab !== undefined) return this.sb(d.prefab, d.name, p, v);
     const [dev, label] = this.resolve(d);
     dev[p] = num(v);
     this.log(label, p, num(v));

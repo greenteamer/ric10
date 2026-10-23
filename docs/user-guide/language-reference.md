@@ -176,6 +176,59 @@ compile to a single branch instruction when used as a condition (`bdse`, `bdns`,
 `bap`/`bna`, `bapz`/`bnaz`), and to `sdse`/`snan`/`sap`/`sapz` when used as a value.
 Batch reads over an empty network return NaN, so `Float.isNaN` is the way to guard them.
 
+## Modules
+
+```rescript
+module Furnace = {
+  let dev = named(hash("StructureAdvancedFurnace"), hash("Furnace"))
+  let limit = 1000.
+  let temperature = () => dev->Logic.temperature
+  let stop = () => {
+    dev->Logic.setSettingInput(0)
+    dev->Logic.setSettingOutput(0)
+  }
+}
+
+if Furnace.temperature() > Furnace.limit { Furnace.stop() }
+open Furnace
+stop()
+```
+
+A module is a namespace: its `let`s, functions, types and nested modules are reached as
+`Furnace.x`, and `open Furnace` brings them into scope. Constants inside modules become
+`define Furnace_limit`, functions compiled out of line get labels like `Furnace_stop`.
+Constructors of a type declared in a module may be written qualified (`Plant.Running(p)`)
+or bare, in expressions and in patterns. Functors, module signatures and module aliases
+(`module A = B`) are not supported.
+
+## Devices and accessors
+
+Three kinds of device values, all compile-time:
+
+```rescript
+let sensor = device("d0")                                   // a pin; also d0 .. d5, db
+let tanks = batch(hash("StructureTankSmall"))               // every tank on the network
+let main = named(hash("StructureTankSmall"), hash("Main"))  // tanks named "Main"
+```
+
+`l`/`s` work on all three: on batch devices `l` reads the `Maximum` over the network
+(`lb`/`lbn`), `s` writes to every matching device (`sb`/`sbn`), and `lm(tanks, "Pressure",
+Average)` reads with another mode. Slots (`ls`/`ss`) and `isSet` need a pin.
+
+The `Logic` and `Slot` modules are generated from the game's list of logic types
+(`scripts/gen-bindings.mjs`), so a misspelled name is a type error in the editor:
+
+```rescript
+let t = sensor->Logic.temperature          // l r? d0 Temperature
+tanks->Logic.setOn(t > 300.)               // sb ... On ...
+let full = Slot.occupied(sensor, 0)        // ls r? d0 0 Occupied
+Slot.setLock(sensor, 1, true)              // ss d0 1 Lock r?
+```
+
+Accessor names are the logic type in lowerCamelCase (`SettingInput` → `settingInput`);
+`Open` becomes `open_` because `open` is a keyword. Reads are pure and disappear when
+unused.
+
 ## Raw assembly
 
 ```rescript
@@ -187,8 +240,9 @@ allocation for the whole program.
 
 ## Not supported
 
-Records, tuples, arrays, lists, strings as values, `option`/`result`, modules, exceptions,
-recursion, optional arguments, `as` patterns, nested patterns inside payloads.
+Records, tuples, arrays, lists, strings as values, `option`/`result`, functors and module
+signatures, exceptions, recursion, optional arguments, `as` patterns, nested patterns inside
+payloads.
 
 ## Diagnostics
 

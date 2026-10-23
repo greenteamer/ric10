@@ -121,12 +121,28 @@ let propagateCopies = (ir: IR.t, ~names: Dict.t<string>=Dict.make()): IR.t =>
         env := Belt.Map.Int.empty
         i
       | _ =>
-        IR.mapUses(i, op =>
+        let subst = op =>
           switch op {
-          | VReg(v) => env.contents->Belt.Map.Int.get(v)->Option.getOr(op)
+          | IR.VReg(v) => env.contents->Belt.Map.Int.get(v)->Option.getOr(op)
           | _ => op
           }
-        )
+        switch i {
+        // the value operand of ss/sbs must stay a register (game restriction)
+        | Native(("ss" | "sbs") as opc, d, args, se) =>
+          let last = Array.length(args) - 1
+          Native(
+            opc,
+            d,
+            args->Array.mapWithIndex((a, k) =>
+              switch a {
+              | AOp(o) if k != last => IR.AOp(subst(o))
+              | _ => a
+              }
+            ),
+            se,
+          )
+        | _ => IR.mapUses(i, subst)
+        }
       }
       switch IR.def(i) {
       | Some(d) =>

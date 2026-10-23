@@ -10,7 +10,7 @@ describe("diagnostics", () => {
     ["let x = [1, 2]", /arrays are not supported/],
     ["type t = {a: int}", /record types are not supported/],
     ["let x = r.field", /field access '.field' is not supported/],
-    ["module M = {}", /modules are not supported/],
+    ["module F = (X: S) => {}", /functors are not supported/],
     ["let (a, b) = (1, 2)", /destructuring is not supported/],
     ["let x = Some(1)", /option\/result are not supported/],
     ["let x = Foo", /unknown constructor 'Foo'/],

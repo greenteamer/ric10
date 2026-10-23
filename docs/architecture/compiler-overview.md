@@ -50,6 +50,12 @@ directly (`bge a b else`), including short-circuit `&&`/`||`/`!`. `specialBranch
 `isSet`, `Float.isNaN`, `approx` and `approxZero` to `bdse`/`bdns`/`bnan`/`bap`/`bna`
 (`IR.BranchIf`).
 
+Modules: `genStmts` evaluates a module body and binds its names as `Name.x` in the outer
+environment; `open` copies `Name.*` bindings unqualified. Functions and defines declared
+inside carry the module path (`Furnace_stop`, `define Furnace_limit`). `Logic.x`/`Slot.x`
+calls are rewritten to `l`/`s`/`ls`/`ss` with the logic type derived from the accessor name
+(`accessor`), so the generated binding modules are never executed.
+
 Calls: `matchArguments` puts labeled arguments (`~name=e`, punned `~name`) in parameter
 order; builtins accept labels only where the stdlib defines them (`Math.pow(~exp)`,
 `Float.clamp(~min, ~max)`).

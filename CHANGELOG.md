@@ -43,6 +43,14 @@ to type-check against the new bindings (see "Breaking changes").
   `Int.clamp`, `Float.mod`, `Int.mod`, `Float.isNaN`, `Float.equal`, `Int.bitwise*`,
   `Int.shift*`, `Math.Constants.pi/e`; game bindings `approx`, `approxZero`, `hcf`.
 - Conditions on `isSet`, `Float.isNaN`, `approx` compile to `bdse`/`bdns`/`bnan`/`bap`/`bna`.
+- Modules (`module Name = { ... }`, nested, `open`); qualified constructors in expressions
+  and patterns. Functors and module aliases are rejected.
+- Devices as values: `batch(prefab)` and `named(prefab, name)` work with `l`/`s` (Maximum
+  by default, `lm` for another mode) and with the accessors.
+- `Logic` and `Slot` accessor modules generated from the game's logic-type list
+  (`scripts/gen-bindings.mjs`): `dev->Logic.temperature`, `dev->Logic.setOn(v)`,
+  `Slot.occupied(dev, 0)`.
+- `ss`/`sbs` write through a register, as the game requires.
 - Diagnostics with line and column, hints, warnings for >128 lines and long lines.
 - CLI: `-o`, `--stdout`, `--debug`, `--alias` (emit `alias name dX` for named devices),
   exit code 1 on errors.

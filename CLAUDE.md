@@ -32,6 +32,7 @@ User programs are valid ReScript: the official compiler type-checks them against
 - `npm run test:fuzz` - 2000 random programs checked against ReScript
 - `npm run res:build` - only to verify correctness after changes (tests import `*.res.mjs`)
 - `npm run build:bundle` - rebuild `dist/` to try the CLI (`node bin/ric10.js file.res --stdout`)
+- `node scripts/gen-bindings.mjs` - regenerate the `Logic`/`Slot` modules in `IC10.res` and `IC10.runtime.res`
 
 ### File Modifications
 
@@ -65,7 +66,7 @@ src/compiler/
 ├── Lexer.res           # tokens with line:col
 ├── AST.res             # AST with locations
 ├── Parser.res          # Pratt parser (ReScript 12 precedence)
-├── IC10.res            # bindings for user programs (shipped by `ric10 init`)
+├── IC10.res            # bindings for user programs (shipped by `ric10 init`); Logic/Slot section generated
 ├── CodegenTypes.res    # options, IC10 limits
 ├── NumUtil.res
 └── IR/

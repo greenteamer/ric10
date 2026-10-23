@@ -10,15 +10,18 @@ the chip's 16 registers and 128 lines.
 ```rescript
 type state = Idle | Heating | Venting(float)
 
-let sensor = device("d0")
-let heater = device("d1")
-let vent = device("d2")
+module Room = {
+  let sensor = device("d0")
+  let heater = device("d1")
+  let vent = device("d2")
+  let tanks = named(hash("StructureTankSmall"), hash("Buffer"))
+}
 
 let state = ref(Idle)
 
 while true {
-  let t = l(sensor, "Temperature")
-  let p = l(sensor, "Pressure")
+  let t = Room.sensor->Logic.temperature
+  let p = Room.tanks->Logic.pressure          // lbn ... Maximum over all "Buffer" tanks
   state :=
     switch state.contents {
     | _ if p > 5000. => Venting(p)
@@ -26,8 +29,8 @@ while true {
     | _ if t < 290. => Heating
     | _ => Idle
     }
-  s(heater, "On", state.contents == Heating)
-  s(vent, "On", switch state.contents { | Venting(_) => true | _ => false })
+  Room.heater->Logic.setOn(state.contents == Heating)
+  Room.vent->Logic.setOn(switch state.contents { | Venting(_) => true | _ => false })
   yield()
 }
 ```
@@ -75,13 +78,18 @@ A subset of ReScript 12, all of it valid ReScript:
 - `ref`, `:=`, `.contents`, `while`, `for i in a to b` / `downto`
 - functions with parameters and results, labeled parameters, closures over top-level
   values, pipes `->`, higher-order functions (inlined)
+- `module Name = { ... }` namespaces and `open`; devices as values: `device("d0")`,
+  `batch(prefab)`, `named(prefab, name)`
+- typed accessors generated from the game's logic types: `dev->Logic.temperature`,
+  `dev->Logic.setOn(true)`, `Slot.occupied(dev, 0)`
 - variants with payloads, `switch` with or-patterns, guards, literal and wildcard patterns
 - IC10 bindings: `l`, `s`, `ls`, `ss`, `lb`, `lbn`, `sb`, `sbn`, `lbs`, `lbns`, `sbs`,
   `hash`, `isSet`, `yield`, `sleep`, `hcf`, stack (`push`, `pop`, `peek`, `get`, `put`,
   `getd`, `putd`), `select`, `lerp`, `approx`, `Float.isNaN`, `Float.clamp`, `Math.*`
 - `%raw("...")` for anything else; registers it mentions are left alone
 
-Not supported (yet): records, tuples, arrays, strings beyond logic-type names, recursion.
+Not supported (yet): records, tuples, arrays, strings beyond logic-type names, recursion,
+functors and module signatures.
 
 See [docs/user-guide/language-reference.md](docs/user-guide/language-reference.md) and
 [docs/user-guide/ic10-bindings.md](docs/user-guide/ic10-bindings.md).

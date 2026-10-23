@@ -183,6 +183,41 @@ if Float.isNaN(y /. 0.) || approxZero(x -. y, 1e-9) { s(d2, "I", 1) } else { s(d
     devices: { d0: { Setting: -3 }, d1: { Setting: 4 }, d2: {} },
   },
   {
+    name: "ModulesAccessors",
+    src: `
+module Tanks = {
+  let all = batch(hash("StructureTankSmall"))
+  let mainTank = named(hash("StructureTankSmall"), hash("Main"))
+  let limit = 250.
+  let pressure = () => all->Logic.pressure
+  let average = () => lm(all, "Pressure", Average)
+  let vent = (isOpen: bool) => all->Logic.setOn(isOpen)
+}
+module Sensor = {
+  let dev = device("d0")
+  let temperature = () => dev->Logic.temperature
+}
+open Sensor
+while true {
+  let p = Tanks.pressure()
+  let avg = Tanks.average()
+  Tanks.vent(p > Tanks.limit)
+  Tanks.mainTank->Logic.setLock(avg > 150.)
+  s(d1, "Setting", temperature() +. p +. avg)
+  Sensor.dev->Logic.setMode(Float.isNaN(avg) ? 0 : 1)
+  yield()
+}`,
+    devices: { d0: { Temperature: 20 }, d1: {} },
+    network: () => [
+      { prefabHash: hash("StructureTankSmall"), nameHash: hash("Main"), values: { Pressure: 100 } },
+      { prefabHash: hash("StructureTankSmall"), nameHash: 7, values: { Pressure: 200 } },
+    ],
+    ticks: 3,
+    inputs: (_d, t, chip) => {
+      chip.network[1].values.Pressure = [200, 300, 50][t];
+    },
+  },
+  {
     name: "Bitwise",
     src: `
 let v = Float.toInt(l(d0, "Setting"))
@@ -256,6 +291,11 @@ const examples = fs
   .map((f) => ({ file: f, name: "Ex_" + f.replace(/\.res$/, "") }));
 
 const exampleSetups = {
+  Ex_coolant: {
+    devices: { db: {}, d0: { Temperature: 0 }, d1: {} },
+    ticks: 3,
+    inputs: seq(["d0", "Temperature"], [290, 310, 300]),
+  },
   Ex_basic: {
     devices: { d0: { Temperature: 0 }, d1: {}, d2: {} },
     ticks: 6,

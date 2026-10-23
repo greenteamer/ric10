@@ -219,7 +219,8 @@ let rec astSize = (e: expr): int =>
 and stmtSize = s =>
   switch s {
   | Let(_, e, _) => astSize(e)
-  | TypeDecl(_) => 0
+  | TypeDecl(_) | Open(_) => 0
+  | Module(_, stmts, _) => stmts->Array.reduce(0, (acc, s) => acc + stmtSize(s))
   | Expr(e) => astSize(e)
   }
 
@@ -255,7 +256,8 @@ let rec countCalls = (counts: Dict.t<int>, e: expr) => {
 and countCallsStmt = (counts, s) =>
   switch s {
   | Let(_, e, _) | Expr(e) => countCalls(counts, e)
-  | TypeDecl(_) => ()
+  | TypeDecl(_) | Open(_) => ()
+  | Module(_, stmts, _) => stmts->Array.forEach(s => countCallsStmt(counts, s))
   }
 
 // Builtins without side effects (safe to evaluate eagerly, e.g. in `select`)
@@ -365,6 +367,45 @@ let normalizeBuiltin = (name: string): string =>
     }
   }
 
+// `Logic.temperature` -> ("l", "Temperature", false), `Slot.setOccupied` -> ("ss", "Occupied", true)
+let accessor = (name: string): option<(string, string, bool)> => {
+  let decode = (acc: string, read: string, write: string) => {
+    let (isSet, base) = if acc->String.startsWith("set") && String.length(acc) > 3 {
+      (true, acc->String.sliceToEnd(~start=3))
+    } else {
+      (false, acc)
+    }
+    let base = base->String.endsWith("_") ? base->String.slice(~start=0, ~end=String.length(base) - 1) : base
+    if String.length(base) == 0 {
+      None
+    } else {
+      let logicType = isSet ? base : String.toUpperCase(String.charAt(base, 0)) ++ base->String.sliceToEnd(~start=1)
+      Some((isSet ? write : read, logicType, isSet))
+    }
+  }
+  if name->String.startsWith("Logic.") {
+    decode(name->String.sliceToEnd(~start=6), "l", "s")
+  } else if name->String.startsWith("Slot.") {
+    decode(name->String.sliceToEnd(~start=5), "ls", "ss")
+  } else if name->String.startsWith("IC10.Logic.") {
+    decode(name->String.sliceToEnd(~start=11), "l", "s")
+  } else if name->String.startsWith("IC10.Slot.") {
+    decode(name->String.sliceToEnd(~start=10), "ls", "ss")
+  } else {
+    None
+  }
+}
+
+// "Furnace.Idle" -> Some("Idle"); "Furnace.temperature" -> None
+let qualifiedCtor = (name: string): option<string> =>
+  switch name->String.lastIndexOf(".") {
+  | -1 => None
+  | i =>
+    let last = name->String.sliceToEnd(~start=i + 1)
+    let c = String.charAt(last, 0)
+    c >= "A" && c <= "Z" ? Some(last) : None
+  }
+
 let rec isPure = (env: env, e: expr): bool => {
   let go = isPure(env, ...)
   switch e.desc {
@@ -377,7 +418,12 @@ let rec isPure = (env: env, e: expr): bool => {
   | Call(name, args) =>
     switch env->Belt.Map.String.get(name) {
     | Some(_) => false
-    | None => pureBuiltins->Array.includes(normalizeBuiltin(name)) && args->Array.every(go)
+    | None =>
+      switch accessor(name) {
+      | Some((_, _, false)) => args->Array.every(go)
+      | Some((_, _, true)) => false
+      | None => pureBuiltins->Array.includes(normalizeBuiltin(name)) && args->Array.every(go)
+      }
     }
   | If(_, _, None)
   | Block(_)
@@ -408,7 +454,11 @@ let rec gen = (ctx, env: env, e: expr, ~want: bool): value => {
   | Bool(b) => VScalar(Num(b ? 1. : 0.), KInt)
   | String(s) => VString(s)
   | Unit => VUnit
-  | Ident(name) => lookup(env, name, e.loc)
+  | Ident(name) =>
+    switch (env->Belt.Map.String.get(name), qualifiedCtor(name)) {
+    | (None, Some(ctor)) => genConstructor(ctx, env, ctor, [], e.loc)
+    | _ => lookup(env, name, e.loc)
+    }
   | Constructor(name, args) => genConstructor(ctx, env, name, args, e.loc)
   | Unary(op, a) => genUnary(ctx, env, op, a, e.loc)
   | Binary(And | Or, _, _) => genLogicalValue(ctx, env, e)
@@ -943,23 +993,72 @@ and genCondValue = (ctx, env, c: expr): value =>
   }
 
 and genBlock = (ctx, env, stmts: array<stmt>, ~want, ~topLevel): value => {
+  let (v, _, _) = genStmts(ctx, env, stmts, ~want, ~topLevel, ~prefix="")
+  v
+}
+
+// Returns the block's value, the environment after it and the names it bound.
+// `prefix` ("Furnace.") qualifies function and define names declared inside a module.
+and genStmts = (ctx, env, stmts: array<stmt>, ~want, ~topLevel, ~prefix): (
+  value,
+  env,
+  array<string>,
+) => {
+  let fn = "genStmts"
   let envRef = ref(env)
+  let bound = []
+  let bind = (name, v) => {
+    envRef := envRef.contents->Belt.Map.String.set(name, v)
+    if !(bound->Array.includes(name)) {
+      bound->Array.push(name)
+    }
+  }
   let last = ref(VUnit)
   let n = Array.length(stmts)
   stmts->Array.forEachWithIndex((s, i) => {
     let isLast = i == n - 1
     switch s {
     | Let(name, valueExpr, loc) =>
-      let v = genLet(ctx, envRef.contents, name, valueExpr, loc, ~topLevel)
-      envRef := envRef.contents->Belt.Map.String.set(name, v)
+      bind(name, genLet(ctx, envRef.contents, name, valueExpr, loc, ~topLevel, ~prefix))
       last := VUnit
     | TypeDecl(name, ctors, loc) =>
       registerType(ctx, name, ctors, loc)
       last := VUnit
+    | Module(name, inner, _) =>
+      let (_, innerEnv, names) = genStmts(
+        ctx,
+        envRef.contents,
+        inner,
+        ~want=false,
+        ~topLevel,
+        ~prefix=prefix ++ name ++ ".",
+      )
+      names->Array.forEach(n =>
+        switch innerEnv->Belt.Map.String.get(n) {
+        | Some(v) => bind(name ++ "." ++ n, v)
+        | None => ()
+        }
+      )
+      last := VUnit
+    | Open(name, loc) =>
+      if name != "IC10" {
+        let p = name ++ "."
+        let found = ref(false)
+        envRef.contents->Belt.Map.String.forEach((k, v) =>
+          if k->String.startsWith(p) {
+            found := true
+            bind(k->String.sliceToEnd(~start=String.length(p)), v)
+          }
+        )
+        if !found.contents {
+          fail(~fn, ~loc, `unknown module '${name}'`)
+        }
+      }
+      last := VUnit
     | Expr(e) => last := gen(ctx, envRef.contents, e, ~want=want && isLast)
     }
   })
-  last.contents
+  (last.contents, envRef.contents, bound)
 }
 
 and registerType = (ctx, name, ctors: array<ctorDecl>, loc) => {
@@ -985,24 +1084,27 @@ and registerType = (ctx, name, ctors: array<ctorDecl>, loc) => {
   }
 }
 
-and genLet = (ctx, env, name, valueExpr: expr, loc, ~topLevel): value => {
-  let canDefine = topLevel && !isRegisterLike(name) && ctx.defines->Dict.get(name) == None
+and genLet = (ctx, env, name, valueExpr: expr, loc, ~topLevel, ~prefix): value => {
+  // defines and aliases inside modules carry the module path: Furnace_limit
+  let defName = (prefix ++ name)->String.replaceAll(".", "_")
+  let canDefine = topLevel && !isRegisterLike(defName) && ctx.defines->Dict.get(defName) == None
   switch valueExpr.desc {
-  | Fun(params, body) => VFun({fname: name, params, body, env, floc: loc, compiled: None})
+  | Fun(params, body) =>
+    VFun({fname: prefix ++ name, params, body, env, floc: loc, compiled: None})
   | Number(n, isFloat) if canDefine =>
-    ctx.defines->Dict.set(name, true)
-    ctx.defs->Array.push(DefNum(name, n))
-    VScalar(Name(name), isFloat ? KFloat : KInt)
+    ctx.defines->Dict.set(defName, true)
+    ctx.defs->Array.push(DefNum(defName, n))
+    VScalar(Name(defName), isFloat ? KFloat : KInt)
   // `let furnace = device("d0")` / `let furnace = d0` with --alias
   | Call("device", [{desc: String(("d0" | "d1" | "d2" | "d3" | "d4" | "d5" | "db") as pin)}])
   | Ident(("d0" | "d1" | "d2" | "d3" | "d4" | "d5" | "db") as pin) if ctx.aliases && canDefine =>
-    ctx.defines->Dict.set(name, true)
-    ctx.defs->Array.push(Native("alias", None, [ATok(name), ADev(pin)], true))
-    VDevice(Pin(name))
+    ctx.defines->Dict.set(defName, true)
+    ctx.defs->Array.push(Native("alias", None, [ATok(defName), ADev(pin)], true))
+    VDevice(Pin(defName))
   | Call("hash", [{desc: String(s)}]) if canDefine =>
-    ctx.defines->Dict.set(name, true)
-    ctx.defs->Array.push(DefHash(name, s))
-    VScalar(Name(name), KInt)
+    ctx.defines->Dict.set(defName, true)
+    ctx.defs->Array.push(DefHash(defName, s))
+    VScalar(Name(defName), KInt)
   | _ =>
     let v = gen(ctx, env, valueExpr, ~want=true)
     switch v {
@@ -1214,9 +1316,28 @@ and genCall = (ctx, env, name, args: array<expr>, loc, ~want): value => {
     | Some(VFun(info)) => callUser(ctx, env, info, args, loc, ~want)
     | Some(other) => fail(~fn, ~loc, `'${name}' is ${describeValue(other)}, not a function`)
     | None =>
-      switch genBuiltin(ctx, env, normalizeBuiltin(name), args, loc) {
-      | Some(v) => v
-      | None => fail(~fn, ~loc, `unknown function '${name}'`)
+      switch (accessor(name), qualifiedCtor(name)) {
+      | (Some((op, logicType, isSet)), _) =>
+        // Logic.x(d) -> l(d, "X"); Logic.setX(d, v) -> s(d, "X", v); Slot.x(d, i) -> ls(d, i, "X")
+        let str = {desc: String(logicType), loc}
+        let rewritten = switch (op, isSet, args) {
+        | ("l", false, [d]) => Some([d, str])
+        | ("s", true, [d, v]) => Some([d, str, v])
+        | ("ls", false, [d, i]) => Some([d, i, str])
+        | ("ss", true, [d, i, v]) => Some([d, i, str, v])
+        | _ => None
+        }
+        switch rewritten {
+        | Some(a) => genBuiltin(ctx, env, op, a, loc)->Option.getOrThrow
+        | None =>
+          fail(~fn, ~loc, `${name}() got ${Int.toString(Array.length(args))} argument(s)`)
+        }
+      | (None, Some(ctor)) => genConstructor(ctx, env, ctor, args, loc)
+      | (None, None) =>
+        switch genBuiltin(ctx, env, normalizeBuiltin(name), args, loc) {
+        | Some(v) => v
+        | None => fail(~fn, ~loc, `unknown function '${name}'`)
+        }
       }
     }
   }
@@ -1338,6 +1459,7 @@ and callUser = (ctx, env, info: funInfo, args: array<expr>, loc, ~want): value =
 }
 
 and functionLabel = (ctx, name: string): string => {
+  let name = name->String.replaceAll(".", "_")
   let base = if isRegisterLike(name) || ctx.defines->Dict.get(name) != None {
     "fn_" ++ name
   } else {
@@ -1494,6 +1616,14 @@ and genBuiltin = (ctx, env, name: string, allArgs: array<expr>, loc): option<val
     t
   }
   let dst = () => newVReg(ctx)
+  let inRegister = (o: IR.operand): IR.operand =>
+    switch o {
+    | VReg(_) => o
+    | _ =>
+      let r = dst()
+      emit(ctx, Move(r, o))
+      VReg(r)
+    }
   let native = (op, ~out, ~effects, nargs) => {
     let d = out ? Some(dst()) : None
     emit(ctx, Native(op, d, nargs, effects))
@@ -1526,6 +1656,26 @@ and genBuiltin = (ctx, env, name: string, allArgs: array<expr>, loc): option<val
     | _ =>
       fail(~fn, ~loc, `device() expects "d0".."d5" or "db"`)
     }
+  | "batch" =>
+    expectArgs(1)
+    Some(VDevice(Batch(argScalar(0))))
+  | "named" =>
+    expectArgs(2)
+    let h = argScalar(0)
+    let n = argScalar(1)
+    Some(VDevice(BatchNamed(h, n)))
+  | "lm" =>
+    expectArgs(3)
+    let d = argDevice(0)
+    let prop = argToken(1)
+    let mode = argToken(2)
+    switch d {
+    | Pin(_) => fail(~fn, ~loc, "lm() reads batch devices; for a pin use l()")
+    | Batch(_) | BatchNamed(_) =>
+      let r = dst()
+      emit(ctx, DeviceLoad(r, d, prop, Some(mode)))
+      Some(VScalar(VReg(r), KFloat))
+    }
   | "hash" =>
     expectArgs(1)
     switch arg(0).desc {
@@ -1537,7 +1687,12 @@ and genBuiltin = (ctx, env, name: string, allArgs: array<expr>, loc): option<val
     let d = argDevice(0)
     let prop = argToken(1)
     let r = dst()
-    emit(ctx, DeviceLoad(r, d, prop, None))
+    // a batch device reads the Maximum over the network; lm() picks another mode
+    let mode = switch d {
+    | Pin(_) => None
+    | Batch(_) | BatchNamed(_) => Some("Maximum")
+    }
+    emit(ctx, DeviceLoad(r, d, prop, mode))
     Some(VScalar(VReg(r), KFloat))
   | "s" =>
     expectArgs(3)
@@ -1585,11 +1740,12 @@ and genBuiltin = (ctx, env, name: string, allArgs: array<expr>, loc): option<val
     let prop = argToken(2)
     Some(native("ls", ~out=true, ~effects=false, [ADev(p), AOp(slot), ATok(prop)]))
   | "ss" =>
+    // the game only accepts a register as the value of ss
     expectArgs(4)
     let p = argPin(0)
     let slot = argScalar(1)
     let prop = argToken(2)
-    let v = argScalar(3)
+    let v = inRegister(argScalar(3))
     Some(native("ss", ~out=false, ~effects=true, [ADev(p), AOp(slot), ATok(prop), AOp(v)]))
   | "lbs" =>
     expectArgs(4)
@@ -1618,7 +1774,7 @@ and genBuiltin = (ctx, env, name: string, allArgs: array<expr>, loc): option<val
     let h = argScalar(0)
     let slot = argScalar(1)
     let prop = argToken(2)
-    let v = argScalar(3)
+    let v = inRegister(argScalar(3)) // the game only accepts a register here
     Some(native("sbs", ~out=false, ~effects=true, [AOp(h), AOp(slot), ATok(prop), AOp(v)]))
   | "lr" =>
     expectArgs(3)

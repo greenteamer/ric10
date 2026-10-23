@@ -169,8 +169,20 @@ and parsePatternAtom = (p): pattern => {
       PNumber(-.n)
     | other => fail(p, ~fn, `expected a number after '-' but found ${describe(other)}`)
     }
-  | UIdent(name) =>
+  | UIdent(first) =>
     bump(p)
+    // Module.Ctor: only the last segment names the constructor
+    let name = ref(first)
+    while isOp(p, ".") {
+      switch peekAt(p, 1).tok {
+      | UIdent(n) =>
+        bump(p)
+        bump(p)
+        name := n
+      | other => fail(p, ~fn, `expected a constructor after '.' but found ${describe(other)}`)
+      }
+    }
+    let name = name.contents
     if isOp(p, "(") && !cur(p).nl {
       bump(p)
       let args = [parsePattern(p)]
@@ -704,6 +716,21 @@ and parseBlock = (p): expr => {
   mk(Block(stmts), l)
 }
 
+// Dotted module path after its first segment: Furnace.Sensors
+and parseModulePath = (p, ~fn, first: string): string => {
+  let name = ref(first)
+  while isOp(p, ".") {
+    switch peekAt(p, 1).tok {
+    | UIdent(n) =>
+      bump(p)
+      bump(p)
+      name := name.contents ++ "." ++ n
+    | other => fail(p, ~fn, `expected a module name after '.' but found ${describe(other)}`)
+    }
+  }
+  name.contents
+}
+
 and parseTypeDecl = (p): option<stmt> => {
   let fn = "parseTypeDecl"
   let l = loc(p)
@@ -793,16 +820,46 @@ and parseStatement = (p): stmt => {
     | None => Expr(mk(Unit, l))
     }
   | Keyword("open") =>
-    // `open IC10` is accepted and ignored: bindings are always in scope
     bump(p)
     switch tok(p) {
-    | UIdent(_) =>
+    | UIdent(first) =>
       bump(p)
-      let _ = parseQualifiedName(p, ~fn, "")
-      Expr(mk(Unit, l))
+      Open(parseModulePath(p, ~fn, first), l)
     | other => fail(p, ~fn, `expected a module name after 'open' but found ${describe(other)}`)
     }
-  | Keyword("module") => fail(p, ~fn, "modules are not supported")
+  | Keyword("module") =>
+    bump(p)
+    if isKeyword(p, "type") {
+      fail(p, ~fn, "module types are not supported")
+    }
+    let name = switch tok(p) {
+    | UIdent(n) =>
+      bump(p)
+      n
+    | other => fail(p, ~fn, `expected a module name but found ${describe(other)}`)
+    }
+    if isOp(p, "(") || isOp(p, ":") {
+      fail(p, ~fn, "functors and module signatures are not supported", ~hint="use a plain module Name = { ... }")
+    }
+    expectOp(p, ~fn, "=")
+    switch tok(p) {
+    | Op("(") =>
+      fail(p, ~fn, "functors are not supported", ~hint="use a plain module Name = { ... }")
+    | Op("{") =>
+      bump(p)
+      let stmts = []
+      skipSemis(p)
+      while !isOp(p, "}") {
+        if tok(p) == EOF {
+          fail(p, ~fn, `expected '}' closing module ${name}`)
+        }
+        stmts->Array.push(parseStatement(p))
+        skipSemis(p)
+      }
+      expectOp(p, ~fn, "}")
+      Module(name, stmts, l)
+    | _ => fail(p, ~fn, "module aliases (module A = B) are not supported")
+    }
   | Keyword("external") => fail(p, ~fn, "externals are not supported")
   | Keyword("exception") | Keyword("try") => fail(p, ~fn, "exceptions are not supported")
   | Op("@") => fail(p, ~fn, "attributes are not supported")

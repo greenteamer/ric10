@@ -1,0 +1,5 @@
+l r0 d0 Temperature
+while0:
+s db Setting r0
+yield
+j while0

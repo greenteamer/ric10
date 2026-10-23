@@ -55,6 +55,8 @@ and desc =
 and stmt =
   | Let(string, expr, loc)
   | TypeDecl(string, array<ctorDecl>, loc)
+  | Module(string, array<stmt>, loc) // module Name = { ... }
+  | Open(string, loc) // open Name
   | Expr(expr)
 
 and matchCase = {
