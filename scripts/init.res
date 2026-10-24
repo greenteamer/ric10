@@ -107,6 +107,7 @@ let createProject = (projectName: string) => {
   Console.log("  2. npm install")
   Console.log("  3. npm run typecheck    (the ReScript compiler checks your code)")
   Console.log("  4. ric10 src/Example.res")
+  Console.log("     or npm run watch  (recompiles on every save)")
   Console.log("")
   Console.log("Happy coding! 🚀")
 }

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `ric10 watch [dir]`: recompiles `.res` files on save and runs the project's
+  `rescript watch` alongside; `npm run watch` in projects from `ric10 init`.
+
 ## 0.2.0
 
 A rewrite of the compiler core. Programs that compiled before may need small edits

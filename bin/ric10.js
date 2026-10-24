@@ -23,6 +23,8 @@ ric10 - ReScript to IC10 compiler for Stationeers
 Usage:
   ric10 <file.res> [-o out.ic10] [--stdout] [--debug] [--alias]
                                 Compile ReScript to IC10 assembly
+  ric10 watch [dir]             Recompile every .res in dir (default src) on save,
+                                running the project's rescript watch alongside
   ric10 init <project-name>     Create a new IC10 project
   ric10 --help                  Show this help
   ric10 --version               Show version
@@ -30,6 +32,7 @@ Usage:
 Examples:
   ric10 furnace.res
   ric10 furnace.res --stdout
+  ric10 watch
   ric10 init my-ic10-project
   `);
 }

@@ -55,7 +55,13 @@ npx ric10 furnace.res --stdout     # print instead
 npx ric10 furnace.res -o chip.ic10
 npx ric10 furnace.res --debug      # also print the IR
 npx ric10 furnace.res --alias      # alias lines for named devices (labels the screws in game)
+npx ric10 watch                    # while editing: recompile src/*.res on every save
 ```
+
+`ric10 watch [dir]` compiles every `.res` in `dir` (default `src`, `IC10.res` excluded)
+and recompiles a file when it is saved. In a project with a local `rescript` it also
+runs `rescript watch`, so type errors and the editor's LSP stay current
+(`--no-rescript` turns that off). Projects from `ric10 init` have it as `npm run watch`.
 
 The CLI prints warnings (non-exhaustive switch, more than 128 lines, lines longer than
 90 characters) and the number of lines and registers used.
