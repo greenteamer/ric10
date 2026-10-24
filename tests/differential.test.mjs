@@ -291,11 +291,6 @@ const examples = fs
   .map((f) => ({ file: f, name: "Ex_" + f.replace(/\.res$/, "") }));
 
 const exampleSetups = {
-  Ex_coolant: {
-    devices: { db: {}, d0: { Temperature: 0 }, d1: {} },
-    ticks: 3,
-    inputs: seq(["d0", "Temperature"], [290, 310, 300]),
-  },
   Ex_basic: {
     devices: { d0: { Temperature: 0 }, d1: {}, d2: {} },
     ticks: 6,
