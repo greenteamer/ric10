@@ -76,6 +76,13 @@ Slot.setLock(sensor, 1, true)`;
     expect(asm(`d0->Logic.setOn(1)`)).toBe("s d0 On 1");
   });
 
+  test("accessors whose logic type starts with 'Set' are reads", () => {
+    const p = `s(db, "Setting", d0->Logic.setting +. Logic.settingInput(d0))\nd1->Logic.setSettingOutput(d0->Logic.settingOutput)`;
+    const { devices } = run(p, { devices: { d0: { Setting: 1, SettingInput: 2, SettingOutput: 3 }, d1: {} } });
+    expect(devices.db.Setting).toBe(3);
+    expect(devices.d1.SettingOutput).toBe(3);
+  });
+
   test("arity errors", () => {
     expect(compileError(`let x = Logic.temperature(d0, 1)`)).toMatch(/got 2 argument/);
   });

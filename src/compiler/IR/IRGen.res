@@ -370,7 +370,9 @@ let normalizeBuiltin = (name: string): string =>
 // `Logic.temperature` -> ("l", "Temperature", false), `Slot.setOccupied` -> ("ss", "Occupied", true)
 let accessor = (name: string): option<(string, string, bool)> => {
   let decode = (acc: string, read: string, write: string) => {
-    let (isSet, base) = if acc->String.startsWith("set") && String.length(acc) > 3 {
+    // setX is a setter only when X is capitalised: Logic.setting reads Setting
+    let isUpper = c => c != "" && c == String.toUpperCase(c) && c != String.toLowerCase(c)
+    let (isSet, base) = if acc->String.startsWith("set") && isUpper(String.charAt(acc, 3)) {
       (true, acc->String.sliceToEnd(~start=3))
     } else {
       (false, acc)
