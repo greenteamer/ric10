@@ -1694,8 +1694,7 @@ let packageJson = (projectName: string) =>
     "compile": "ric10 src/Example.res"
   },
   "devDependencies": {
-    "rescript": "^12.1.0",
-    "rescript-ic10-compiler": "^0.2.0"
+    "rescript": "^12.1.0"
   }
 }
 `
@@ -1709,7 +1708,7 @@ Stationeers IC10 scripts written in ReScript and compiled with ric10.
 
     npm install
     npm run typecheck          # the real ReScript compiler checks your program
-    npx ric10 src/Example.res  # writes src/Example.ic10
+    ric10 src/Example.res      # writes src/Example.ic10 (ric10 is installed globally)
 
 Paste the .ic10 file into an IC housing in game.
 
