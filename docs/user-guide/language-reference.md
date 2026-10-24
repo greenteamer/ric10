@@ -207,8 +207,8 @@ Three kinds of device values, all compile-time:
 
 ```rescript
 let sensor = device("d0")                                   // a pin; also d0 .. d5, db
-let tanks = batch(hash("StructureTankSmall"))               // every tank on the network
-let main = named(hash("StructureTankSmall"), hash("Main"))  // tanks named "Main"
+let tanks = batch(Prefab.structureTankSmall)                // every tank on the network
+let main = named(Prefab.structureTankSmall, hash("Main"))   // tanks named "Main"
 ```
 
 `l`/`s` work on all three: on batch devices `l` reads the `Maximum` over the network

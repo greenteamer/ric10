@@ -50,6 +50,9 @@ to type-check against the new bindings (see "Breaking changes").
 - `Logic` and `Slot` accessor modules generated from the game's logic-type list
   (`scripts/gen-bindings.mjs`): `dev->Logic.temperature`, `dev->Logic.setOn(v)`,
   `Slot.occupied(dev, 0)`.
+- `Prefab` module with all 1179 prefab hashes (`Prefab.structureTankSmall` compiles to
+  `HASH("StructureTankSmall")`); data in `tests/fixtures/prefabs.json`, built by
+  `scripts/import-prefabs.mjs`.
 - `ss`/`sbs` write through a register, as the game requires.
 - Diagnostics with line and column, hints, warnings for >128 lines and long lines.
 - CLI: `-o`, `--stdout`, `--debug`, `--alias` (emit `alias name dX` for named devices),

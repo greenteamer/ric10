@@ -534,6 +534,19 @@ and lookup = (env: env, name: string, loc): value =>
   | None =>
     switch name {
     | "d0" | "d1" | "d2" | "d3" | "d4" | "d5" | "db" => VDevice(Pin(name))
+    | _ if name->String.startsWith("Prefab.") || name->String.startsWith("IC10.Prefab.") =>
+      let acc = name->String.sliceToEnd(~start=String.lastIndexOf(name, ".") + 1)
+      switch PrefabTable.table->Dict.get(acc) {
+      | Some(("", h)) => VScalar(Num(h), KInt)
+      | Some((prefab, _)) => VScalar(Hash(prefab), KInt)
+      | None =>
+        fail(
+          ~fn="lookup",
+          ~loc,
+          `unknown prefab '${acc}'`,
+          ~hint="Prefab names are the game's prefab names in lowerCamelCase, e.g. Prefab.structureTankSmall",
+        )
+      }
     | "Math.Constants.pi" => VScalar(Num(Math.Constants.pi), KFloat)
     | "Math.Constants.e" => VScalar(Num(Math.Constants.e), KFloat)
     | _ =>

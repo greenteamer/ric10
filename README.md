@@ -14,7 +14,7 @@ module Room = {
   let sensor = device("d0")
   let heater = device("d1")
   let vent = device("d2")
-  let tanks = named(hash("StructureTankSmall"), hash("Buffer"))
+  let tanks = named(Prefab.structureTankSmall, hash("Buffer"))
 }
 
 let state = ref(Idle)
@@ -81,7 +81,8 @@ A subset of ReScript 12, all of it valid ReScript:
 - `module Name = { ... }` namespaces and `open`; devices as values: `device("d0")`,
   `batch(prefab)`, `named(prefab, name)`
 - typed accessors generated from the game's logic types: `dev->Logic.temperature`,
-  `dev->Logic.setOn(true)`, `Slot.occupied(dev, 0)`
+  `dev->Logic.setOn(true)`, `Slot.occupied(dev, 0)`; prefab hashes as
+  `Prefab.structureTankSmall` (all 1179 prefabs)
 - variants with payloads, `switch` with or-patterns, guards, literal and wildcard patterns
 - IC10 bindings: `l`, `s`, `ls`, `ss`, `lb`, `lbn`, `sb`, `sbn`, `lbs`, `lbns`, `sbs`,
   `hash`, `isSet`, `yield`, `sleep`, `hcf`, stack (`push`, `pop`, `peek`, `get`, `put`,

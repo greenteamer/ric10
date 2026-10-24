@@ -46,6 +46,21 @@ a literal is written.
 The compiler recognizes them by name, so they cost nothing. Regenerate after updating the
 table: `node scripts/gen-bindings.mjs`.
 
+## Prefab hashes
+
+`module Prefab` lists every prefab of the current game (1179) with its hash, generated from
+`tests/fixtures/prefabs.json`. Names are the game's prefab names in lowerCamelCase, and the
+editor shows the in-game name as a comment:
+
+```rescript
+let tanks = batch(Prefab.structureTankSmall)     // HASH("StructureTankSmall")
+sb(Prefab.structureAdvancedFurnace, "On", 1)
+```
+
+For 44 newer prefabs the prefab name is not known (only the hash and the display name are
+published); their accessor is derived from the display name and compiles to the number.
+`hash("...")` still works for anything, including device names you set in game.
+
 ## Batch operations
 
 `batchMode` is `Average | Sum | Minimum | Maximum`.

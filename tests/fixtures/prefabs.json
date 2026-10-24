@@ -1,0 +1,5904 @@
+{
+ "sources": [
+  "https://github.com/Xandaros/ic10lsp/blob/master/stationpedia.txt (hashes and display names)",
+  "https://github.com/Ryex/ic10emu/blob/develop/stationeers_data/src/database/prefab_map.rs (prefab names, verified by CRC32)"
+ ],
+ "retrieved": "2026-10-24",
+ "prefabs": [
+  {
+   "hash": -1330388999,
+   "name": "AccessCardBlack",
+   "display": "Access Card (Black)"
+  },
+  {
+   "hash": -1411327657,
+   "name": "AccessCardBlue",
+   "display": "Access Card (Blue)"
+  },
+  {
+   "hash": 1412428165,
+   "name": "AccessCardBrown",
+   "display": "Access Card (Brown)"
+  },
+  {
+   "hash": -1339479035,
+   "name": "AccessCardGray",
+   "display": "Access Card (Gray)"
+  },
+  {
+   "hash": -374567952,
+   "name": "AccessCardGreen",
+   "display": "Access Card (Green)"
+  },
+  {
+   "hash": 337035771,
+   "name": "AccessCardKhaki",
+   "display": "Access Card (Khaki)"
+  },
+  {
+   "hash": -332896929,
+   "name": "AccessCardOrange",
+   "display": "Access Card (Orange)"
+  },
+  {
+   "hash": 431317557,
+   "name": "AccessCardPink",
+   "display": "Access Card (Pink)"
+  },
+  {
+   "hash": 459843265,
+   "name": "AccessCardPurple",
+   "display": "Access Card (Purple)"
+  },
+  {
+   "hash": -1713748313,
+   "name": "AccessCardRed",
+   "display": "Access Card (Red)"
+  },
+  {
+   "hash": 2079959157,
+   "name": "AccessCardWhite",
+   "display": "Access Card (White)"
+  },
+  {
+   "hash": 568932536,
+   "name": "AccessCardYellow",
+   "display": "Access Card (Yellow)"
+  },
+  {
+   "hash": 1365789392,
+   "name": "ApplianceChemistryStation",
+   "display": "Chemistry Station"
+  },
+  {
+   "hash": -1683849799,
+   "name": "ApplianceDeskLampLeft",
+   "display": "Appliance Desk Lamp Left"
+  },
+  {
+   "hash": 1174360780,
+   "name": "ApplianceDeskLampRight",
+   "display": "Appliance Desk Lamp Right"
+  },
+  {
+   "hash": -1136173965,
+   "name": "ApplianceMicrowave",
+   "display": "Microwave"
+  },
+  {
+   "hash": -749191906,
+   "name": "AppliancePackagingMachine",
+   "display": "Basic Packaging Machine"
+  },
+  {
+   "hash": -1339716113,
+   "name": "AppliancePaintMixer",
+   "display": "Paint Mixer"
+  },
+  {
+   "hash": -1303038067,
+   "name": "AppliancePlantGeneticAnalyzer",
+   "display": "Plant Genetic Analyzer"
+  },
+  {
+   "hash": -1094868323,
+   "name": "AppliancePlantGeneticSplicer",
+   "display": "Plant Genetic Splicer"
+  },
+  {
+   "hash": 871432335,
+   "name": "AppliancePlantGeneticStabilizer",
+   "display": "Plant Genetic Stabilizer"
+  },
+  {
+   "hash": 1260918085,
+   "name": "ApplianceReagentProcessor",
+   "display": "Reagent Processor"
+  },
+  {
+   "hash": 142831994,
+   "name": "ApplianceSeedTray",
+   "display": "Appliance Seed Tray"
+  },
+  {
+   "hash": 221058307,
+   "name": "AutolathePrinterMod",
+   "display": "Autolathe Printer Mod"
+  },
+  {
+   "hash": 1556756312,
+   "name": null,
+   "display": "Automated Rocket Automation Module"
+  },
+  {
+   "hash": -379394005,
+   "name": null,
+   "display": "Automated Rocket Coupling Module (Down)"
+  },
+  {
+   "hash": 761078460,
+   "name": null,
+   "display": "Automated Rocket Coupling Module (Up)"
+  },
+  {
+   "hash": -1969723301,
+   "name": null,
+   "display": "Automated Rocket Gas Mining Module"
+  },
+  {
+   "hash": 74521920,
+   "name": null,
+   "display": "Automated Rocket Ice Mining Module"
+  },
+  {
+   "hash": -2027419821,
+   "name": null,
+   "display": "Automated Rocket Ore Mining Module"
+  },
+  {
+   "hash": -1446002463,
+   "name": null,
+   "display": "Automated Rocket Salvage Module"
+  },
+  {
+   "hash": 906210602,
+   "name": null,
+   "display": "Automated Rocket Silo Module"
+  },
+  {
+   "hash": -462415758,
+   "name": "Battery_Wireless_cell",
+   "display": "Battery Wireless Cell"
+  },
+  {
+   "hash": -41519077,
+   "name": "Battery_Wireless_cell_Big",
+   "display": "Battery Wireless Cell (Big)"
+  },
+  {
+   "hash": -1634532552,
+   "name": "CartridgeAccessController",
+   "display": "Cartridge (Access Controller)"
+  },
+  {
+   "hash": -1550278665,
+   "name": "CartridgeAtmosAnalyser",
+   "display": "Atmos Analyzer"
+  },
+  {
+   "hash": -932136011,
+   "name": "CartridgeConfiguration",
+   "display": "Configuration"
+  },
+  {
+   "hash": -1462180176,
+   "name": "CartridgeElectronicReader",
+   "display": "eReader"
+  },
+  {
+   "hash": -1957063345,
+   "name": "CartridgeGPS",
+   "display": "GPS"
+  },
+  {
+   "hash": 872720793,
+   "name": "CartridgeGuide",
+   "display": "Guide"
+  },
+  {
+   "hash": -1116110181,
+   "name": "CartridgeMedicalAnalyser",
+   "display": "Medical Analyzer"
+  },
+  {
+   "hash": 1606989119,
+   "name": "CartridgeNetworkAnalyser",
+   "display": "Network Analyzer"
+  },
+  {
+   "hash": -1768732546,
+   "name": "CartridgeOreScanner",
+   "display": "Ore Scanner"
+  },
+  {
+   "hash": 1738236580,
+   "name": "CartridgeOreScannerColor",
+   "display": "Ore Scanner (Color)"
+  },
+  {
+   "hash": 1101328282,
+   "name": "CartridgePlantAnalyser",
+   "display": "Cartridge Plant Analyser"
+  },
+  {
+   "hash": 81488783,
+   "name": "CartridgeTracker",
+   "display": "Tracker"
+  },
+  {
+   "hash": 1633663176,
+   "name": "CircuitboardAdvAirlockControl",
+   "display": "Advanced Airlock"
+  },
+  {
+   "hash": 1618019559,
+   "name": "CircuitboardAirControl",
+   "display": "Air Control"
+  },
+  {
+   "hash": 912176135,
+   "name": "CircuitboardAirlockControl",
+   "display": "Airlock"
+  },
+  {
+   "hash": -412104504,
+   "name": "CircuitboardCameraDisplay",
+   "display": "Camera Display"
+  },
+  {
+   "hash": 855694771,
+   "name": "CircuitboardDoorControl",
+   "display": "Door Control"
+  },
+  {
+   "hash": -82343730,
+   "name": "CircuitboardGasDisplay",
+   "display": "Gas Display"
+  },
+  {
+   "hash": 1344368806,
+   "name": "CircuitboardGraphDisplay",
+   "display": "Graph Display"
+  },
+  {
+   "hash": 1633074601,
+   "name": "CircuitboardHashDisplay",
+   "display": "Hash Display"
+  },
+  {
+   "hash": -1134148135,
+   "name": "CircuitboardModeControl",
+   "display": "Mode Control"
+  },
+  {
+   "hash": -1923778429,
+   "name": "CircuitboardPowerControl",
+   "display": "Power Control"
+  },
+  {
+   "hash": -2044446819,
+   "name": "CircuitboardShipDisplay",
+   "display": "Ship Display"
+  },
+  {
+   "hash": 2020180320,
+   "name": "CircuitboardSolarControl",
+   "display": "Solar Control"
+  },
+  {
+   "hash": 1228794916,
+   "name": "CompositeRollCover",
+   "display": "Composite Roll Cover"
+  },
+  {
+   "hash": 8709219,
+   "name": "CrateMkII",
+   "display": "Crate Mk II"
+  },
+  {
+   "hash": -44928532,
+   "name": null,
+   "display": "Creative RTG"
+  },
+  {
+   "hash": 1531087544,
+   "name": "DecayedFood",
+   "display": "Decayed Food"
+  },
+  {
+   "hash": -1844430312,
+   "name": "DeviceLfoVolume",
+   "display": "Low frequency oscillator"
+  },
+  {
+   "hash": 1762696475,
+   "name": "DeviceStepUnit",
+   "display": "Device Step Unit"
+  },
+  {
+   "hash": 519913639,
+   "name": "DynamicAirConditioner",
+   "display": "Portable Air Conditioner"
+  },
+  {
+   "hash": 1941079206,
+   "name": "DynamicCrate",
+   "display": "Dynamic Crate"
+  },
+  {
+   "hash": -1713611165,
+   "name": "DynamicGasCanisterAir",
+   "display": "Portable Gas Tank (Air)"
+  },
+  {
+   "hash": -322413931,
+   "name": "DynamicGasCanisterCarbonDioxide",
+   "display": "Portable Gas Tank (CO2)"
+  },
+  {
+   "hash": -1741267161,
+   "name": "DynamicGasCanisterEmpty",
+   "display": "Portable Gas Tank"
+  },
+  {
+   "hash": -817051527,
+   "name": "DynamicGasCanisterFuel",
+   "display": "Portable Gas Tank (Fuel)"
+  },
+  {
+   "hash": 121951301,
+   "name": "DynamicGasCanisterNitrogen",
+   "display": "Portable Gas Tank (Nitrogen)"
+  },
+  {
+   "hash": 30727200,
+   "name": "DynamicGasCanisterNitrousOxide",
+   "display": "Portable Gas Tank (Nitrous Oxide)"
+  },
+  {
+   "hash": 1360925836,
+   "name": "DynamicGasCanisterOxygen",
+   "display": "Portable Gas Tank (Oxygen)"
+  },
+  {
+   "hash": 396065382,
+   "name": "DynamicGasCanisterPollutants",
+   "display": "Portable Gas Tank (Pollutants)"
+  },
+  {
+   "hash": -8883951,
+   "name": "DynamicGasCanisterRocketFuel",
+   "display": "Dynamic Gas Canister Rocket Fuel"
+  },
+  {
+   "hash": 108086870,
+   "name": "DynamicGasCanisterVolatiles",
+   "display": "Portable Gas Tank (Volatiles)"
+  },
+  {
+   "hash": 197293625,
+   "name": "DynamicGasCanisterWater",
+   "display": "Portable Liquid Tank (Water)"
+  },
+  {
+   "hash": -386375420,
+   "name": "DynamicGasTankAdvanced",
+   "display": "Gas Tank Mk II"
+  },
+  {
+   "hash": -1264455519,
+   "name": "DynamicGasTankAdvancedOxygen",
+   "display": "Portable Gas Tank Mk II (Oxygen)"
+  },
+  {
+   "hash": -82087220,
+   "name": "DynamicGenerator",
+   "display": "Portable Generator"
+  },
+  {
+   "hash": -2085885850,
+   "name": "DynamicGPR",
+   "display": "Ground Penetrating Radar (GPR)"
+  },
+  {
+   "hash": 587726607,
+   "name": "DynamicHydroponics",
+   "display": "Portable Hydroponics"
+  },
+  {
+   "hash": -21970188,
+   "name": "DynamicLight",
+   "display": "Portable Light"
+  },
+  {
+   "hash": -1939209112,
+   "name": "DynamicLiquidCanisterEmpty",
+   "display": "Portable Liquid Tank"
+  },
+  {
+   "hash": 2130739600,
+   "name": "DynamicMKIILiquidCanisterEmpty",
+   "display": "Portable Liquid Tank Mk II"
+  },
+  {
+   "hash": -319510386,
+   "name": "DynamicMKIILiquidCanisterWater",
+   "display": "Portable Liquid Tank Mk II (Water)"
+  },
+  {
+   "hash": 755048589,
+   "name": "DynamicScrubber",
+   "display": "Portable Air Scrubber"
+  },
+  {
+   "hash": 106953348,
+   "name": "DynamicSkeleton",
+   "display": "Skeleton"
+  },
+  {
+   "hash": -311170652,
+   "name": "ElectronicPrinterMod",
+   "display": "Electronic Printer Mod"
+  },
+  {
+   "hash": -110788403,
+   "name": "ElevatorCarrage",
+   "display": "Elevator"
+  },
+  {
+   "hash": 1730165908,
+   "name": "EntityChick",
+   "display": "Entity Chick"
+  },
+  {
+   "hash": 334097180,
+   "name": "EntityChickenBrown",
+   "display": "Entity Chicken Brown"
+  },
+  {
+   "hash": 1010807532,
+   "name": "EntityChickenWhite",
+   "display": "Entity Chicken White"
+  },
+  {
+   "hash": 966959649,
+   "name": "EntityRoosterBlack",
+   "display": "Entity Rooster Black"
+  },
+  {
+   "hash": -583103395,
+   "name": "EntityRoosterBrown",
+   "display": "Entity Rooster Brown"
+  },
+  {
+   "hash": 1517856652,
+   "name": "Fertilizer",
+   "display": "Fertilizer"
+  },
+  {
+   "hash": -86315541,
+   "name": "FireArmSMG",
+   "display": "Fire Arm SMG"
+  },
+  {
+   "hash": 1845441951,
+   "name": "Flag_ODA_10m",
+   "display": "Flag (ODA 10m)"
+  },
+  {
+   "hash": 1159126354,
+   "name": "Flag_ODA_4m",
+   "display": "Flag (ODA 4m)"
+  },
+  {
+   "hash": 1998634960,
+   "name": "Flag_ODA_6m",
+   "display": "Flag (ODA 6m)"
+  },
+  {
+   "hash": -375156130,
+   "name": "Flag_ODA_8m",
+   "display": "Flag (ODA 8m)"
+  },
+  {
+   "hash": 1840108251,
+   "name": "H2Combustor",
+   "display": "H2 Combustor"
+  },
+  {
+   "hash": 247238062,
+   "name": "Handgun",
+   "display": "Handgun"
+  },
+  {
+   "hash": 1254383185,
+   "name": "HandgunMagazine",
+   "display": "Handgun Magazine"
+  },
+  {
+   "hash": -857713709,
+   "name": "HumanSkull",
+   "display": "Human Skull"
+  },
+  {
+   "hash": -73796547,
+   "name": "ImGuiCircuitboardAirlockControl",
+   "display": "Airlock (Experimental)"
+  },
+  {
+   "hash": -916909854,
+   "name": "InsulatedLiquidPipeStraight",
+   "display": "Insulated Liquid Pipe Straight"
+  },
+  {
+   "hash": -842048328,
+   "name": "ItemActiveVent",
+   "display": "Kit (Active Vent)"
+  },
+  {
+   "hash": 1722785341,
+   "name": "ItemAdvancedTablet",
+   "display": "Advanced Tablet"
+  },
+  {
+   "hash": 176446172,
+   "name": "ItemAlienMushroom",
+   "display": "Alien Mushroom"
+  },
+  {
+   "hash": -9559091,
+   "name": "ItemAmmoBox",
+   "display": "Ammo Box"
+  },
+  {
+   "hash": 201215010,
+   "name": "ItemAngleGrinder",
+   "display": "Angle Grinder"
+  },
+  {
+   "hash": 1385062886,
+   "name": "ItemArcWelder",
+   "display": "Arc Welder"
+  },
+  {
+   "hash": 1757673317,
+   "name": "ItemAreaPowerControl",
+   "display": "Kit (Power Controller)"
+  },
+  {
+   "hash": 412924554,
+   "name": "ItemAstroloyIngot",
+   "display": "Ingot (Astroloy)"
+  },
+  {
+   "hash": -1662476145,
+   "name": "ItemAstroloySheets",
+   "display": "Astroloy Sheets"
+  },
+  {
+   "hash": 789015045,
+   "name": "ItemAuthoringTool",
+   "display": "Authoring Tool"
+  },
+  {
+   "hash": -1731627004,
+   "name": "ItemAuthoringToolRocketNetwork",
+   "display": "<N:EN:ItemAuthoringToolRocketNetwork>"
+  },
+  {
+   "hash": -1262580790,
+   "name": "ItemBasketBall",
+   "display": "Basket Ball"
+  },
+  {
+   "hash": 700133157,
+   "name": "ItemBatteryCell",
+   "display": "Battery Cell (Small)"
+  },
+  {
+   "hash": -459827268,
+   "name": "ItemBatteryCellLarge",
+   "display": "Battery Cell (Large)"
+  },
+  {
+   "hash": 544617306,
+   "name": "ItemBatteryCellNuclear",
+   "display": "Battery Cell (Nuclear)"
+  },
+  {
+   "hash": -1866880307,
+   "name": "ItemBatteryCharger",
+   "display": "Kit (Battery Charger)"
+  },
+  {
+   "hash": 1008295833,
+   "name": "ItemBatteryChargerSmall",
+   "display": "Battery Charger Small"
+  },
+  {
+   "hash": -869869491,
+   "name": "ItemBeacon",
+   "display": "Tracking Beacon"
+  },
+  {
+   "hash": -831480639,
+   "name": "ItemBiomass",
+   "display": "Biomass"
+  },
+  {
+   "hash": 893514943,
+   "name": "ItemBreadLoaf",
+   "display": "Bread Loaf"
+  },
+  {
+   "hash": -1792787349,
+   "name": "ItemCableAnalyser",
+   "display": "Kit (Cable Analyzer)"
+  },
+  {
+   "hash": -466050668,
+   "name": "ItemCableCoil",
+   "display": "Cable Coil"
+  },
+  {
+   "hash": 2060134443,
+   "name": "ItemCableCoilHeavy",
+   "display": "Cable Coil (Heavy)"
+  },
+  {
+   "hash": 195442047,
+   "name": "ItemCableFuse",
+   "display": "Kit (Cable Fuses)"
+  },
+  {
+   "hash": -2104175091,
+   "name": "ItemCannedCondensedMilk",
+   "display": "Canned Condensed Milk"
+  },
+  {
+   "hash": -999714082,
+   "name": "ItemCannedEdamame",
+   "display": "Canned Edamame"
+  },
+  {
+   "hash": 1161510063,
+   "name": "ItemCannedPowderedEggs",
+   "display": "Canned Powdered Eggs"
+  },
+  {
+   "hash": -1185552595,
+   "name": "ItemCannedRicePudding",
+   "display": "Canned Rice Pudding"
+  },
+  {
+   "hash": 791746840,
+   "name": "ItemCerealBar",
+   "display": "Cereal Bar"
+  },
+  {
+   "hash": 252561409,
+   "name": "ItemCharcoal",
+   "display": "Charcoal"
+  },
+  {
+   "hash": -772542081,
+   "name": "ItemChemLightBlue",
+   "display": "Chem Light (Blue)"
+  },
+  {
+   "hash": -597479390,
+   "name": "ItemChemLightGreen",
+   "display": "Chem Light (Green)"
+  },
+  {
+   "hash": -525810132,
+   "name": "ItemChemLightRed",
+   "display": "Chem Light (Red)"
+  },
+  {
+   "hash": 1312166823,
+   "name": "ItemChemLightWhite",
+   "display": "Chem Light (White)"
+  },
+  {
+   "hash": 1224819963,
+   "name": "ItemChemLightYellow",
+   "display": "Chem Light (Yellow)"
+  },
+  {
+   "hash": 1724793494,
+   "name": "ItemCoalOre",
+   "display": "Ore (Coal)"
+  },
+  {
+   "hash": -983091249,
+   "name": "ItemCobaltOre",
+   "display": "Ore (Cobalt)"
+  },
+  {
+   "hash": 1800622698,
+   "name": "ItemCoffeeMug",
+   "display": "Coffee Mug"
+  },
+  {
+   "hash": 1058547521,
+   "name": "ItemConstantanIngot",
+   "display": "Ingot (Constantan)"
+  },
+  {
+   "hash": 1715917521,
+   "name": "ItemCookedCondensedMilk",
+   "display": "Condensed Milk"
+  },
+  {
+   "hash": 1344773148,
+   "name": "ItemCookedCorn",
+   "display": "Cooked Corn"
+  },
+  {
+   "hash": -1712264413,
+   "name": "ItemCookedPowderedEggs",
+   "display": "Powdered Eggs"
+  },
+  {
+   "hash": 1849281546,
+   "name": "ItemCookedPumpkin",
+   "display": "Cooked Pumpkin"
+  },
+  {
+   "hash": 2013539020,
+   "name": "ItemCookedRice",
+   "display": "Cooked Rice"
+  },
+  {
+   "hash": 1353449022,
+   "name": "ItemCookedSoybean",
+   "display": "Cooked Soybean"
+  },
+  {
+   "hash": -709086714,
+   "name": "ItemCookedTomato",
+   "display": "Cooked Tomato"
+  },
+  {
+   "hash": -404336834,
+   "name": "ItemCopperIngot",
+   "display": "Ingot (Copper)"
+  },
+  {
+   "hash": -707307845,
+   "name": "ItemCopperOre",
+   "display": "Ore (Copper)"
+  },
+  {
+   "hash": 258339687,
+   "name": "ItemCorn",
+   "display": "Corn"
+  },
+  {
+   "hash": 545034114,
+   "name": "ItemCornSoup",
+   "display": "Corn Soup"
+  },
+  {
+   "hash": -1756772618,
+   "name": "ItemCreditCard",
+   "display": "Credit Card"
+  },
+  {
+   "hash": 215486157,
+   "name": "ItemCropHay",
+   "display": "Hay"
+  },
+  {
+   "hash": 856108234,
+   "name": "ItemCrowbar",
+   "display": "Crowbar"
+  },
+  {
+   "hash": 1005843700,
+   "name": "ItemDataDisk",
+   "display": "Data Disk"
+  },
+  {
+   "hash": 902565329,
+   "name": "ItemDirtCanister",
+   "display": "Dirt Canister"
+  },
+  {
+   "hash": -1234745580,
+   "name": "ItemDirtyOre",
+   "display": "Dirty Ore"
+  },
+  {
+   "hash": -2124435700,
+   "name": "ItemDisposableBatteryCharger",
+   "display": "Disposable Battery Charger"
+  },
+  {
+   "hash": 2009673399,
+   "name": "ItemDrill",
+   "display": "Hand Drill"
+  },
+  {
+   "hash": -1943134693,
+   "name": "ItemDuctTape",
+   "display": "Duct Tape"
+  },
+  {
+   "hash": 1072914031,
+   "name": "ItemDynamicAirCon",
+   "display": "Kit (Portable Air Conditioner)"
+  },
+  {
+   "hash": -971920158,
+   "name": "ItemDynamicScrubber",
+   "display": "Kit (Portable Scrubber)"
+  },
+  {
+   "hash": -873909936,
+   "name": "ItemEgg",
+   "display": "Egg"
+  },
+  {
+   "hash": -524289310,
+   "name": "ItemEggCarton",
+   "display": "Egg Carton"
+  },
+  {
+   "hash": 731250882,
+   "name": "ItemElectronicParts",
+   "display": "Electronic Parts"
+  },
+  {
+   "hash": 502280180,
+   "name": "ItemElectrumIngot",
+   "display": "Ingot (Electrum)"
+  },
+  {
+   "hash": -351438780,
+   "name": "ItemEmergencyAngleGrinder",
+   "display": "Emergency Angle Grinder"
+  },
+  {
+   "hash": -1056029600,
+   "name": "ItemEmergencyArcWelder",
+   "display": "Emergency Arc Welder"
+  },
+  {
+   "hash": 976699731,
+   "name": "ItemEmergencyCrowbar",
+   "display": "Emergency Crowbar"
+  },
+  {
+   "hash": -2052458905,
+   "name": "ItemEmergencyDrill",
+   "display": "Emergency Drill"
+  },
+  {
+   "hash": 1791306431,
+   "name": "ItemEmergencyEvaSuit",
+   "display": "Emergency Eva Suit"
+  },
+  {
+   "hash": -1061510408,
+   "name": "ItemEmergencyPickaxe",
+   "display": "Emergency Pickaxe"
+  },
+  {
+   "hash": 266099983,
+   "name": "ItemEmergencyScrewdriver",
+   "display": "Emergency Screwdriver"
+  },
+  {
+   "hash": 205916793,
+   "name": "ItemEmergencySpaceHelmet",
+   "display": "Emergency Space Helmet"
+  },
+  {
+   "hash": 1661941301,
+   "name": "ItemEmergencyToolBelt",
+   "display": "Emergency Tool Belt"
+  },
+  {
+   "hash": 2102803952,
+   "name": "ItemEmergencyWireCutters",
+   "display": "Emergency Wire Cutters"
+  },
+  {
+   "hash": 162553030,
+   "name": "ItemEmergencyWrench",
+   "display": "Emergency Wrench"
+  },
+  {
+   "hash": 1013818348,
+   "name": "ItemEmptyCan",
+   "display": "Empty Can"
+  },
+  {
+   "hash": 1677018918,
+   "name": "ItemEvaSuit",
+   "display": "Eva Suit"
+  },
+  {
+   "hash": 235361649,
+   "name": "ItemExplosive",
+   "display": "Remote Explosive"
+  },
+  {
+   "hash": 892110467,
+   "name": "ItemFern",
+   "display": "Fern"
+  },
+  {
+   "hash": -383972371,
+   "name": "ItemFertilizedEgg",
+   "display": "Fertilized Egg"
+  },
+  {
+   "hash": 266654416,
+   "name": "ItemFilterFern",
+   "display": "Darga Fern"
+  },
+  {
+   "hash": 1578288856,
+   "name": "ItemFireExtinguisher",
+   "display": "Fire Extinguisher"
+  },
+  {
+   "hash": 2011191088,
+   "name": "ItemFlagSmall",
+   "display": "Kit (Small Flag)"
+  },
+  {
+   "hash": -2107840748,
+   "name": "ItemFlashingLight",
+   "display": "Kit (Flashing Light)"
+  },
+  {
+   "hash": -665995854,
+   "name": "ItemFlour",
+   "display": "Flour"
+  },
+  {
+   "hash": -1573623434,
+   "name": "ItemFlowerBlue",
+   "display": "Flower (Blue)"
+  },
+  {
+   "hash": -1513337058,
+   "name": "ItemFlowerGreen",
+   "display": "Flower (Green)"
+  },
+  {
+   "hash": -1411986716,
+   "name": "ItemFlowerOrange",
+   "display": "Flower (Orange)"
+  },
+  {
+   "hash": -81376085,
+   "name": "ItemFlowerRed",
+   "display": "Flower (Red)"
+  },
+  {
+   "hash": 1712822019,
+   "name": "ItemFlowerYellow",
+   "display": "Flower (Yellow)"
+  },
+  {
+   "hash": -57608687,
+   "name": "ItemFrenchFries",
+   "display": "Canned French Fries"
+  },
+  {
+   "hash": 1371786091,
+   "name": "ItemFries",
+   "display": "French Fries"
+  },
+  {
+   "hash": -767685874,
+   "name": "ItemGasCanisterCarbonDioxide",
+   "display": "Canister (CO2)"
+  },
+  {
+   "hash": 42280099,
+   "name": "ItemGasCanisterEmpty",
+   "display": "Canister"
+  },
+  {
+   "hash": -1014695176,
+   "name": "ItemGasCanisterFuel",
+   "display": "Canister (Fuel)"
+  },
+  {
+   "hash": 2145068424,
+   "name": "ItemGasCanisterNitrogen",
+   "display": "Canister (Nitrogen)"
+  },
+  {
+   "hash": -1712153401,
+   "name": "ItemGasCanisterNitrousOxide",
+   "display": "Gas Canister (Sleeping)"
+  },
+  {
+   "hash": -1152261938,
+   "name": "ItemGasCanisterOxygen",
+   "display": "Canister (Oxygen)"
+  },
+  {
+   "hash": -1552586384,
+   "name": "ItemGasCanisterPollutants",
+   "display": "Canister (Pollutants)"
+  },
+  {
+   "hash": -668314371,
+   "name": "ItemGasCanisterSmart",
+   "display": "Gas Canister (Smart)"
+  },
+  {
+   "hash": -472094806,
+   "name": "ItemGasCanisterVolatiles",
+   "display": "Canister (Volatiles)"
+  },
+  {
+   "hash": -1854861891,
+   "name": "ItemGasCanisterWater",
+   "display": "Liquid Canister (Water)"
+  },
+  {
+   "hash": 1635000764,
+   "name": "ItemGasFilterCarbonDioxide",
+   "display": "Filter (Carbon Dioxide)"
+  },
+  {
+   "hash": -185568964,
+   "name": "ItemGasFilterCarbonDioxideInfinite",
+   "display": "Catalytic Filter (Carbon Dioxide)"
+  },
+  {
+   "hash": 1876847024,
+   "name": "ItemGasFilterCarbonDioxideL",
+   "display": "Heavy Filter (Carbon Dioxide)"
+  },
+  {
+   "hash": 416897318,
+   "name": "ItemGasFilterCarbonDioxideM",
+   "display": "Medium Filter (Carbon Dioxide)"
+  },
+  {
+   "hash": 632853248,
+   "name": "ItemGasFilterNitrogen",
+   "display": "Filter (Nitrogen)"
+  },
+  {
+   "hash": 152751131,
+   "name": "ItemGasFilterNitrogenInfinite",
+   "display": "Catalytic Filter (Nitrogen)"
+  },
+  {
+   "hash": -1387439451,
+   "name": "ItemGasFilterNitrogenL",
+   "display": "Heavy Filter (Nitrogen)"
+  },
+  {
+   "hash": -632657357,
+   "name": "ItemGasFilterNitrogenM",
+   "display": "Medium Filter (Nitrogen)"
+  },
+  {
+   "hash": -1247674305,
+   "name": "ItemGasFilterNitrousOxide",
+   "display": "Filter (Nitrous Oxide)"
+  },
+  {
+   "hash": -123934842,
+   "name": "ItemGasFilterNitrousOxideInfinite",
+   "display": "Catalytic Filter (Nitrous Oxide)"
+  },
+  {
+   "hash": 465267979,
+   "name": "ItemGasFilterNitrousOxideL",
+   "display": "Heavy Filter (Nitrous Oxide)"
+  },
+  {
+   "hash": 1824284061,
+   "name": "ItemGasFilterNitrousOxideM",
+   "display": "Medium Filter (Nitrous Oxide)"
+  },
+  {
+   "hash": -721824748,
+   "name": "ItemGasFilterOxygen",
+   "display": "Filter (Oxygen)"
+  },
+  {
+   "hash": -1055451111,
+   "name": "ItemGasFilterOxygenInfinite",
+   "display": "Catalytic Filter (Oxygen)"
+  },
+  {
+   "hash": -1217998945,
+   "name": "ItemGasFilterOxygenL",
+   "display": "Heavy Filter (Oxygen)"
+  },
+  {
+   "hash": -1067319543,
+   "name": "ItemGasFilterOxygenM",
+   "display": "Medium Filter (Oxygen)"
+  },
+  {
+   "hash": 1915566057,
+   "name": "ItemGasFilterPollutants",
+   "display": "Filter (Pollutant)"
+  },
+  {
+   "hash": -503738105,
+   "name": "ItemGasFilterPollutantsInfinite",
+   "display": "Catalytic Filter (Pollutants)"
+  },
+  {
+   "hash": 1959564765,
+   "name": "ItemGasFilterPollutantsL",
+   "display": "Heavy Filter (Pollutants)"
+  },
+  {
+   "hash": 63677771,
+   "name": "ItemGasFilterPollutantsM",
+   "display": "Medium Filter (Pollutants)"
+  },
+  {
+   "hash": 15011598,
+   "name": "ItemGasFilterVolatiles",
+   "display": "Filter (Volatiles)"
+  },
+  {
+   "hash": -1916176068,
+   "name": "ItemGasFilterVolatilesInfinite",
+   "display": "Catalytic Filter (Volatiles)"
+  },
+  {
+   "hash": 1255156286,
+   "name": "ItemGasFilterVolatilesL",
+   "display": "Heavy Filter (Volatiles)"
+  },
+  {
+   "hash": 1037507240,
+   "name": "ItemGasFilterVolatilesM",
+   "display": "Medium Filter (Volatiles)"
+  },
+  {
+   "hash": -1993197973,
+   "name": "ItemGasFilterWater",
+   "display": "Filter (Water)"
+  },
+  {
+   "hash": -1678456554,
+   "name": "ItemGasFilterWaterInfinite",
+   "display": "Catalytic Filter (Water)"
+  },
+  {
+   "hash": 2004969680,
+   "name": "ItemGasFilterWaterL",
+   "display": "Heavy Filter (Water)"
+  },
+  {
+   "hash": 8804422,
+   "name": "ItemGasFilterWaterM",
+   "display": "Medium Filter (Water)"
+  },
+  {
+   "hash": 1717593480,
+   "name": "ItemGasSensor",
+   "display": "Kit (Gas Sensor)"
+  },
+  {
+   "hash": -2113012215,
+   "name": "ItemGasTankStorage",
+   "display": "Kit (Canister Storage)"
+  },
+  {
+   "hash": -1068925231,
+   "name": "ItemGlasses",
+   "display": "Glasses"
+  },
+  {
+   "hash": 1588896491,
+   "name": "ItemGlassSheets",
+   "display": "Glass Sheets"
+  },
+  {
+   "hash": 226410516,
+   "name": "ItemGoldIngot",
+   "display": "Ingot (Gold)"
+  },
+  {
+   "hash": -1348105509,
+   "name": "ItemGoldOre",
+   "display": "Ore (Gold)"
+  },
+  {
+   "hash": 1544275894,
+   "name": "ItemGrenade",
+   "display": "Hand Grenade"
+  },
+  {
+   "hash": 374891127,
+   "name": "ItemHardBackpack",
+   "display": "Hardsuit Backpack"
+  },
+  {
+   "hash": -412551656,
+   "name": "ItemHardJetpack",
+   "display": "Hardsuit Jetpack"
+  },
+  {
+   "hash": 900366130,
+   "name": "ItemHardMiningBackPack",
+   "display": "Hard Mining Backpack"
+  },
+  {
+   "hash": -1758310454,
+   "name": "ItemHardSuit",
+   "display": "Hardsuit"
+  },
+  {
+   "hash": -84573099,
+   "name": "ItemHardsuitHelmet",
+   "display": "Hardsuit Helmet"
+  },
+  {
+   "hash": 1579842814,
+   "name": "ItemHastelloyIngot",
+   "display": "Ingot (Hastelloy)"
+  },
+  {
+   "hash": 299189339,
+   "name": "ItemHat",
+   "display": "Hat"
+  },
+  {
+   "hash": 470636008,
+   "name": "ItemHEMDroidRepairKit",
+   "display": "HEMDroid Repair Kit"
+  },
+  {
+   "hash": 998653377,
+   "name": "ItemHighVolumeGasCanisterEmpty",
+   "display": "High Volume Gas Canister"
+  },
+  {
+   "hash": -1193543727,
+   "name": "ItemHydroponicTray",
+   "display": "Kit (Hydroponic Tray)"
+  },
+  {
+   "hash": 1217489948,
+   "name": "ItemIce",
+   "display": "Ice (Water)"
+  },
+  {
+   "hash": 890106742,
+   "name": "ItemIgniter",
+   "display": "Kit (Igniter)"
+  },
+  {
+   "hash": -787796599,
+   "name": "ItemInconelIngot",
+   "display": "Ingot (Inconel)"
+  },
+  {
+   "hash": -299044195,
+   "name": "ItemInsulatedTankConnector",
+   "display": "Insulated (Tank Connector)"
+  },
+  {
+   "hash": 897176943,
+   "name": "ItemInsulation",
+   "display": "Insulation"
+  },
+  {
+   "hash": -744098481,
+   "name": "ItemIntegratedCircuit10",
+   "display": "Integrated Circuit (IC10)"
+  },
+  {
+   "hash": -297990285,
+   "name": "ItemInvarIngot",
+   "display": "Ingot (Invar)"
+  },
+  {
+   "hash": 1225836666,
+   "name": "ItemIronFrames",
+   "display": "Iron Frames"
+  },
+  {
+   "hash": -1301215609,
+   "name": "ItemIronIngot",
+   "display": "Ingot (Iron)"
+  },
+  {
+   "hash": 1758427767,
+   "name": "ItemIronOre",
+   "display": "Ore (Iron)"
+  },
+  {
+   "hash": -487378546,
+   "name": "ItemIronSheets",
+   "display": "Iron Sheets"
+  },
+  {
+   "hash": 1969189000,
+   "name": "ItemJetpackBasic",
+   "display": "Jetpack Basic"
+  },
+  {
+   "hash": -1431998347,
+   "name": "ItemKitAdvancedComposter",
+   "display": "Kit (Advanced Composter)"
+  },
+  {
+   "hash": -616758353,
+   "name": "ItemKitAdvancedFurnace",
+   "display": "Kit (Advanced Furnace)"
+  },
+  {
+   "hash": -598545233,
+   "name": "ItemKitAdvancedPackagingMachine",
+   "display": "Kit (Advanced Packaging Machine)"
+  },
+  {
+   "hash": 496830914,
+   "name": "ItemKitAIMeE",
+   "display": "Kit (AIMeE)"
+  },
+  {
+   "hash": 964043875,
+   "name": "ItemKitAirlock",
+   "display": "Kit (Airlock)"
+  },
+  {
+   "hash": 682546947,
+   "name": "ItemKitAirlockGate",
+   "display": "Kit (Hangar Door)"
+  },
+  {
+   "hash": -98995857,
+   "name": "ItemKitArcFurnace",
+   "display": "Kit (Arc Furnace)"
+  },
+  {
+   "hash": 1222286371,
+   "name": "ItemKitAtmospherics",
+   "display": "Kit (Atmospherics)"
+  },
+  {
+   "hash": -1753893214,
+   "name": "ItemKitAutolathe",
+   "display": "Kit (Autolathe)"
+  },
+  {
+   "hash": -1931958659,
+   "name": "ItemKitAutomatedOven",
+   "display": "Kit (Automated Oven)"
+  },
+  {
+   "hash": 1668815415,
+   "name": "ItemKitAutoMinerSmall",
+   "display": "Kit (Autominer Small)"
+  },
+  {
+   "hash": 148305004,
+   "name": "ItemKitBasket",
+   "display": "Kit (Basket)"
+  },
+  {
+   "hash": 1406656973,
+   "name": "ItemKitBattery",
+   "display": "Kit (Battery)"
+  },
+  {
+   "hash": -21225041,
+   "name": "ItemKitBatteryLarge",
+   "display": "Kit (Battery Large)"
+  },
+  {
+   "hash": 249073136,
+   "name": "ItemKitBeacon",
+   "display": "Kit (Beacon)"
+  },
+  {
+   "hash": -1241256797,
+   "name": "ItemKitBeds",
+   "display": "Kit (Beds)"
+  },
+  {
+   "hash": -1755116240,
+   "name": "ItemKitBlastDoor",
+   "display": "Kit (Blast Door)"
+  },
+  {
+   "hash": 578182956,
+   "name": "ItemKitCentrifuge",
+   "display": "Kit (Centrifuge)"
+  },
+  {
+   "hash": -1394008073,
+   "name": "ItemKitChairs",
+   "display": "Kit (Chairs)"
+  },
+  {
+   "hash": 1025254665,
+   "name": "ItemKitChute",
+   "display": "Kit (Basic Chutes)"
+  },
+  {
+   "hash": -1470820996,
+   "name": "ItemKitCompositeCladding",
+   "display": "Kit (Cladding)"
+  },
+  {
+   "hash": 1182412869,
+   "name": "ItemKitCompositeFloorGrating",
+   "display": "Kit (Floor Grating)"
+  },
+  {
+   "hash": 1990225489,
+   "name": "ItemKitComputer",
+   "display": "Kit (Computer)"
+  },
+  {
+   "hash": -1241851179,
+   "name": "ItemKitConsole",
+   "display": "Kit (Consoles)"
+  },
+  {
+   "hash": 429365598,
+   "name": "ItemKitCrate",
+   "display": "Kit (Crate)"
+  },
+  {
+   "hash": -1585956426,
+   "name": "ItemKitCrateMkII",
+   "display": "Kit (Crate Mk II)"
+  },
+  {
+   "hash": -551612946,
+   "name": "ItemKitCrateMount",
+   "display": "Kit (Container Mount)"
+  },
+  {
+   "hash": -545234195,
+   "name": "ItemKitCryoTube",
+   "display": "Kit (Cryo Tube)"
+  },
+  {
+   "hash": -1935075707,
+   "name": "ItemKitDeepMiner",
+   "display": "Kit (Deep Miner)"
+  },
+  {
+   "hash": 77421200,
+   "name": "ItemKitDockingPort",
+   "display": "Kit (Docking Port)"
+  },
+  {
+   "hash": 168615924,
+   "name": "ItemKitDoor",
+   "display": "Kit (Door)"
+  },
+  {
+   "hash": -1061945368,
+   "name": "ItemKitDynamicCanister",
+   "display": "Kit (Portable Gas Tank)"
+  },
+  {
+   "hash": 1533501495,
+   "name": "ItemKitDynamicGasTankAdvanced",
+   "display": "Kit (Portable Gas Tank Mk II)"
+  },
+  {
+   "hash": -732720413,
+   "name": "ItemKitDynamicGenerator",
+   "display": "Kit (Portable Generator)"
+  },
+  {
+   "hash": -1861154222,
+   "name": "ItemKitDynamicHydroponics",
+   "display": "Kit (Portable Hydroponics)"
+  },
+  {
+   "hash": 375541286,
+   "name": "ItemKitDynamicLiquidCanister",
+   "display": "Kit (Portable Liquid Tank)"
+  },
+  {
+   "hash": -638019974,
+   "name": "ItemKitDynamicMKIILiquidCanister",
+   "display": "Kit (Portable Liquid Tank Mk II)"
+  },
+  {
+   "hash": -1181922382,
+   "name": "ItemKitElectronicsPrinter",
+   "display": "Kit (Electronics Printer)"
+  },
+  {
+   "hash": -945806652,
+   "name": "ItemKitElevator",
+   "display": "Kit (Elevator)"
+  },
+  {
+   "hash": 755302726,
+   "name": "ItemKitEngineLarge",
+   "display": "Kit (Engine Large)"
+  },
+  {
+   "hash": 1969312177,
+   "name": "ItemKitEngineMedium",
+   "display": "Kit (Engine Medium)"
+  },
+  {
+   "hash": 19645163,
+   "name": "ItemKitEngineSmall",
+   "display": "Kit (Engine Small)"
+  },
+  {
+   "hash": 1587787610,
+   "name": "ItemKitEvaporationChamber",
+   "display": "Kit (Phase Change Device)"
+  },
+  {
+   "hash": 1701764190,
+   "name": "ItemKitFlagODA",
+   "display": "Kit (ODA Flag)"
+  },
+  {
+   "hash": -1168199498,
+   "name": "ItemKitFridgeBig",
+   "display": "Kit (Fridge Large)"
+  },
+  {
+   "hash": 1661226524,
+   "name": "ItemKitFridgeSmall",
+   "display": "Kit (Fridge Small)"
+  },
+  {
+   "hash": -806743925,
+   "name": "ItemKitFurnace",
+   "display": "Kit (Furnace)"
+  },
+  {
+   "hash": 1162905029,
+   "name": "ItemKitFurniture",
+   "display": "Kit (Furniture)"
+  },
+  {
+   "hash": 377745425,
+   "name": "ItemKitGasGenerator",
+   "display": "Kit (Gas Fuel Generator)"
+  },
+  {
+   "hash": 341030083,
+   "name": "ItemKitGrowLight",
+   "display": "Kit (Grow Light)"
+  },
+  {
+   "hash": -1022693454,
+   "name": "ItemKitHarvie",
+   "display": "Kit (Harvie)"
+  },
+  {
+   "hash": -1710540039,
+   "name": "ItemKitHeatExchanger",
+   "display": "Kit Heat Exchanger"
+  },
+  {
+   "hash": 844391171,
+   "name": "ItemKitHorizontalAutoMiner",
+   "display": "Kit (OGRE)"
+  },
+  {
+   "hash": -2098556089,
+   "name": "ItemKitHydraulicPipeBender",
+   "display": "Kit (Hydraulic Pipe Bender)"
+  },
+  {
+   "hash": -927931558,
+   "name": "ItemKitHydroponicAutomated",
+   "display": "Kit (Automated Hydroponics)"
+  },
+  {
+   "hash": 2057179799,
+   "name": "ItemKitHydroponicStation",
+   "display": "Kit (Hydroponic Station)"
+  },
+  {
+   "hash": 288111533,
+   "name": "ItemKitIceCrusher",
+   "display": "Kit (Ice Crusher)"
+  },
+  {
+   "hash": 2067655311,
+   "name": "ItemKitInsulatedLiquidPipe",
+   "display": "Kit (Insulated Liquid Pipe)"
+  },
+  {
+   "hash": 452636699,
+   "name": "ItemKitInsulatedPipe",
+   "display": "Kit (Insulated Pipe)"
+  },
+  {
+   "hash": 1935945891,
+   "name": "ItemKitInteriorDoors",
+   "display": "Kit (Interior Doors)"
+  },
+  {
+   "hash": 489494578,
+   "name": "ItemKitLadder",
+   "display": "Kit (Ladder)"
+  },
+  {
+   "hash": -1793485995,
+   "name": "ItemKitLandingPad",
+   "display": "Kit (Landing Pad)"
+  },
+  {
+   "hash": 1817007843,
+   "name": "ItemKitLandingPadAtmos",
+   "display": "Kit (Landing Pad Atmospherics)"
+  },
+  {
+   "hash": 293581318,
+   "name": "ItemKitLandingPadBasic",
+   "display": "Kit (Landing Pad Basic)"
+  },
+  {
+   "hash": -1267511065,
+   "name": "ItemKitLandingPadWaypoint",
+   "display": "Kit (Landing Pad Runway)"
+  },
+  {
+   "hash": 450164077,
+   "name": "ItemKitLargeDirectHeatExchanger",
+   "display": "Kit (Large Direct Heat Exchanger)"
+  },
+  {
+   "hash": 847430620,
+   "name": "ItemKitLargeExtendableRadiator",
+   "display": "Kit (Large Extendable Radiator)"
+  },
+  {
+   "hash": -2039971217,
+   "name": "ItemKitLargeSatelliteDish",
+   "display": "Kit (Large Satellite Dish)"
+  },
+  {
+   "hash": 1951126161,
+   "name": "ItemKitLiquidRegulator",
+   "display": "Kit (Liquid Regulator)"
+  },
+  {
+   "hash": -799849305,
+   "name": "ItemKitLiquidTank",
+   "display": "Kit (Liquid Tank)"
+  },
+  {
+   "hash": 617773453,
+   "name": "ItemKitLiquidTankInsulated",
+   "display": "Kit (Insulated Liquid Tank)"
+  },
+  {
+   "hash": -1805020897,
+   "name": "ItemKitLiquidTurboVolumePump",
+   "display": "Kit (Turbo Volume Pump - Liquid)"
+  },
+  {
+   "hash": 882301399,
+   "name": "ItemKitLocker",
+   "display": "Kit (Locker)"
+  },
+  {
+   "hash": 1512322581,
+   "name": "ItemKitLogicCircuit",
+   "display": "Kit (IC Housing)"
+  },
+  {
+   "hash": 1997293610,
+   "name": "ItemKitLogicInputOutput",
+   "display": "Kit (Logic I/O)"
+  },
+  {
+   "hash": -2098214189,
+   "name": "ItemKitLogicMemory",
+   "display": "Kit (Logic Memory)"
+  },
+  {
+   "hash": 220644373,
+   "name": "ItemKitLogicProcessor",
+   "display": "Kit (Logic Processor)"
+  },
+  {
+   "hash": 124499454,
+   "name": "ItemKitLogicSwitch",
+   "display": "Kit (Logic Switch)"
+  },
+  {
+   "hash": 1005397063,
+   "name": "ItemKitLogicTransmitter",
+   "display": "Kit (Logic Transmitter)"
+  },
+  {
+   "hash": -344968335,
+   "name": "ItemKitMotherShipCore",
+   "display": "Kit (Mothership)"
+  },
+  {
+   "hash": -2038889137,
+   "name": "ItemKitMusicMachines",
+   "display": "Kit (Music Machines)"
+  },
+  {
+   "hash": -1752768283,
+   "name": "ItemKitPassiveLargeRadiatorGas",
+   "display": "Kit (Medium Radiator)"
+  },
+  {
+   "hash": 1453961898,
+   "name": "ItemKitPassiveLargeRadiatorLiquid",
+   "display": "Kit (Medium Radiator Liquid)"
+  },
+  {
+   "hash": 636112787,
+   "name": "ItemKitPassthroughHeatExchanger",
+   "display": "Kit (CounterFlow Heat Exchanger)"
+  },
+  {
+   "hash": -2062364768,
+   "name": "ItemKitPictureFrame",
+   "display": "Kit Picture Frame"
+  },
+  {
+   "hash": -1619793705,
+   "name": "ItemKitPipe",
+   "display": "Kit (Pipe)"
+  },
+  {
+   "hash": -1166461357,
+   "name": "ItemKitPipeLiquid",
+   "display": "Kit (Liquid Pipe)"
+  },
+  {
+   "hash": -827125300,
+   "name": "ItemKitPipeOrgan",
+   "display": "Kit (Pipe Organ)"
+  },
+  {
+   "hash": 920411066,
+   "name": "ItemKitPipeRadiator",
+   "display": "Kit (Pipe Radiator)"
+  },
+  {
+   "hash": -1697302609,
+   "name": "ItemKitPipeRadiatorLiquid",
+   "display": "Kit (Pipe Radiator Liquid)"
+  },
+  {
+   "hash": 1934508338,
+   "name": "ItemKitPipeUtility",
+   "display": "Kit (Pipe Utility Gas)"
+  },
+  {
+   "hash": 595478589,
+   "name": "ItemKitPipeUtilityLiquid",
+   "display": "Kit (Pipe Utility Liquid)"
+  },
+  {
+   "hash": 119096484,
+   "name": "ItemKitPlanter",
+   "display": "Kit (Planter)"
+  },
+  {
+   "hash": 2015439334,
+   "name": "ItemKitPoweredVent",
+   "display": "Kit (Powered Vent)"
+  },
+  {
+   "hash": 291368213,
+   "name": "ItemKitPowerTransmitter",
+   "display": "Kit (Power Transmitter)"
+  },
+  {
+   "hash": -831211676,
+   "name": "ItemKitPowerTransmitterOmni",
+   "display": "Kit (Power Transmitter Omni)"
+  },
+  {
+   "hash": 123504691,
+   "name": "ItemKitPressurePlate",
+   "display": "Kit (Trigger Plate)"
+  },
+  {
+   "hash": 750176282,
+   "name": "ItemKitRailing",
+   "display": "Kit (Railing)"
+  },
+  {
+   "hash": 849148192,
+   "name": "ItemKitRecycler",
+   "display": "Kit (Recycler)"
+  },
+  {
+   "hash": 1181371795,
+   "name": "ItemKitRegulator",
+   "display": "Kit (Pressure Regulator)"
+  },
+  {
+   "hash": 1459985302,
+   "name": "ItemKitReinforcedWindows",
+   "display": "Reinforced Windows (Kit)"
+  },
+  {
+   "hash": 724776762,
+   "name": "ItemKitResearchMachine",
+   "display": "Kit Research Machine"
+  },
+  {
+   "hash": 1574688481,
+   "name": "ItemKitRespawnPointWallMounted",
+   "display": "Kit (Respawn)"
+  },
+  {
+   "hash": 1827215803,
+   "name": "ItemKitRoverFrame",
+   "display": "Kit (Rover Frame)"
+  },
+  {
+   "hash": 197243872,
+   "name": "ItemKitRoverMKI",
+   "display": "Kit (Rover Mk I)"
+  },
+  {
+   "hash": 178422810,
+   "name": "ItemKitSatelliteDish",
+   "display": "Kit (Medium Satellite Dish)"
+  },
+  {
+   "hash": 323957548,
+   "name": "ItemKitSDBHopper",
+   "display": "Kit (SDB Hopper)"
+  },
+  {
+   "hash": 578078533,
+   "name": "ItemKitSecurityPrinter",
+   "display": "Kit (Security Printer)"
+  },
+  {
+   "hash": -1776897113,
+   "name": "ItemKitSensor",
+   "display": "Kit (Sensors)"
+  },
+  {
+   "hash": 529996327,
+   "name": "ItemKitSign",
+   "display": "Kit (Sign)"
+  },
+  {
+   "hash": 326752036,
+   "name": "ItemKitSleeper",
+   "display": "Kit (Sleeper)"
+  },
+  {
+   "hash": -1332682164,
+   "name": "ItemKitSmallDirectHeatExchanger",
+   "display": "Kit (Small Direct Heat Exchanger)"
+  },
+  {
+   "hash": 1960952220,
+   "name": "ItemKitSmallSatelliteDish",
+   "display": "Kit (Small Satellite Dish)"
+  },
+  {
+   "hash": -1924492105,
+   "name": "ItemKitSolarPanel",
+   "display": "Kit (Solar Panel)"
+  },
+  {
+   "hash": 844961456,
+   "name": "ItemKitSolarPanelBasic",
+   "display": "Kit (Solar Panel Basic)"
+  },
+  {
+   "hash": -528695432,
+   "name": "ItemKitSolarPanelBasicReinforced",
+   "display": "Kit (Solar Panel Basic Heavy)"
+  },
+  {
+   "hash": -364868685,
+   "name": "ItemKitSolarPanelReinforced",
+   "display": "Kit (Solar Panel Heavy)"
+  },
+  {
+   "hash": 1293995736,
+   "name": "ItemKitSolidGenerator",
+   "display": "Kit (Solid Generator)"
+  },
+  {
+   "hash": 969522478,
+   "name": "ItemKitSorter",
+   "display": "Kit (Sorter)"
+  },
+  {
+   "hash": -126038526,
+   "name": "ItemKitSpeaker",
+   "display": "Kit (Speaker)"
+  },
+  {
+   "hash": 1013244511,
+   "name": "ItemKitStacker",
+   "display": "Kit (Stacker)"
+  },
+  {
+   "hash": 170878959,
+   "name": "ItemKitStairs",
+   "display": "Kit (Stairs)"
+  },
+  {
+   "hash": 2133035682,
+   "name": "ItemKitStandardChute",
+   "display": "Kit (Powered Chutes)"
+  },
+  {
+   "hash": -1821571150,
+   "name": "ItemKitStirlingEngine",
+   "display": "Kit (Stirling Engine)"
+  },
+  {
+   "hash": 1088892825,
+   "name": "ItemKitSuitStorage",
+   "display": "Kit (Suit Storage)"
+  },
+  {
+   "hash": -1361598922,
+   "name": "ItemKitTables",
+   "display": "Kit (Tables)"
+  },
+  {
+   "hash": 771439840,
+   "name": "ItemKitTank",
+   "display": "Kit (Tank)"
+  },
+  {
+   "hash": 1021053608,
+   "name": "ItemKitTankInsulated",
+   "display": "Kit (Tank Insulated)"
+  },
+  {
+   "hash": 529137748,
+   "name": "ItemKitToolManufactory",
+   "display": "Kit (Tool Manufactory)"
+  },
+  {
+   "hash": -453039435,
+   "name": "ItemKitTransformer",
+   "display": "Kit Transformer (Large)"
+  },
+  {
+   "hash": 665194284,
+   "name": "ItemKitTransformerSmall",
+   "display": "Kit (Transformer)"
+  },
+  {
+   "hash": -1590715731,
+   "name": "ItemKitTurbineGenerator",
+   "display": "Kit (Turbine Generator)"
+  },
+  {
+   "hash": -1248429712,
+   "name": "ItemKitTurboVolumePump",
+   "display": "Kit (Turbo Volume Pump - Gas)"
+  },
+  {
+   "hash": -1798044015,
+   "name": "ItemKitUprightWindTurbine",
+   "display": "Kit (Upright Wind Turbine)"
+  },
+  {
+   "hash": -2038384332,
+   "name": "ItemKitVendingMachine",
+   "display": "Kit (Vending Machine)"
+  },
+  {
+   "hash": -1867508561,
+   "name": "ItemKitVendingMachineRefrigerated",
+   "display": "Kit (Vending Machine Refrigerated)"
+  },
+  {
+   "hash": -1826855889,
+   "name": "ItemKitWall",
+   "display": "Kit (Wall)"
+  },
+  {
+   "hash": 1625214531,
+   "name": "ItemKitWallArch",
+   "display": "Kit (Arched Wall)"
+  },
+  {
+   "hash": -846838195,
+   "name": "ItemKitWallFlat",
+   "display": "Kit (Flat Wall)"
+  },
+  {
+   "hash": -784733231,
+   "name": "ItemKitWallGeometry",
+   "display": "Kit (Geometric Wall)"
+  },
+  {
+   "hash": -524546923,
+   "name": "ItemKitWallIron",
+   "display": "Kit (Iron Wall)"
+  },
+  {
+   "hash": -821868990,
+   "name": "ItemKitWallPadded",
+   "display": "Kit (Padded Wall)"
+  },
+  {
+   "hash": 159886536,
+   "name": "ItemKitWaterBottleFiller",
+   "display": "Kit (Water Bottle Filler)"
+  },
+  {
+   "hash": 337505889,
+   "name": "ItemKitWeatherStation",
+   "display": "Kit (Weather Station)"
+  },
+  {
+   "hash": 1779979754,
+   "name": "ItemKitWindowShutter",
+   "display": "Kit (Window Shutter)"
+  },
+  {
+   "hash": -868916503,
+   "name": "ItemKitWindTurbine",
+   "display": "Kit (Wind Turbine)"
+  },
+  {
+   "hash": -743968726,
+   "name": "ItemLabeller",
+   "display": "Labeller"
+  },
+  {
+   "hash": 141535121,
+   "name": "ItemLaptop",
+   "display": "Laptop"
+  },
+  {
+   "hash": 2134647745,
+   "name": "ItemLeadIngot",
+   "display": "Ingot (Lead)"
+  },
+  {
+   "hash": -190236170,
+   "name": "ItemLeadOre",
+   "display": "Ore (Lead)"
+  },
+  {
+   "hash": 1949076595,
+   "name": "ItemLightSword",
+   "display": "Light Sword"
+  },
+  {
+   "hash": -185207387,
+   "name": "ItemLiquidCanisterEmpty",
+   "display": "Liquid Canister"
+  },
+  {
+   "hash": 777684475,
+   "name": "ItemLiquidCanisterSmart",
+   "display": "Liquid Canister (Smart)"
+  },
+  {
+   "hash": 2036225202,
+   "name": "ItemLiquidDrain",
+   "display": "Kit (Liquid Drain)"
+  },
+  {
+   "hash": 226055671,
+   "name": "ItemLiquidPipeAnalyzer",
+   "display": "Kit (Liquid Pipe Analyzer)"
+  },
+  {
+   "hash": -248475032,
+   "name": "ItemLiquidPipeHeater",
+   "display": "Pipe Heater Kit (Liquid)"
+  },
+  {
+   "hash": -2126113312,
+   "name": "ItemLiquidPipeValve",
+   "display": "Kit (Liquid Pipe Valve)"
+  },
+  {
+   "hash": -2106280569,
+   "name": "ItemLiquidPipeVolumePump",
+   "display": "Kit (Liquid Volume Pump)"
+  },
+  {
+   "hash": 2037427578,
+   "name": "ItemLiquidTankStorage",
+   "display": "Kit (Liquid Canister Storage)"
+  },
+  {
+   "hash": 1399098998,
+   "name": "ItemMarineBodyArmor",
+   "display": "Marine Armor"
+  },
+  {
+   "hash": 1073631646,
+   "name": "ItemMarineHelmet",
+   "display": "Marine Helmet"
+  },
+  {
+   "hash": 1327248310,
+   "name": "ItemMilk",
+   "display": "Milk"
+  },
+  {
+   "hash": -1650383245,
+   "name": "ItemMiningBackPack",
+   "display": "Mining Backpack"
+  },
+  {
+   "hash": -676435305,
+   "name": "ItemMiningBelt",
+   "display": "Mining Belt"
+  },
+  {
+   "hash": 1470787934,
+   "name": "ItemMiningBeltMKII",
+   "display": "Mining Belt MK II"
+  },
+  {
+   "hash": 15829510,
+   "name": "ItemMiningCharge",
+   "display": "Mining Charge"
+  },
+  {
+   "hash": 1055173191,
+   "name": "ItemMiningDrill",
+   "display": "Mining Drill"
+  },
+  {
+   "hash": -1663349918,
+   "name": "ItemMiningDrillHeavy",
+   "display": "Mining Drill (Heavy)"
+  },
+  {
+   "hash": 240174650,
+   "name": "ItemMKIIAngleGrinder",
+   "display": "Mk II Angle Grinder"
+  },
+  {
+   "hash": -2061979347,
+   "name": "ItemMKIIArcWelder",
+   "display": "Mk II Arc Welder"
+  },
+  {
+   "hash": 1440775434,
+   "name": "ItemMKIICrowbar",
+   "display": "Mk II Crowbar"
+  },
+  {
+   "hash": 324791548,
+   "name": "ItemMKIIDrill",
+   "display": "Mk II Drill"
+  },
+  {
+   "hash": 388774906,
+   "name": "ItemMKIIDuctTape",
+   "display": "Mk II Duct Tape"
+  },
+  {
+   "hash": -1875271296,
+   "name": "ItemMKIIMiningDrill",
+   "display": "Mk II Mining Drill"
+  },
+  {
+   "hash": -2015613246,
+   "name": "ItemMKIIScrewdriver",
+   "display": "Mk II Screwdriver"
+  },
+  {
+   "hash": 1467558064,
+   "name": "ItemMkIIToolbelt",
+   "display": "Tool Belt MK II"
+  },
+  {
+   "hash": -178893251,
+   "name": "ItemMKIIWireCutters",
+   "display": "Mk II Wire Cutters"
+  },
+  {
+   "hash": 1862001680,
+   "name": "ItemMKIIWrench",
+   "display": "Mk II Wrench"
+  },
+  {
+   "hash": -1864982322,
+   "name": "ItemMuffin",
+   "display": "Muffin"
+  },
+  {
+   "hash": 2044798572,
+   "name": "ItemMushroom",
+   "display": "Mushroom"
+  },
+  {
+   "hash": -1406385572,
+   "name": "ItemNickelIngot",
+   "display": "Ingot (Nickel)"
+  },
+  {
+   "hash": 1830218956,
+   "name": "ItemNickelOre",
+   "display": "Ore (Nickel)"
+  },
+  {
+   "hash": -1499471529,
+   "name": "ItemNitrice",
+   "display": "Ice (Nitrice)"
+  },
+  {
+   "hash": 982514123,
+   "name": "ItemNVG",
+   "display": "Night Vision Goggles"
+  },
+  {
+   "hash": -1805394113,
+   "name": "ItemOxite",
+   "display": "Ice (Oxite)"
+  },
+  {
+   "hash": 238631271,
+   "name": "ItemPassiveVent",
+   "display": "Passive Vent"
+  },
+  {
+   "hash": 2042955224,
+   "name": "ItemPeaceLily",
+   "display": "Peace Lily"
+  },
+  {
+   "hash": -913649823,
+   "name": "ItemPickaxe",
+   "display": "Pickaxe"
+  },
+  {
+   "hash": 1118069417,
+   "name": "ItemPillHeal",
+   "display": "Pill (Medical)"
+  },
+  {
+   "hash": 418958601,
+   "name": "ItemPillStun",
+   "display": "Pill (Paralysis)"
+  },
+  {
+   "hash": -767597887,
+   "name": "ItemPipeAnalyizer",
+   "display": "Kit (Pipe Analyzer)"
+  },
+  {
+   "hash": -38898376,
+   "name": "ItemPipeCowl",
+   "display": "Pipe Cowl"
+  },
+  {
+   "hash": -1532448832,
+   "name": "ItemPipeDigitalValve",
+   "display": "Kit (Digital Valve)"
+  },
+  {
+   "hash": -1134459463,
+   "name": "ItemPipeGasMixer",
+   "display": "Kit (Gas Mixer)"
+  },
+  {
+   "hash": -1751627006,
+   "name": "ItemPipeHeater",
+   "display": "Pipe Heater Kit (Gas)"
+  },
+  {
+   "hash": 391769637,
+   "name": "ItemPipeLabel",
+   "display": "Kit (Pipe Label)"
+  },
+  {
+   "hash": -906521320,
+   "name": "ItemPipeLiquidRadiator",
+   "display": "Kit (Liquid Radiator)"
+  },
+  {
+   "hash": 1207939683,
+   "name": "ItemPipeMeter",
+   "display": "Kit (Pipe Meter)"
+  },
+  {
+   "hash": -1796655088,
+   "name": "ItemPipeRadiator",
+   "display": "Kit (Radiator)"
+  },
+  {
+   "hash": 799323450,
+   "name": "ItemPipeValve",
+   "display": "Kit (Pipe Valve)"
+  },
+  {
+   "hash": -1766301997,
+   "name": "ItemPipeVolumePump",
+   "display": "Kit (Volume Pump)"
+  },
+  {
+   "hash": -1159179557,
+   "name": "ItemPlantEndothermic_Creative",
+   "display": "Endothermic Plant Creative"
+  },
+  {
+   "hash": 851290561,
+   "name": "ItemPlantEndothermic_Genepool1",
+   "display": "Winterspawn (Alpha variant)"
+  },
+  {
+   "hash": -1414203269,
+   "name": "ItemPlantEndothermic_Genepool2",
+   "display": "Winterspawn (Beta variant)"
+  },
+  {
+   "hash": 173023800,
+   "name": "ItemPlantSampler",
+   "display": "Plant Sampler"
+  },
+  {
+   "hash": -532672323,
+   "name": "ItemPlantSwitchGrass",
+   "display": "Switch Grass"
+  },
+  {
+   "hash": -1208890208,
+   "name": "ItemPlantThermogenic_Creative",
+   "display": "Thermogenic Plant Creative"
+  },
+  {
+   "hash": -177792789,
+   "name": "ItemPlantThermogenic_Genepool1",
+   "display": "Hades Flower (Alpha strain)"
+  },
+  {
+   "hash": 1819167057,
+   "name": "ItemPlantThermogenic_Genepool2",
+   "display": "Hades Flower (Beta strain)"
+  },
+  {
+   "hash": 662053345,
+   "name": "ItemPlasticSheets",
+   "display": "Plastic Sheets"
+  },
+  {
+   "hash": 1929046963,
+   "name": "ItemPotato",
+   "display": "Potato"
+  },
+  {
+   "hash": -2111886401,
+   "name": "ItemPotatoBaked",
+   "display": "Baked Potato"
+  },
+  {
+   "hash": 839924019,
+   "name": "ItemPowerConnector",
+   "display": "Kit (Power Connector)"
+  },
+  {
+   "hash": 1277828144,
+   "name": "ItemPumpkin",
+   "display": "Pumpkin"
+  },
+  {
+   "hash": 62768076,
+   "name": "ItemPumpkinPie",
+   "display": "Pumpkin Pie"
+  },
+  {
+   "hash": 1277979876,
+   "name": "ItemPumpkinSoup",
+   "display": "Pumpkin Soup"
+  },
+  {
+   "hash": -1616308158,
+   "name": "ItemPureIce",
+   "display": "Pure Ice Water"
+  },
+  {
+   "hash": -1251009404,
+   "name": "ItemPureIceCarbonDioxide",
+   "display": "Pure Ice Carbon Dioxide"
+  },
+  {
+   "hash": -1715945725,
+   "name": "ItemPureIceLiquidCarbonDioxide",
+   "display": "Pure Ice Liquid Carbon Dioxide"
+  },
+  {
+   "hash": 1674576569,
+   "name": "ItemPureIceLiquidNitrogen",
+   "display": "Pure Ice Liquid Nitrogen"
+  },
+  {
+   "hash": 1428477399,
+   "name": "ItemPureIceLiquidNitrous",
+   "display": "Pure Ice Liquid Nitrous"
+  },
+  {
+   "hash": 541621589,
+   "name": "ItemPureIceLiquidOxygen",
+   "display": "Pure Ice Liquid Oxygen"
+  },
+  {
+   "hash": -1748926678,
+   "name": "ItemPureIceLiquidPollutant",
+   "display": "Pure Ice Liquid Pollutant"
+  },
+  {
+   "hash": -1306628937,
+   "name": "ItemPureIceLiquidVolatiles",
+   "display": "Pure Ice Liquid Volatiles"
+  },
+  {
+   "hash": -1708395413,
+   "name": "ItemPureIceNitrogen",
+   "display": "Pure Ice Nitrogen"
+  },
+  {
+   "hash": 386754635,
+   "name": "ItemPureIceNitrous",
+   "display": "Pure Ice NitrousOxide"
+  },
+  {
+   "hash": -1150448260,
+   "name": "ItemPureIceOxygen",
+   "display": "Pure Ice Oxygen"
+  },
+  {
+   "hash": -1755356,
+   "name": "ItemPureIcePollutant",
+   "display": "Pure Ice Pollutant"
+  },
+  {
+   "hash": -874791066,
+   "name": "ItemPureIceSteam",
+   "display": "Pure Ice Steam"
+  },
+  {
+   "hash": -633723719,
+   "name": "ItemPureIceVolatiles",
+   "display": "Pure Ice Volatiles"
+  },
+  {
+   "hash": -1641500434,
+   "name": "ItemReagentMix",
+   "display": "Reagent Mix"
+  },
+  {
+   "hash": 678483886,
+   "name": "ItemRemoteDetonator",
+   "display": "Remote Detonator"
+  },
+  {
+   "hash": -1352732550,
+   "name": "ItemResearchCapsuleGreen",
+   "display": "Research Capsule Green"
+  },
+  {
+   "hash": 954947943,
+   "name": "ItemResearchCapsuleRed",
+   "display": "Research Capsule Red"
+  },
+  {
+   "hash": 750952701,
+   "name": "ItemResearchCapsuleYellow",
+   "display": "Research Capsule Yellow"
+  },
+  {
+   "hash": 658916791,
+   "name": "ItemRice",
+   "display": "Rice"
+  },
+  {
+   "hash": 871811564,
+   "name": "ItemRoadFlare",
+   "display": "Road Flare"
+  },
+  {
+   "hash": 495305053,
+   "name": "ItemRTG",
+   "display": "Kit (Creative RTG)"
+  },
+  {
+   "hash": 1817645803,
+   "name": "ItemRTGSurvival",
+   "display": "Kit (RTG)"
+  },
+  {
+   "hash": 1661270830,
+   "name": "ItemScanner",
+   "display": "Handheld Scanner"
+  },
+  {
+   "hash": 687940869,
+   "name": "ItemScrewdriver",
+   "display": "Screwdriver"
+  },
+  {
+   "hash": -1981101032,
+   "name": "ItemSecurityCamera",
+   "display": "Security Camera"
+  },
+  {
+   "hash": -1176140051,
+   "name": "ItemSensorLenses",
+   "display": "Sensor Lenses"
+  },
+  {
+   "hash": -1219128491,
+   "name": "ItemSensorProcessingUnitOreScanner",
+   "display": "Sensor Processing Unit (Ore Scanner)"
+  },
+  {
+   "hash": -290196476,
+   "name": "ItemSiliconIngot",
+   "display": "Ingot (Silicon)"
+  },
+  {
+   "hash": 1103972403,
+   "name": "ItemSiliconOre",
+   "display": "Ore (Silicon)"
+  },
+  {
+   "hash": -929742000,
+   "name": "ItemSilverIngot",
+   "display": "Ingot (Silver)"
+  },
+  {
+   "hash": -916518678,
+   "name": "ItemSilverOre",
+   "display": "Ore (Silver)"
+  },
+  {
+   "hash": -82508479,
+   "name": "ItemSolderIngot",
+   "display": "Ingot (Solder)"
+  },
+  {
+   "hash": -365253871,
+   "name": "ItemSolidFuel",
+   "display": "Solid Fuel (Hydrocarbon)"
+  },
+  {
+   "hash": -1883441704,
+   "name": "ItemSoundCartridgeBass",
+   "display": "Sound Cartridge Bass"
+  },
+  {
+   "hash": -1901500508,
+   "name": "ItemSoundCartridgeDrums",
+   "display": "Sound Cartridge Drums"
+  },
+  {
+   "hash": -1174735962,
+   "name": "ItemSoundCartridgeLeads",
+   "display": "Sound Cartridge Leads"
+  },
+  {
+   "hash": -1971419310,
+   "name": "ItemSoundCartridgeSynth",
+   "display": "Sound Cartridge Synth"
+  },
+  {
+   "hash": 1924673028,
+   "name": "ItemSoybean",
+   "display": "Soybean"
+  },
+  {
+   "hash": 1387403148,
+   "name": "ItemSoyOil",
+   "display": "Soy Oil"
+  },
+  {
+   "hash": -1737666461,
+   "name": "ItemSpaceCleaner",
+   "display": "Space Cleaner"
+  },
+  {
+   "hash": 714830451,
+   "name": "ItemSpaceHelmet",
+   "display": "Space Helmet"
+  },
+  {
+   "hash": -1260618380,
+   "name": "ItemSpacepack",
+   "display": "Spacepack"
+  },
+  {
+   "hash": -688107795,
+   "name": "ItemSprayCanBlack",
+   "display": "Spray Paint (Black)"
+  },
+  {
+   "hash": -498464883,
+   "name": "ItemSprayCanBlue",
+   "display": "Spray Paint (Blue)"
+  },
+  {
+   "hash": 845176977,
+   "name": "ItemSprayCanBrown",
+   "display": "Spray Paint (Brown)"
+  },
+  {
+   "hash": -1880941852,
+   "name": "ItemSprayCanGreen",
+   "display": "Spray Paint (Green)"
+  },
+  {
+   "hash": -1645266981,
+   "name": "ItemSprayCanGrey",
+   "display": "Spray Paint (Grey)"
+  },
+  {
+   "hash": 1918456047,
+   "name": "ItemSprayCanKhaki",
+   "display": "Spray Paint (Khaki)"
+  },
+  {
+   "hash": -158007629,
+   "name": "ItemSprayCanOrange",
+   "display": "Spray Paint (Orange)"
+  },
+  {
+   "hash": 1344257263,
+   "name": "ItemSprayCanPink",
+   "display": "Spray Paint (Pink)"
+  },
+  {
+   "hash": 30686509,
+   "name": "ItemSprayCanPurple",
+   "display": "Spray Paint (Purple)"
+  },
+  {
+   "hash": 1514393921,
+   "name": "ItemSprayCanRed",
+   "display": "Spray Paint (Red)"
+  },
+  {
+   "hash": 498481505,
+   "name": "ItemSprayCanWhite",
+   "display": "Spray Paint (White)"
+  },
+  {
+   "hash": 995468116,
+   "name": "ItemSprayCanYellow",
+   "display": "Spray Paint (Yellow)"
+  },
+  {
+   "hash": 1289723966,
+   "name": "ItemSprayGun",
+   "display": "Spray Gun"
+  },
+  {
+   "hash": -1448105779,
+   "name": "ItemSteelFrames",
+   "display": "Steel Frames"
+  },
+  {
+   "hash": -654790771,
+   "name": "ItemSteelIngot",
+   "display": "Ingot (Steel)"
+  },
+  {
+   "hash": 38555961,
+   "name": "ItemSteelSheets",
+   "display": "Steel Sheets"
+  },
+  {
+   "hash": -2038663432,
+   "name": "ItemStelliteGlassSheets",
+   "display": "Stellite Glass Sheets"
+  },
+  {
+   "hash": -1897868623,
+   "name": "ItemStelliteIngot",
+   "display": "Ingot (Stellite)"
+  },
+  {
+   "hash": -229808600,
+   "name": "ItemTablet",
+   "display": "Handheld Tablet"
+  },
+  {
+   "hash": 111280987,
+   "name": "ItemTerrainManipulator",
+   "display": "Terrain Manipulator"
+  },
+  {
+   "hash": -998592080,
+   "name": "ItemTomato",
+   "display": "Tomato"
+  },
+  {
+   "hash": 688734890,
+   "name": "ItemTomatoSoup",
+   "display": "Tomato Soup"
+  },
+  {
+   "hash": -355127880,
+   "name": "ItemToolBelt",
+   "display": "Tool Belt"
+  },
+  {
+   "hash": -800947386,
+   "name": "ItemTropicalPlant",
+   "display": "Tropical Lily"
+  },
+  {
+   "hash": -1516581844,
+   "name": "ItemUraniumOre",
+   "display": "Ore (Uranium)"
+  },
+  {
+   "hash": 1253102035,
+   "name": "ItemVolatiles",
+   "display": "Ice (Volatiles)"
+  },
+  {
+   "hash": -1567752627,
+   "name": "ItemWallCooler",
+   "display": "Kit (Wall Cooler)"
+  },
+  {
+   "hash": 1880134612,
+   "name": "ItemWallHeater",
+   "display": "Kit (Wall Heater)"
+  },
+  {
+   "hash": 1108423476,
+   "name": "ItemWallLight",
+   "display": "Kit (Lights)"
+  },
+  {
+   "hash": 156348098,
+   "name": "ItemWaspaloyIngot",
+   "display": "Ingot (Waspaloy)"
+  },
+  {
+   "hash": 107741229,
+   "name": "ItemWaterBottle",
+   "display": "Water Bottle"
+  },
+  {
+   "hash": 309693520,
+   "name": "ItemWaterPipeDigitalValve",
+   "display": "Kit (Liquid Digital Valve)"
+  },
+  {
+   "hash": -90898877,
+   "name": "ItemWaterPipeMeter",
+   "display": "Kit (Liquid Pipe Meter)"
+  },
+  {
+   "hash": -1721846327,
+   "name": "ItemWaterWallCooler",
+   "display": "Kit (Liquid Wall Cooler)"
+  },
+  {
+   "hash": -598730959,
+   "name": "ItemWearLamp",
+   "display": "Headlamp"
+  },
+  {
+   "hash": -2066892079,
+   "name": "ItemWeldingTorch",
+   "display": "Welding Torch"
+  },
+  {
+   "hash": -1057658015,
+   "name": "ItemWheat",
+   "display": "Wheat"
+  },
+  {
+   "hash": 1535854074,
+   "name": "ItemWireCutters",
+   "display": "Wire Cutters"
+  },
+  {
+   "hash": -504717121,
+   "name": "ItemWirelessBatteryCellExtraLarge",
+   "display": "Wireless Battery Cell Extra Large"
+  },
+  {
+   "hash": -1826023284,
+   "name": "ItemWreckageAirConditioner1",
+   "display": "Wreckage Air Conditioner"
+  },
+  {
+   "hash": 169888054,
+   "name": "ItemWreckageAirConditioner2",
+   "display": "Wreckage Air Conditioner"
+  },
+  {
+   "hash": -310178617,
+   "name": "ItemWreckageHydroponicsTray1",
+   "display": "Wreckage Hydroponics Tray"
+  },
+  {
+   "hash": -997763,
+   "name": "ItemWreckageLargeExtendableRadiator01",
+   "display": "Wreckage Large Extendable Radiator"
+  },
+  {
+   "hash": 391453348,
+   "name": "ItemWreckageStructureRTG1",
+   "display": "Wreckage Structure RTG"
+  },
+  {
+   "hash": -834664349,
+   "name": "ItemWreckageStructureWeatherStation001",
+   "display": "Wreckage Structure Weather Station"
+  },
+  {
+   "hash": 1464424921,
+   "name": "ItemWreckageStructureWeatherStation002",
+   "display": "Wreckage Structure Weather Station"
+  },
+  {
+   "hash": 542009679,
+   "name": "ItemWreckageStructureWeatherStation003",
+   "display": "Wreckage Structure Weather Station"
+  },
+  {
+   "hash": -1104478996,
+   "name": "ItemWreckageStructureWeatherStation004",
+   "display": "Wreckage Structure Weather Station"
+  },
+  {
+   "hash": -919745414,
+   "name": "ItemWreckageStructureWeatherStation005",
+   "display": "Wreckage Structure Weather Station"
+  },
+  {
+   "hash": 1344576960,
+   "name": "ItemWreckageStructureWeatherStation006",
+   "display": "Wreckage Structure Weather Station"
+  },
+  {
+   "hash": 656649558,
+   "name": "ItemWreckageStructureWeatherStation007",
+   "display": "Wreckage Structure Weather Station"
+  },
+  {
+   "hash": -1214467897,
+   "name": "ItemWreckageStructureWeatherStation008",
+   "display": "Wreckage Structure Weather Station"
+  },
+  {
+   "hash": -1662394403,
+   "name": "ItemWreckageTurbineGenerator1",
+   "display": "Wreckage Turbine Generator"
+  },
+  {
+   "hash": 98602599,
+   "name": "ItemWreckageTurbineGenerator2",
+   "display": "Wreckage Turbine Generator"
+  },
+  {
+   "hash": 1927790321,
+   "name": "ItemWreckageTurbineGenerator3",
+   "display": "Wreckage Turbine Generator"
+  },
+  {
+   "hash": -1682930158,
+   "name": "ItemWreckageWallCooler1",
+   "display": "Wreckage Wall Cooler"
+  },
+  {
+   "hash": 45733800,
+   "name": "ItemWreckageWallCooler2",
+   "display": "Wreckage Wall Cooler"
+  },
+  {
+   "hash": -1886261558,
+   "name": "ItemWrench",
+   "display": "Wrench"
+  },
+  {
+   "hash": -1333836038,
+   "name": null,
+   "display": "Kit (Automated Rocket Automation Module)"
+  },
+  {
+   "hash": -125973341,
+   "name": null,
+   "display": "Kit (Automated Rocket Coupling Module)"
+  },
+  {
+   "hash": 1545333914,
+   "name": null,
+   "display": "Kit (Automated Rocket Gas Mining Module)"
+  },
+  {
+   "hash": -755852927,
+   "name": null,
+   "display": "Kit (Automated Rocket Ice Mining Module)"
+  },
+  {
+   "hash": 301584830,
+   "name": null,
+   "display": "Kit (Automated Rocket Ore Mining Module)"
+  },
+  {
+   "hash": -1845774508,
+   "name": null,
+   "display": "Kit (Automated Rocket Salvage Module)"
+  },
+  {
+   "hash": -90221115,
+   "name": null,
+   "display": "Kit (Automated Rocket Silo Module)"
+  },
+  {
+   "hash": -122188311,
+   "name": null,
+   "display": "Kit (Insulated Tank Connector Liquid)"
+  },
+  {
+   "hash": -1538229217,
+   "name": null,
+   "display": "Kit (Launch Pad)"
+  },
+  {
+   "hash": -1579112308,
+   "name": null,
+   "display": "Kit (Liquid Tank Connector)"
+  },
+  {
+   "hash": 1709456101,
+   "name": null,
+   "display": "Kit (Low Volume Liquid Pipe)"
+  },
+  {
+   "hash": -94545890,
+   "name": null,
+   "display": "Kit (Low Volume Pipe)"
+  },
+  {
+   "hash": -347156845,
+   "name": null,
+   "display": "Kit (Modular Rocket Cargo)"
+  },
+  {
+   "hash": 853741262,
+   "name": null,
+   "display": "Kit (Modular Rocket Command)"
+  },
+  {
+   "hash": -34763297,
+   "name": null,
+   "display": "Kit (Modular Rocket Engine)"
+  },
+  {
+   "hash": -1838947287,
+   "name": null,
+   "display": "Kit (Modular Rocket Fueltank)"
+  },
+  {
+   "hash": -1782380726,
+   "name": null,
+   "display": "Kit (Tank Connector)"
+  },
+  {
+   "hash": -1427415566,
+   "name": "KitchenTableShort",
+   "display": "Kitchen Table (Short)"
+  },
+  {
+   "hash": -78099334,
+   "name": "KitchenTableSimpleShort",
+   "display": "Kitchen Table (Simple Short)"
+  },
+  {
+   "hash": -1068629349,
+   "name": "KitchenTableSimpleTall",
+   "display": "Kitchen Table (Simple Tall)"
+  },
+  {
+   "hash": -1386237782,
+   "name": "KitchenTableTall",
+   "display": "Kitchen Table (Tall)"
+  },
+  {
+   "hash": 1932952652,
+   "name": "KitSDBSilo",
+   "display": "Kit (SDB Silo)"
+  },
+  {
+   "hash": 231903234,
+   "name": "KitStructureCombustionCentrifuge",
+   "display": "Kit (Combustion Centrifuge)"
+  },
+  {
+   "hash": 1605130615,
+   "name": "Lander",
+   "display": "Lander"
+  },
+  {
+   "hash": -1309237526,
+   "name": null,
+   "display": "Landing Pad"
+  },
+  {
+   "hash": -1295222317,
+   "name": "Landingpad_2x2CenterPiece01",
+   "display": "Landingpad 2x2 Center Piece"
+  },
+  {
+   "hash": 1070143159,
+   "name": "Landingpad_CenterPiece01",
+   "display": "Landingpad Center"
+  },
+  {
+   "hash": 1101296153,
+   "name": "Landingpad_CrossPiece",
+   "display": "Landingpad Cross"
+  },
+  {
+   "hash": -2066405918,
+   "name": "Landingpad_DataConnectionPiece",
+   "display": "Landingpad Data And Power"
+  },
+  {
+   "hash": 977899131,
+   "name": "Landingpad_DiagonalPiece01",
+   "display": "Landingpad Diagonal"
+  },
+  {
+   "hash": 817945707,
+   "name": "Landingpad_GasConnectorInwardPiece",
+   "display": "Landingpad Gas Input"
+  },
+  {
+   "hash": -1100218307,
+   "name": "Landingpad_GasConnectorOutwardPiece",
+   "display": "Landingpad Gas Output"
+  },
+  {
+   "hash": 170818567,
+   "name": "Landingpad_GasCylinderTankPiece",
+   "display": "Landingpad Gas Storage"
+  },
+  {
+   "hash": -1216167727,
+   "name": "Landingpad_LiquidConnectorInwardPiece",
+   "display": "Landingpad Liquid Input"
+  },
+  {
+   "hash": -1788929869,
+   "name": "Landingpad_LiquidConnectorOutwardPiece",
+   "display": "Landingpad Liquid Output"
+  },
+  {
+   "hash": -976273247,
+   "name": "Landingpad_StraightPiece01",
+   "display": "Landingpad Straight"
+  },
+  {
+   "hash": -1872345847,
+   "name": "Landingpad_TaxiPieceCorner",
+   "display": "Landingpad Taxi Corner"
+  },
+  {
+   "hash": 146051619,
+   "name": "Landingpad_TaxiPieceHold",
+   "display": "Landingpad Taxi Hold"
+  },
+  {
+   "hash": -1477941080,
+   "name": "Landingpad_TaxiPieceStraight",
+   "display": "Landingpad Taxi Straight"
+  },
+  {
+   "hash": -1514298582,
+   "name": "Landingpad_ThreshholdPiece",
+   "display": "Landingpad Threshhold"
+  },
+  {
+   "hash": -1748149715,
+   "name": "LiquidRocketEngineBasic",
+   "display": "Liquid Rocket Engine Basic"
+  },
+  {
+   "hash": 1531272458,
+   "name": "LogicStepSequencer8",
+   "display": "Logic Step Sequencer"
+  },
+  {
+   "hash": 338145176,
+   "name": null,
+   "display": "Low Volume Liquid Pipe (3-Way Junction)"
+  },
+  {
+   "hash": -1975305669,
+   "name": null,
+   "display": "Low Volume Liquid Pipe (4-Way Junction)"
+  },
+  {
+   "hash": -45872467,
+   "name": null,
+   "display": "Low Volume Liquid Pipe (5-Way Junction)"
+  },
+  {
+   "hash": 1682791191,
+   "name": null,
+   "display": "Low Volume Liquid Pipe (6-Way Junction)"
+  },
+  {
+   "hash": -1421666624,
+   "name": null,
+   "display": "Low Volume Pipe (3-Way Junction)"
+  },
+  {
+   "hash": 891781987,
+   "name": null,
+   "display": "Low Volume Pipe (4-Way Junction)"
+  },
+  {
+   "hash": 1109439477,
+   "name": null,
+   "display": "Low Volume Pipe (5-Way Junction)"
+  },
+  {
+   "hash": -618012081,
+   "name": null,
+   "display": "Low Volume Pipe (6-Way Junction)"
+  },
+  {
+   "hash": -99064335,
+   "name": "Meteorite",
+   "display": "Meteorite"
+  },
+  {
+   "hash": -452398260,
+   "name": null,
+   "display": "Modular Rocket Cargo"
+  },
+  {
+   "hash": 1814795593,
+   "name": null,
+   "display": "Modular Rocket Command"
+  },
+  {
+   "hash": -342948697,
+   "name": null,
+   "display": "Modular Rocket Engine"
+  },
+  {
+   "hash": -505333199,
+   "name": null,
+   "display": "Modular Rocket Fueltank"
+  },
+  {
+   "hash": 373721410,
+   "name": null,
+   "display": "Modular Rocket Launch Pad"
+  },
+  {
+   "hash": -1667675295,
+   "name": "MonsterEgg",
+   "display": "<N:EN:MonsterEgg>"
+  },
+  {
+   "hash": -337075633,
+   "name": "MotherboardComms",
+   "display": "Communications Motherboard"
+  },
+  {
+   "hash": 502555944,
+   "name": "MotherboardLogic",
+   "display": "Logic Motherboard"
+  },
+  {
+   "hash": -127121474,
+   "name": "MotherboardMissionControl",
+   "display": "<N:EN:MotherboardMissionControl>"
+  },
+  {
+   "hash": -161107071,
+   "name": "MotherboardProgrammableChip",
+   "display": "IC Editor Motherboard"
+  },
+  {
+   "hash": -1908268220,
+   "name": "MotherboardSorter",
+   "display": "Sorter Motherboard"
+  },
+  {
+   "hash": -1930442922,
+   "name": "MothershipCore",
+   "display": "Mothership Core"
+  },
+  {
+   "hash": 155856647,
+   "name": "NpcChick",
+   "display": "Chick"
+  },
+  {
+   "hash": 399074198,
+   "name": "NpcChicken",
+   "display": "Chicken"
+  },
+  {
+   "hash": 1580412404,
+   "name": null,
+   "display": "One Way Valve (Gas)"
+  },
+  {
+   "hash": -782453061,
+   "name": null,
+   "display": "One Way Valve (Liquid)"
+  },
+  {
+   "hash": 248893646,
+   "name": "PassiveSpeaker",
+   "display": "Passive Speaker"
+  },
+  {
+   "hash": 443947415,
+   "name": "PipeBenderMod",
+   "display": "Pipe Bender Mod"
+  },
+  {
+   "hash": -1958705204,
+   "name": "PortableComposter",
+   "display": "Portable Composter"
+  },
+  {
+   "hash": 2043318949,
+   "name": "PortableSolarPanel",
+   "display": "Portable Solar Panel"
+  },
+  {
+   "hash": 399661231,
+   "name": "RailingElegant01",
+   "display": "Railing Elegant (Type 1)"
+  },
+  {
+   "hash": -1898247915,
+   "name": "RailingElegant02",
+   "display": "Railing Elegant (Type 2)"
+  },
+  {
+   "hash": -2072792175,
+   "name": "RailingIndustrial02",
+   "display": "Railing Industrial (Type 2)"
+  },
+  {
+   "hash": 980054869,
+   "name": "ReagentColorBlue",
+   "display": "Color Dye (Blue)"
+  },
+  {
+   "hash": 120807542,
+   "name": "ReagentColorGreen",
+   "display": "Color Dye (Green)"
+  },
+  {
+   "hash": -400696159,
+   "name": "ReagentColorOrange",
+   "display": "Color Dye (Orange)"
+  },
+  {
+   "hash": 1998377961,
+   "name": "ReagentColorRed",
+   "display": "Color Dye (Red)"
+  },
+  {
+   "hash": 635208006,
+   "name": "ReagentColorYellow",
+   "display": "Color Dye (Yellow)"
+  },
+  {
+   "hash": 819096942,
+   "name": null,
+   "display": "Research Capsule Blue"
+  },
+  {
+   "hash": -788672929,
+   "name": "RespawnPoint",
+   "display": "Respawn Point"
+  },
+  {
+   "hash": -491247370,
+   "name": "RespawnPointWallMounted",
+   "display": "Respawn Point (Mounted)"
+  },
+  {
+   "hash": 434786784,
+   "name": "Robot",
+   "display": "AIMeE Bot"
+  },
+  {
+   "hash": -2049946335,
+   "name": "Rover_MkI",
+   "display": "Rover MkI"
+  },
+  {
+   "hash": 861674123,
+   "name": "Rover_MkI_build_states",
+   "display": "Rover MKI"
+  },
+  {
+   "hash": 350726273,
+   "name": "RoverCargo",
+   "display": "Rover (Cargo)"
+  },
+  {
+   "hash": 1905352762,
+   "name": null,
+   "display": "RTG"
+  },
+  {
+   "hash": -1290755415,
+   "name": "SeedBag_Corn",
+   "display": "Corn Seeds"
+  },
+  {
+   "hash": -1990600883,
+   "name": "SeedBag_Fern",
+   "display": "Fern Seeds"
+  },
+  {
+   "hash": 311593418,
+   "name": "SeedBag_Mushroom",
+   "display": "Mushroom Seeds"
+  },
+  {
+   "hash": 1005571172,
+   "name": "SeedBag_Potato",
+   "display": "Potato Seeds"
+  },
+  {
+   "hash": 1423199840,
+   "name": "SeedBag_Pumpkin",
+   "display": "Pumpkin Seeds"
+  },
+  {
+   "hash": -1691151239,
+   "name": "SeedBag_Rice",
+   "display": "Rice Seeds"
+  },
+  {
+   "hash": 1783004244,
+   "name": "SeedBag_Soybean",
+   "display": "Soybean Seeds"
+  },
+  {
+   "hash": 488360169,
+   "name": "SeedBag_Switchgrass",
+   "display": "Switchgrass Seed"
+  },
+  {
+   "hash": -1922066841,
+   "name": "SeedBag_Tomato",
+   "display": "Tomato Seeds"
+  },
+  {
+   "hash": -654756733,
+   "name": "SeedBag_Wheet",
+   "display": "Wheat Seeds"
+  },
+  {
+   "hash": -256607540,
+   "name": "SMGMagazine",
+   "display": "SMG Magazine"
+  },
+  {
+   "hash": -1991297271,
+   "name": "SpaceShuttle",
+   "display": "Space Shuttle"
+  },
+  {
+   "hash": -1527229051,
+   "name": "StopWatch",
+   "display": "Stop Watch"
+  },
+  {
+   "hash": -1129453144,
+   "name": "StructureActiveVent",
+   "display": "Active Vent"
+  },
+  {
+   "hash": 446212963,
+   "name": "StructureAdvancedComposter",
+   "display": "Advanced Composter"
+  },
+  {
+   "hash": 545937711,
+   "name": "StructureAdvancedFurnace",
+   "display": "Advanced Furnace"
+  },
+  {
+   "hash": -463037670,
+   "name": "StructureAdvancedPackagingMachine",
+   "display": "Advanced Packaging Machine"
+  },
+  {
+   "hash": -2087593337,
+   "name": "StructureAirConditioner",
+   "display": "Air Conditioner"
+  },
+  {
+   "hash": -2105052344,
+   "name": "StructureAirlock",
+   "display": "Airlock"
+  },
+  {
+   "hash": 1736080881,
+   "name": "StructureAirlockGate",
+   "display": "Small Hangar Door"
+  },
+  {
+   "hash": 1811979158,
+   "name": "StructureAngledBench",
+   "display": "Bench (Angled)"
+  },
+  {
+   "hash": -247344692,
+   "name": "StructureArcFurnace",
+   "display": "Arc Furnace"
+  },
+  {
+   "hash": 1999523701,
+   "name": "StructureAreaPowerControl",
+   "display": "Area Power Control"
+  },
+  {
+   "hash": -1032513487,
+   "name": "StructureAreaPowerControlReversed",
+   "display": "Area Power Control"
+  },
+  {
+   "hash": 336213101,
+   "name": "StructureAutolathe",
+   "display": "Autolathe"
+  },
+  {
+   "hash": -1672404896,
+   "name": "StructureAutomatedOven",
+   "display": "Automated Oven"
+  },
+  {
+   "hash": 7274344,
+   "name": "StructureAutoMinerSmall",
+   "display": "Autominer (Small)"
+  },
+  {
+   "hash": 2099900163,
+   "name": "StructureBackLiquidPressureRegulator",
+   "display": "Liquid Back Volume Regulator"
+  },
+  {
+   "hash": -1149857558,
+   "name": "StructureBackPressureRegulator",
+   "display": "Back Pressure Regulator"
+  },
+  {
+   "hash": -1613497288,
+   "name": "StructureBasketHoop",
+   "display": "Basket Hoop"
+  },
+  {
+   "hash": -400115994,
+   "name": "StructureBattery",
+   "display": "Station Battery"
+  },
+  {
+   "hash": 1945930022,
+   "name": "StructureBatteryCharger",
+   "display": "Battery Cell Charger"
+  },
+  {
+   "hash": -761772413,
+   "name": "StructureBatteryChargerSmall",
+   "display": "Battery Charger Small"
+  },
+  {
+   "hash": -1388288459,
+   "name": "StructureBatteryLarge",
+   "display": "Station Battery (Large)"
+  },
+  {
+   "hash": -188177083,
+   "name": "StructureBeacon",
+   "display": "Beacon"
+  },
+  {
+   "hash": -2042448192,
+   "name": "StructureBench",
+   "display": "Powered Bench"
+  },
+  {
+   "hash": 406745009,
+   "name": "StructureBench1",
+   "display": "Bench (Counter Style)"
+  },
+  {
+   "hash": -2127086069,
+   "name": "StructureBench2",
+   "display": "Bench (High Tech Style)"
+  },
+  {
+   "hash": -164622691,
+   "name": "StructureBench3",
+   "display": "Bench (Frame Style)"
+  },
+  {
+   "hash": 1750375230,
+   "name": "StructureBench4",
+   "display": "Bench (Workbench Style)"
+  },
+  {
+   "hash": 337416191,
+   "name": "StructureBlastDoor",
+   "display": "Blast Door"
+  },
+  {
+   "hash": 697908419,
+   "name": "StructureBlockBed",
+   "display": "Block Bed"
+  },
+  {
+   "hash": 378084505,
+   "name": "StructureBlocker",
+   "display": "Blocker"
+  },
+  {
+   "hash": 1036015121,
+   "name": "StructureCableAnalysizer",
+   "display": "Cable Analyzer"
+  },
+  {
+   "hash": -889269388,
+   "name": "StructureCableCorner",
+   "display": "Cable (Corner)"
+  },
+  {
+   "hash": 980469101,
+   "name": "StructureCableCorner3",
+   "display": "Cable (3-Way Corner)"
+  },
+  {
+   "hash": 318437449,
+   "name": "StructureCableCorner3Burnt",
+   "display": "Burnt Cable (3-Way Corner)"
+  },
+  {
+   "hash": 2393826,
+   "name": "StructureCableCorner3HBurnt",
+   "display": "<N:EN:StructureCableCorner3HBurnt>"
+  },
+  {
+   "hash": -1542172466,
+   "name": "StructureCableCorner4",
+   "display": "Cable (4-Way Corner)"
+  },
+  {
+   "hash": 268421361,
+   "name": "StructureCableCorner4Burnt",
+   "display": "Burnt Cable (4-Way Corner)"
+  },
+  {
+   "hash": -981223316,
+   "name": "StructureCableCorner4HBurnt",
+   "display": "Burnt Heavy Cable (4-Way Corner)"
+  },
+  {
+   "hash": -177220914,
+   "name": "StructureCableCornerBurnt",
+   "display": "Burnt Cable (Corner)"
+  },
+  {
+   "hash": -39359015,
+   "name": "StructureCableCornerH",
+   "display": "Heavy Cable (Corner)"
+  },
+  {
+   "hash": -1843379322,
+   "name": "StructureCableCornerH3",
+   "display": "Heavy Cable (3-Way Corner)"
+  },
+  {
+   "hash": 205837861,
+   "name": "StructureCableCornerH4",
+   "display": "Heavy Cable (4-Way Corner)"
+  },
+  {
+   "hash": 1931412811,
+   "name": "StructureCableCornerHBurnt",
+   "display": "Burnt Cable (Corner)"
+  },
+  {
+   "hash": 281380789,
+   "name": "StructureCableFuse100k",
+   "display": "Fuse (100kW)"
+  },
+  {
+   "hash": -1103727120,
+   "name": "StructureCableFuse1k",
+   "display": "Fuse (1kW)"
+  },
+  {
+   "hash": -349716617,
+   "name": "StructureCableFuse50k",
+   "display": "Fuse (50kW)"
+  },
+  {
+   "hash": -631590668,
+   "name": "StructureCableFuse5k",
+   "display": "Fuse (5kW)"
+  },
+  {
+   "hash": -175342021,
+   "name": "StructureCableJunction",
+   "display": "Cable (Junction)"
+  },
+  {
+   "hash": 1112047202,
+   "name": "StructureCableJunction4",
+   "display": "Cable (4-Way Junction)"
+  },
+  {
+   "hash": -1756896811,
+   "name": "StructureCableJunction4Burnt",
+   "display": "Burnt Cable (4-Way Junction)"
+  },
+  {
+   "hash": -115809132,
+   "name": "StructureCableJunction4HBurnt",
+   "display": "Burnt Cable (4-Way Junction)"
+  },
+  {
+   "hash": 894390004,
+   "name": "StructureCableJunction5",
+   "display": "Cable (5-Way Junction)"
+  },
+  {
+   "hash": 1545286256,
+   "name": "StructureCableJunction5Burnt",
+   "display": "Burnt Cable (5-Way Junction)"
+  },
+  {
+   "hash": -1404690610,
+   "name": "StructureCableJunction6",
+   "display": "Cable (6-Way Junction)"
+  },
+  {
+   "hash": -628145954,
+   "name": "StructureCableJunction6Burnt",
+   "display": "Burnt Cable (6-Way Junction)"
+  },
+  {
+   "hash": 1854404029,
+   "name": "StructureCableJunction6HBurnt",
+   "display": "Burnt Cable (6-Way Junction)"
+  },
+  {
+   "hash": -1620686196,
+   "name": "StructureCableJunctionBurnt",
+   "display": "Burnt Cable (Junction)"
+  },
+  {
+   "hash": 469451637,
+   "name": "StructureCableJunctionH",
+   "display": "Heavy Cable (3-Way Junction)"
+  },
+  {
+   "hash": -742234680,
+   "name": "StructureCableJunctionH4",
+   "display": "Heavy Cable (4-Way Junction)"
+  },
+  {
+   "hash": -1530571426,
+   "name": "StructureCableJunctionH5",
+   "display": "Heavy Cable (5-Way Junction)"
+  },
+  {
+   "hash": 1701593300,
+   "name": "StructureCableJunctionH5Burnt",
+   "display": "Burnt Heavy Cable (5-Way Junction)"
+  },
+  {
+   "hash": 1036780772,
+   "name": "StructureCableJunctionH6",
+   "display": "Heavy Cable (6-Way Junction)"
+  },
+  {
+   "hash": -341365649,
+   "name": "StructureCableJunctionHBurnt",
+   "display": "Burnt Cable (Junction)"
+  },
+  {
+   "hash": 605357050,
+   "name": "StructureCableStraight",
+   "display": "Cable (Straight)"
+  },
+  {
+   "hash": -1196981113,
+   "name": "StructureCableStraightBurnt",
+   "display": "Burnt Cable (Straight)"
+  },
+  {
+   "hash": -146200530,
+   "name": "StructureCableStraightH",
+   "display": "Heavy Cable (Straight)"
+  },
+  {
+   "hash": 2085762089,
+   "name": "StructureCableStraightHBurnt",
+   "display": "Burnt Cable (Straight)"
+  },
+  {
+   "hash": -342072665,
+   "name": "StructureCamera",
+   "display": "Camera"
+  },
+  {
+   "hash": 690945935,
+   "name": "StructureCentrifuge",
+   "display": "Centrifuge"
+  },
+  {
+   "hash": 1167659360,
+   "name": "StructureChair",
+   "display": "Chair"
+  },
+  {
+   "hash": 1944858936,
+   "name": "StructureChairBacklessDouble",
+   "display": "Chair (Backless Double)"
+  },
+  {
+   "hash": 1672275150,
+   "name": "StructureChairBacklessSingle",
+   "display": "Chair (Backless Single)"
+  },
+  {
+   "hash": -367720198,
+   "name": "StructureChairBoothCornerLeft",
+   "display": "Chair (Booth Corner Left)"
+  },
+  {
+   "hash": 1640720378,
+   "name": "StructureChairBoothMiddle",
+   "display": "Chair (Booth Middle)"
+  },
+  {
+   "hash": -1152812099,
+   "name": "StructureChairRectangleDouble",
+   "display": "Chair (Rectangle Double)"
+  },
+  {
+   "hash": -1425428917,
+   "name": "StructureChairRectangleSingle",
+   "display": "Chair (Rectangle Single)"
+  },
+  {
+   "hash": -1245724402,
+   "name": "StructureChairThickDouble",
+   "display": "Chair (Thick Double)"
+  },
+  {
+   "hash": -1510009608,
+   "name": "StructureChairThickSingle",
+   "display": "Chair (Thick Single)"
+  },
+  {
+   "hash": -850484480,
+   "name": "StructureChuteBin",
+   "display": "Chute Bin"
+  },
+  {
+   "hash": 1360330136,
+   "name": "StructureChuteCorner",
+   "display": "Chute (Corner)"
+  },
+  {
+   "hash": -810874728,
+   "name": "StructureChuteDigitalFlipFlopSplitterLeft",
+   "display": "Chute Digital Flip Flop Splitter Left"
+  },
+  {
+   "hash": 163728359,
+   "name": "StructureChuteDigitalFlipFlopSplitterRight",
+   "display": "Chute Digital Flip Flop Splitter Right"
+  },
+  {
+   "hash": 648608238,
+   "name": "StructureChuteDigitalValveLeft",
+   "display": "Chute Digital Valve Left"
+  },
+  {
+   "hash": -1337091041,
+   "name": "StructureChuteDigitalValveRight",
+   "display": "Chute Digital Valve Right"
+  },
+  {
+   "hash": -1446854725,
+   "name": "StructureChuteFlipFlopSplitter",
+   "display": "Chute Flip Flop Splitter"
+  },
+  {
+   "hash": -1469588766,
+   "name": "StructureChuteInlet",
+   "display": "Chute Inlet"
+  },
+  {
+   "hash": -611232514,
+   "name": "StructureChuteJunction",
+   "display": "Chute (Junction)"
+  },
+  {
+   "hash": -1022714809,
+   "name": "StructureChuteOutlet",
+   "display": "Chute Outlet"
+  },
+  {
+   "hash": 225377225,
+   "name": "StructureChuteOverflow",
+   "display": "Chute Overflow"
+  },
+  {
+   "hash": 168307007,
+   "name": "StructureChuteStraight",
+   "display": "Chute (Straight)"
+  },
+  {
+   "hash": 434875271,
+   "name": "StructureChuteValve",
+   "display": "Chute Valve"
+  },
+  {
+   "hash": -607241919,
+   "name": "StructureChuteWindow",
+   "display": "Chute (Window)"
+  },
+  {
+   "hash": -128473777,
+   "name": "StructureCircuitHousing",
+   "display": "IC Housing"
+  },
+  {
+   "hash": 1238905683,
+   "name": "StructureCombustionCentrifuge",
+   "display": "Combustion Centrifuge"
+  },
+  {
+   "hash": -1513030150,
+   "name": "StructureCompositeCladdingAngled",
+   "display": "Composite Cladding (Angled)"
+  },
+  {
+   "hash": -69685069,
+   "name": "StructureCompositeCladdingAngledCorner",
+   "display": "Composite Cladding (Angled Corner)"
+  },
+  {
+   "hash": -1841871763,
+   "name": "StructureCompositeCladdingAngledCornerInner",
+   "display": "Composite Cladding (Angled Corner Inner)"
+  },
+  {
+   "hash": -1417912632,
+   "name": "StructureCompositeCladdingAngledCornerInnerLong",
+   "display": "Composite Cladding (Angled Corner Inner Long)"
+  },
+  {
+   "hash": 947705066,
+   "name": "StructureCompositeCladdingAngledCornerInnerLongL",
+   "display": "Composite Cladding (Angled Corner Inner Long L)"
+  },
+  {
+   "hash": -1032590967,
+   "name": "StructureCompositeCladdingAngledCornerInnerLongR",
+   "display": "Composite Cladding (Angled Corner Inner Long R)"
+  },
+  {
+   "hash": 850558385,
+   "name": "StructureCompositeCladdingAngledCornerLong",
+   "display": "Composite Cladding (Long Angled Corner)"
+  },
+  {
+   "hash": -348918222,
+   "name": "StructureCompositeCladdingAngledCornerLongR",
+   "display": "Composite Cladding (Long Angled Mirrored Corner)"
+  },
+  {
+   "hash": -387546514,
+   "name": "StructureCompositeCladdingAngledLong",
+   "display": "Composite Cladding (Long Angled)"
+  },
+  {
+   "hash": 212919006,
+   "name": "StructureCompositeCladdingCylindrical",
+   "display": "Composite Cladding (Cylindrical)"
+  },
+  {
+   "hash": 1077151132,
+   "name": "StructureCompositeCladdingCylindricalPanel",
+   "display": "Composite Cladding (Cylindrical Panel)"
+  },
+  {
+   "hash": 1997436771,
+   "name": "StructureCompositeCladdingPanel",
+   "display": "Composite Cladding (Panel)"
+  },
+  {
+   "hash": -259357734,
+   "name": "StructureCompositeCladdingRounded",
+   "display": "Composite Cladding (Rounded)"
+  },
+  {
+   "hash": 1951525046,
+   "name": "StructureCompositeCladdingRoundedCorner",
+   "display": "Composite Cladding (Rounded Corner)"
+  },
+  {
+   "hash": 110184667,
+   "name": "StructureCompositeCladdingRoundedCornerInner",
+   "display": "Composite Cladding (Rounded Corner Inner)"
+  },
+  {
+   "hash": 139107321,
+   "name": "StructureCompositeCladdingSpherical",
+   "display": "Composite Cladding (Spherical)"
+  },
+  {
+   "hash": 534213209,
+   "name": "StructureCompositeCladdingSphericalCap",
+   "display": "Composite Cladding (Spherical Cap)"
+  },
+  {
+   "hash": 1751355139,
+   "name": "StructureCompositeCladdingSphericalCorner",
+   "display": "Composite Cladding (Spherical Corner)"
+  },
+  {
+   "hash": -793837322,
+   "name": "StructureCompositeDoor",
+   "display": "Composite Door"
+  },
+  {
+   "hash": 324868581,
+   "name": "StructureCompositeFloorGrating",
+   "display": "Composite Floor Grating"
+  },
+  {
+   "hash": -895027741,
+   "name": "StructureCompositeFloorGrating2",
+   "display": "Composite Floor Grating  (Type 2)"
+  },
+  {
+   "hash": -1113471627,
+   "name": "StructureCompositeFloorGrating3",
+   "display": "Composite Floor Grating  (Type 3)"
+  },
+  {
+   "hash": 600133846,
+   "name": "StructureCompositeFloorGrating4",
+   "display": "Composite Floor Grating  (Type 4)"
+  },
+  {
+   "hash": 2109695912,
+   "name": "StructureCompositeFloorGratingOpen",
+   "display": "Composite Floor Grating Open"
+  },
+  {
+   "hash": 882307910,
+   "name": "StructureCompositeFloorGratingOpenRotated",
+   "display": "Composite Floor Grating Open Rotated"
+  },
+  {
+   "hash": 1237302061,
+   "name": "StructureCompositeWall",
+   "display": "Composite Wall (Type 1)"
+  },
+  {
+   "hash": 718343384,
+   "name": "StructureCompositeWall02",
+   "display": "Composite Wall (Type 2)"
+  },
+  {
+   "hash": 1574321230,
+   "name": "StructureCompositeWall03",
+   "display": "Composite Wall (Type 3)"
+  },
+  {
+   "hash": -1011701267,
+   "name": "StructureCompositeWall04",
+   "display": "Composite Wall (Type 4)"
+  },
+  {
+   "hash": -2060571986,
+   "name": "StructureCompositeWindow",
+   "display": "Composite Window"
+  },
+  {
+   "hash": -688284639,
+   "name": "StructureCompositeWindowIron",
+   "display": "Iron Window"
+  },
+  {
+   "hash": -626563514,
+   "name": "StructureComputer",
+   "display": "Computer"
+  },
+  {
+   "hash": 1420719315,
+   "name": "StructureCondensationChamber",
+   "display": "Condensation Chamber"
+  },
+  {
+   "hash": -965741795,
+   "name": "StructureCondensationValve",
+   "display": "Condensation Valve"
+  },
+  {
+   "hash": 235638270,
+   "name": "StructureConsole",
+   "display": "Console"
+  },
+  {
+   "hash": -722284333,
+   "name": "StructureConsoleDual",
+   "display": "Console Dual"
+  },
+  {
+   "hash": -53151617,
+   "name": "StructureConsoleLED1x2",
+   "display": "LED Display (Medium)"
+  },
+  {
+   "hash": -1949054743,
+   "name": "StructureConsoleLED1x3",
+   "display": "LED Display (Large)"
+  },
+  {
+   "hash": -815193061,
+   "name": "StructureConsoleLED5",
+   "display": "LED Display (Small)"
+  },
+  {
+   "hash": 801677497,
+   "name": "StructureConsoleMonitor",
+   "display": "Console Monitor"
+  },
+  {
+   "hash": -1961153710,
+   "name": "StructureControlChair",
+   "display": "Control Chair"
+  },
+  {
+   "hash": -1968255729,
+   "name": "StructureCornerLocker",
+   "display": "Corner Locker"
+  },
+  {
+   "hash": -733500083,
+   "name": "StructureCrateMount",
+   "display": "Container Mount"
+  },
+  {
+   "hash": 1938254586,
+   "name": "StructureCryoTube",
+   "display": "CryoTube"
+  },
+  {
+   "hash": 1443059329,
+   "name": "StructureCryoTubeHorizontal",
+   "display": "Cryo Tube Horizontal"
+  },
+  {
+   "hash": -1381321828,
+   "name": "StructureCryoTubeVertical",
+   "display": "Cryo Tube Vertical"
+  },
+  {
+   "hash": 1076425094,
+   "name": "StructureDaylightSensor",
+   "display": "Daylight Sensor"
+  },
+  {
+   "hash": 265720906,
+   "name": "StructureDeepMiner",
+   "display": "Deep Miner"
+  },
+  {
+   "hash": -1280984102,
+   "name": "StructureDigitalValve",
+   "display": "Digital Valve"
+  },
+  {
+   "hash": 1944485013,
+   "name": "StructureDiode",
+   "display": "LED"
+  },
+  {
+   "hash": 576516101,
+   "name": "StructureDiodeSlide",
+   "display": "Diode Slide"
+  },
+  {
+   "hash": -137465079,
+   "name": "StructureDockPortSide",
+   "display": "Dock (Port Side)"
+  },
+  {
+   "hash": -1668992663,
+   "name": "StructureElectrolyzer",
+   "display": "Electrolyzer"
+  },
+  {
+   "hash": 1307165496,
+   "name": "StructureElectronicsPrinter",
+   "display": "Electronics Printer"
+  },
+  {
+   "hash": -827912235,
+   "name": "StructureElevatorLevelFront",
+   "display": "Elevator Level"
+  },
+  {
+   "hash": 826144419,
+   "name": "StructureElevatorShaft",
+   "display": "Elevator Shaft"
+  },
+  {
+   "hash": 1668452680,
+   "name": "StructureEmergencyButton",
+   "display": "Important Button"
+  },
+  {
+   "hash": -1429782576,
+   "name": "StructureEvaporationChamber",
+   "display": "Evaporation Chamber"
+  },
+  {
+   "hash": 195298587,
+   "name": "StructureExpansionValve",
+   "display": "Expansion Valve"
+  },
+  {
+   "hash": -348054045,
+   "name": "StructureFiltration",
+   "display": "Filtration"
+  },
+  {
+   "hash": -1529819532,
+   "name": "StructureFlagSmall",
+   "display": "Small Flag"
+  },
+  {
+   "hash": -1535893860,
+   "name": "StructureFlashingLight",
+   "display": "Flashing Light"
+  },
+  {
+   "hash": 839890807,
+   "name": "StructureFlatBench",
+   "display": "Bench (Flat)"
+  },
+  {
+   "hash": 1048813293,
+   "name": "StructureFloorDrain",
+   "display": "Passive Liquid Inlet"
+  },
+  {
+   "hash": 1432512808,
+   "name": "StructureFrame",
+   "display": "Steel Frame"
+  },
+  {
+   "hash": -2112390778,
+   "name": "StructureFrameCorner",
+   "display": "Steel Frame (Corner)"
+  },
+  {
+   "hash": 271315669,
+   "name": "StructureFrameCornerCut",
+   "display": "Steel Frame (Corner Cut)"
+  },
+  {
+   "hash": -1240951678,
+   "name": "StructureFrameIron",
+   "display": "Iron Frame"
+  },
+  {
+   "hash": -302420053,
+   "name": "StructureFrameSide",
+   "display": "Steel Frame (Side)"
+  },
+  {
+   "hash": 958476921,
+   "name": "StructureFridgeBig",
+   "display": "Fridge (Large)"
+  },
+  {
+   "hash": 751887598,
+   "name": "StructureFridgeSmall",
+   "display": "Fridge Small"
+  },
+  {
+   "hash": 1947944864,
+   "name": "StructureFurnace",
+   "display": "Furnace"
+  },
+  {
+   "hash": 1165997963,
+   "name": "StructureGasGenerator",
+   "display": "Gas Fuel Generator"
+  },
+  {
+   "hash": 2104106366,
+   "name": "StructureGasMixer",
+   "display": "Gas Mixer"
+  },
+  {
+   "hash": -1252983604,
+   "name": "StructureGasSensor",
+   "display": "Gas Sensor"
+  },
+  {
+   "hash": 1632165346,
+   "name": "StructureGasTankStorage",
+   "display": "Gas Tank Storage"
+  },
+  {
+   "hash": -324331872,
+   "name": "StructureGlassDoor",
+   "display": "Glass Door"
+  },
+  {
+   "hash": -1758710260,
+   "name": "StructureGrowLight",
+   "display": "Grow Light"
+  },
+  {
+   "hash": 958056199,
+   "name": "StructureHarvie",
+   "display": "Harvie"
+  },
+  {
+   "hash": 944685608,
+   "name": "StructureHeatExchangeLiquidtoGas",
+   "display": "Heat Exchanger - Liquid + Gas"
+  },
+  {
+   "hash": 21266291,
+   "name": "StructureHeatExchangerGastoGas",
+   "display": "Heat Exchanger - Gas"
+  },
+  {
+   "hash": -613784254,
+   "name": "StructureHeatExchangerLiquidtoLiquid",
+   "display": "Heat Exchanger - Liquid"
+  },
+  {
+   "hash": 1070427573,
+   "name": "StructureHorizontalAutoMiner",
+   "display": "OGRE"
+  },
+  {
+   "hash": -1888248335,
+   "name": "StructureHydraulicPipeBender",
+   "display": "Hydraulic Pipe Bender"
+  },
+  {
+   "hash": 1441767298,
+   "name": "StructureHydroponicsStation",
+   "display": "Hydroponics Station"
+  },
+  {
+   "hash": 1464854517,
+   "name": "StructureHydroponicsTray",
+   "display": "Hydroponics Tray"
+  },
+  {
+   "hash": -1841632400,
+   "name": "StructureHydroponicsTrayData",
+   "display": "Hydroponics Device"
+  },
+  {
+   "hash": 443849486,
+   "name": "StructureIceCrusher",
+   "display": "Ice Crusher"
+  },
+  {
+   "hash": 1005491513,
+   "name": "StructureIgniter",
+   "display": "Igniter"
+  },
+  {
+   "hash": -1693382705,
+   "name": "StructureInLineTankGas1x1",
+   "display": "In-Line Tank Small Gas"
+  },
+  {
+   "hash": 35149429,
+   "name": "StructureInLineTankGas1x2",
+   "display": "In-Line Tank Gas"
+  },
+  {
+   "hash": 543645499,
+   "name": "StructureInLineTankLiquid1x1",
+   "display": "In-Line Tank Small Liquid"
+  },
+  {
+   "hash": -1183969663,
+   "name": "StructureInLineTankLiquid1x2",
+   "display": "In-Line Tank Liquid"
+  },
+  {
+   "hash": -1967711059,
+   "name": "StructureInsulatedPipeCorner",
+   "display": "Insulated Pipe (Corner)"
+  },
+  {
+   "hash": -92778058,
+   "name": "StructureInsulatedPipeCrossJunction",
+   "display": "Insulated Pipe (Cross Junction)"
+  },
+  {
+   "hash": 1328210035,
+   "name": "StructureInsulatedPipeCrossJunction3",
+   "display": "Insulated Pipe (3-Way Junction)"
+  },
+  {
+   "hash": -783387184,
+   "name": "StructureInsulatedPipeCrossJunction4",
+   "display": "Insulated Pipe (4-Way Junction)"
+  },
+  {
+   "hash": -1505147578,
+   "name": "StructureInsulatedPipeCrossJunction5",
+   "display": "Insulated Pipe (5-Way Junction)"
+  },
+  {
+   "hash": 1061164284,
+   "name": "StructureInsulatedPipeCrossJunction6",
+   "display": "Insulated Pipe (6-Way Junction)"
+  },
+  {
+   "hash": 1713710802,
+   "name": "StructureInsulatedPipeLiquidCorner",
+   "display": "Insulated Liquid Pipe (Corner)"
+  },
+  {
+   "hash": 1926651727,
+   "name": "StructureInsulatedPipeLiquidCrossJunction",
+   "display": "Insulated Liquid Pipe (3-Way Junction)"
+  },
+  {
+   "hash": 363303270,
+   "name": "StructureInsulatedPipeLiquidCrossJunction4",
+   "display": "Insulated Liquid Pipe (4-Way Junction)"
+  },
+  {
+   "hash": 1654694384,
+   "name": "StructureInsulatedPipeLiquidCrossJunction5",
+   "display": "Insulated Liquid Pipe (5-Way Junction)"
+  },
+  {
+   "hash": -72748982,
+   "name": "StructureInsulatedPipeLiquidCrossJunction6",
+   "display": "Insulated Liquid Pipe (6-Way Junction)"
+  },
+  {
+   "hash": 295678685,
+   "name": "StructureInsulatedPipeLiquidStraight",
+   "display": "Insulated Liquid Pipe (Straight)"
+  },
+  {
+   "hash": -532384855,
+   "name": "StructureInsulatedPipeLiquidTJunction",
+   "display": "Insulated Liquid Pipe (T Junction)"
+  },
+  {
+   "hash": 2134172356,
+   "name": "StructureInsulatedPipeStraight",
+   "display": "Insulated Pipe (Straight)"
+  },
+  {
+   "hash": -2076086215,
+   "name": "StructureInsulatedPipeTJunction",
+   "display": "Insulated Pipe (T Junction)"
+  },
+  {
+   "hash": -31273349,
+   "name": "StructureInsulatedTankConnector",
+   "display": "Insulated Tank Connector"
+  },
+  {
+   "hash": -1602030414,
+   "name": "StructureInsulatedTankConnectorLiquid",
+   "display": "Insulated Tank Connector Liquid"
+  },
+  {
+   "hash": -2096421875,
+   "name": "StructureInteriorDoorGlass",
+   "display": "Interior Door Glass"
+  },
+  {
+   "hash": 847461335,
+   "name": "StructureInteriorDoorPadded",
+   "display": "Interior Door Padded"
+  },
+  {
+   "hash": 1981698201,
+   "name": "StructureInteriorDoorPaddedThin",
+   "display": "Interior Door Padded Thin"
+  },
+  {
+   "hash": -1182923101,
+   "name": "StructureInteriorDoorTriangle",
+   "display": "Interior Door Triangle"
+  },
+  {
+   "hash": -828056979,
+   "name": "StructureKlaxon",
+   "display": "Klaxon Speaker"
+  },
+  {
+   "hash": -415420281,
+   "name": "StructureLadder",
+   "display": "Ladder"
+  },
+  {
+   "hash": 1541734993,
+   "name": "StructureLadderEnd",
+   "display": "Ladder End"
+  },
+  {
+   "hash": -1230658883,
+   "name": "StructureLargeDirectHeatExchangeGastoGas",
+   "display": "Large Direct Heat Exchanger - Gas + Gas"
+  },
+  {
+   "hash": 1412338038,
+   "name": "StructureLargeDirectHeatExchangeGastoLiquid",
+   "display": "Large Direct Heat Exchanger - Gas + Liquid"
+  },
+  {
+   "hash": 792686502,
+   "name": "StructureLargeDirectHeatExchangeLiquidtoLiquid",
+   "display": "Large Direct Heat Exchange - Liquid + Liquid"
+  },
+  {
+   "hash": -566775170,
+   "name": "StructureLargeExtendableRadiator",
+   "display": "Structure Large Extendable Radiator"
+  },
+  {
+   "hash": -1351081801,
+   "name": "StructureLargeHangerDoor",
+   "display": "Large Hangar Door"
+  },
+  {
+   "hash": 1913391845,
+   "name": "StructureLargeSatelliteDish",
+   "display": "Large Satellite Dish"
+  },
+  {
+   "hash": 797794350,
+   "name": "StructureLightLong",
+   "display": "Wall Light (Long)"
+  },
+  {
+   "hash": 1847265835,
+   "name": "StructureLightLongAngled",
+   "display": "Wall Light (Long Angled)"
+  },
+  {
+   "hash": 555215790,
+   "name": "StructureLightLongWide",
+   "display": "Wall Light (Long Wide)"
+  },
+  {
+   "hash": 1514476632,
+   "name": "StructureLightRound",
+   "display": "Light Round"
+  },
+  {
+   "hash": 1592905386,
+   "name": "StructureLightRoundAngled",
+   "display": "Light Round (Angled)"
+  },
+  {
+   "hash": 1436121888,
+   "name": "StructureLightRoundSmall",
+   "display": "Light Round (Small)"
+  },
+  {
+   "hash": 1687692899,
+   "name": "StructureLiquidDrain",
+   "display": "Active Liquid Outlet"
+  },
+  {
+   "hash": -2113838091,
+   "name": "StructureLiquidPipeAnalyzer",
+   "display": "Liquid Pipe Analyzer"
+  },
+  {
+   "hash": -287495560,
+   "name": "StructureLiquidPipeHeater",
+   "display": "Pipe Heater (Liquid)"
+  },
+  {
+   "hash": 2072805863,
+   "name": "StructureLiquidPipeRadiator",
+   "display": "Liquid Pipe Convection Radiator"
+  },
+  {
+   "hash": 482248766,
+   "name": "StructureLiquidPressureRegulator",
+   "display": "Liquid Volume Regulator"
+  },
+  {
+   "hash": 1098900430,
+   "name": "StructureLiquidTankBig",
+   "display": "Liquid Tank Big"
+  },
+  {
+   "hash": -1430440215,
+   "name": "StructureLiquidTankBigInsulated",
+   "display": "Insulated Liquid Tank Big"
+  },
+  {
+   "hash": 1988118157,
+   "name": "StructureLiquidTankSmall",
+   "display": "Liquid Tank Small"
+  },
+  {
+   "hash": 608607718,
+   "name": "StructureLiquidTankSmallInsulated",
+   "display": "Insulated Liquid Tank Small"
+  },
+  {
+   "hash": 1691898022,
+   "name": "StructureLiquidTankStorage",
+   "display": "Liquid Tank Storage"
+  },
+  {
+   "hash": -1051805505,
+   "name": "StructureLiquidTurboVolumePump",
+   "display": "Turbo Volume Pump (Liquid)"
+  },
+  {
+   "hash": 1849974453,
+   "name": "StructureLiquidValve",
+   "display": "Liquid Valve"
+  },
+  {
+   "hash": -454028979,
+   "name": "StructureLiquidVolumePump",
+   "display": "Liquid Volume Pump"
+  },
+  {
+   "hash": -647164662,
+   "name": "StructureLockerSmall",
+   "display": "Locker (Small)"
+  },
+  {
+   "hash": 264413729,
+   "name": "StructureLogicBatchReader",
+   "display": "Batch Reader"
+  },
+  {
+   "hash": 436888930,
+   "name": "StructureLogicBatchSlotReader",
+   "display": "Batch Slot Reader"
+  },
+  {
+   "hash": 1415443359,
+   "name": "StructureLogicBatchWriter",
+   "display": "Batch Writer"
+  },
+  {
+   "hash": 491845673,
+   "name": "StructureLogicButton",
+   "display": "Button"
+  },
+  {
+   "hash": -1489728908,
+   "name": "StructureLogicCompare",
+   "display": "Logic Compare"
+  },
+  {
+   "hash": 554524804,
+   "name": "StructureLogicDial",
+   "display": "Dial"
+  },
+  {
+   "hash": 1942143074,
+   "name": "StructureLogicGate",
+   "display": "Logic Gate"
+  },
+  {
+   "hash": 2077593121,
+   "name": "StructureLogicHashGen",
+   "display": "Logic Hash Generator"
+  },
+  {
+   "hash": 1657691323,
+   "name": "StructureLogicMath",
+   "display": "Logic Math"
+  },
+  {
+   "hash": -1160020195,
+   "name": "StructureLogicMathUnary",
+   "display": "Math Unary"
+  },
+  {
+   "hash": -851746783,
+   "name": "StructureLogicMemory",
+   "display": "Logic Memory"
+  },
+  {
+   "hash": 929022276,
+   "name": "StructureLogicMinMax",
+   "display": "Logic Min/Max"
+  },
+  {
+   "hash": 2096189278,
+   "name": "StructureLogicMirror",
+   "display": "Logic Mirror"
+  },
+  {
+   "hash": -345383640,
+   "name": "StructureLogicReader",
+   "display": "Logic Reader"
+  },
+  {
+   "hash": -124308857,
+   "name": "StructureLogicReagentReader",
+   "display": "Reagent Reader"
+  },
+  {
+   "hash": 1822736084,
+   "name": "StructureLogicSelect",
+   "display": "Logic Select"
+  },
+  {
+   "hash": -767867194,
+   "name": "StructureLogicSlotReader",
+   "display": "Slot Reader"
+  },
+  {
+   "hash": 1220484876,
+   "name": "StructureLogicSwitch",
+   "display": "Lever"
+  },
+  {
+   "hash": 321604921,
+   "name": "StructureLogicSwitch2",
+   "display": "Switch"
+  },
+  {
+   "hash": -693235651,
+   "name": "StructureLogicTransmitter",
+   "display": "Logic Transmitter"
+  },
+  {
+   "hash": -1326019434,
+   "name": "StructureLogicWriter",
+   "display": "Logic Writer"
+  },
+  {
+   "hash": -1321250424,
+   "name": "StructureLogicWriterSwitch",
+   "display": "Logic Writer Switch"
+  },
+  {
+   "hash": -1909140125,
+   "name": "StructureLowVolumeLiquidPipeCorner",
+   "display": "Low Volume Liquid Pipe (Corner)"
+  },
+  {
+   "hash": 697935625,
+   "name": "StructureLowVolumeLiquidPipeCrossJunction",
+   "display": "Low Volume Liquid Pipe (Cross Junction)"
+  },
+  {
+   "hash": -923441517,
+   "name": "StructureLowVolumeLiquidPipeStraight",
+   "display": "Low Volume Liquid Pipe (Straight)"
+  },
+  {
+   "hash": 1912174058,
+   "name": "StructureLowVolumeLiquidPipeTJunction",
+   "display": "Low Volume Liquid Pipe (T Junction)"
+  },
+  {
+   "hash": -1442601681,
+   "name": "StructureLowVolumePipeCorner",
+   "display": "Low Volume Pipe (Corner)"
+  },
+  {
+   "hash": -1656624838,
+   "name": "StructureLowVolumePipeCrossJunction",
+   "display": "Low Volume Pipe (Cross Junction)"
+  },
+  {
+   "hash": -1002687599,
+   "name": "StructureLowVolumePipeStraight",
+   "display": "Low Volume Pipe (Straight)"
+  },
+  {
+   "hash": -1610883693,
+   "name": "StructureLowVolumePipeTJunction",
+   "display": "Low Volume Pipe (T Junction)"
+  },
+  {
+   "hash": -1808154199,
+   "name": "StructureManualHatch",
+   "display": "Manual Hatch"
+  },
+  {
+   "hash": -1918215845,
+   "name": "StructureMediumConvectionRadiator",
+   "display": "Medium Convection Radiator"
+  },
+  {
+   "hash": -1169014183,
+   "name": "StructureMediumConvectionRadiatorLiquid",
+   "display": "Medium Convection Radiator Liquid"
+  },
+  {
+   "hash": -566348148,
+   "name": "StructureMediumHangerDoor",
+   "display": "Medium Hangar Door"
+  },
+  {
+   "hash": -975966237,
+   "name": "StructureMediumRadiator",
+   "display": "Medium Radiator"
+  },
+  {
+   "hash": -1141760613,
+   "name": "StructureMediumRadiatorLiquid",
+   "display": "Medium Radiator Liquid"
+  },
+  {
+   "hash": -1713470563,
+   "name": "StructureMotionSensor",
+   "display": "Motion Sensor"
+  },
+  {
+   "hash": 1898243702,
+   "name": "StructureNitrolyzer",
+   "display": "Nitrolyzer"
+  },
+  {
+   "hash": 322782515,
+   "name": "StructureOccupancySensor",
+   "display": "Occupancy Sensor"
+  },
+  {
+   "hash": -1794932560,
+   "name": "StructureOverheadShortCornerLocker",
+   "display": "Overhead Corner Locker"
+  },
+  {
+   "hash": 1468249454,
+   "name": "StructureOverheadShortLocker",
+   "display": "Overhead Locker"
+  },
+  {
+   "hash": 2066977095,
+   "name": "StructurePassiveLargeRadiatorGas",
+   "display": "Medium Convection Radiator"
+  },
+  {
+   "hash": 24786172,
+   "name": "StructurePassiveLargeRadiatorLiquid",
+   "display": "Medium Convection Radiator Liquid"
+  },
+  {
+   "hash": 1812364811,
+   "name": "StructurePassiveLiquidDrain",
+   "display": "Passive Liquid Drain"
+  },
+  {
+   "hash": 335498166,
+   "name": "StructurePassiveVent",
+   "display": "Passive Vent"
+  },
+  {
+   "hash": -1674187440,
+   "name": "StructurePassthroughHeatExchangerGasToGas",
+   "display": "CounterFlow Heat Exchanger - Gas + Gas"
+  },
+  {
+   "hash": 1928991265,
+   "name": "StructurePassthroughHeatExchangerGasToLiquid",
+   "display": "CounterFlow Heat Exchanger - Gas + Liquid"
+  },
+  {
+   "hash": -1472829583,
+   "name": "StructurePassthroughHeatExchangerLiquidToLiquid",
+   "display": "CounterFlow Heat Exchanger - Liquid + Liquid"
+  },
+  {
+   "hash": -1434523206,
+   "name": "StructurePictureFrameThickLandscapeLarge",
+   "display": "Picture Frame Thick Landscape Large"
+  },
+  {
+   "hash": -2041566697,
+   "name": "StructurePictureFrameThickLandscapeSmall",
+   "display": "Picture Frame Thick Landscape Small"
+  },
+  {
+   "hash": 950004659,
+   "name": "StructurePictureFrameThickMountLandscapeLarge",
+   "display": "Picture Frame Thick Landscape Large"
+  },
+  {
+   "hash": 347154462,
+   "name": "StructurePictureFrameThickMountLandscapeSmall",
+   "display": "Picture Frame Thick Landscape Small"
+  },
+  {
+   "hash": -1459641358,
+   "name": "StructurePictureFrameThickMountPortraitLarge",
+   "display": "Picture Frame Thick Mount Portrait Large"
+  },
+  {
+   "hash": -2066653089,
+   "name": "StructurePictureFrameThickMountPortraitSmall",
+   "display": "Picture Frame Thick Mount Portrait Small"
+  },
+  {
+   "hash": -1686949570,
+   "name": "StructurePictureFrameThickPortraitLarge",
+   "display": "Picture Frame Thick Portrait Large"
+  },
+  {
+   "hash": -1218579821,
+   "name": "StructurePictureFrameThickPortraitSmall",
+   "display": "Picture Frame Thick Portrait Small"
+  },
+  {
+   "hash": -1418288625,
+   "name": "StructurePictureFrameThinLandscapeLarge",
+   "display": "Picture Frame Thin Landscape Large"
+  },
+  {
+   "hash": -2024250974,
+   "name": "StructurePictureFrameThinLandscapeSmall",
+   "display": "Picture Frame Thin Landscape Small"
+  },
+  {
+   "hash": -1146760430,
+   "name": "StructurePictureFrameThinMountLandscapeLarge",
+   "display": "Picture Frame Thin Landscape Large"
+  },
+  {
+   "hash": -1752493889,
+   "name": "StructurePictureFrameThinMountLandscapeSmall",
+   "display": "Picture Frame Thin Landscape Small"
+  },
+  {
+   "hash": 1094895077,
+   "name": "StructurePictureFrameThinMountPortraitLarge",
+   "display": "Picture Frame Thin Portrait Large"
+  },
+  {
+   "hash": 1835796040,
+   "name": "StructurePictureFrameThinMountPortraitSmall",
+   "display": "Picture Frame Thin Portrait Small"
+  },
+  {
+   "hash": 1212777087,
+   "name": "StructurePictureFrameThinPortraitLarge",
+   "display": "Picture Frame Thin Portrait Large"
+  },
+  {
+   "hash": 1684488658,
+   "name": "StructurePictureFrameThinPortraitSmall",
+   "display": "Picture Frame Thin Portrait Small"
+  },
+  {
+   "hash": 435685051,
+   "name": "StructurePipeAnalysizer",
+   "display": "Pipe Analyzer"
+  },
+  {
+   "hash": -1785673561,
+   "name": "StructurePipeCorner",
+   "display": "Pipe (Corner)"
+  },
+  {
+   "hash": 465816159,
+   "name": "StructurePipeCowl",
+   "display": "Pipe Cowl"
+  },
+  {
+   "hash": -1405295588,
+   "name": "StructurePipeCrossJunction",
+   "display": "Pipe (Cross Junction)"
+  },
+  {
+   "hash": 2038427184,
+   "name": "StructurePipeCrossJunction3",
+   "display": "Pipe (3-Way Junction)"
+  },
+  {
+   "hash": -417629293,
+   "name": "StructurePipeCrossJunction4",
+   "display": "Pipe (4-Way Junction)"
+  },
+  {
+   "hash": -1877193979,
+   "name": "StructurePipeCrossJunction5",
+   "display": "Pipe (5-Way Junction)"
+  },
+  {
+   "hash": 152378047,
+   "name": "StructurePipeCrossJunction6",
+   "display": "Pipe (6-Way Junction)"
+  },
+  {
+   "hash": -419758574,
+   "name": "StructurePipeHeater",
+   "display": "Pipe Heater (Gas)"
+  },
+  {
+   "hash": -2068497073,
+   "name": "StructurePipeInsulatedLiquidCrossJunction",
+   "display": "Insulated Liquid Pipe (Cross Junction)"
+  },
+  {
+   "hash": -999721119,
+   "name": "StructurePipeLabel",
+   "display": "Pipe Label"
+  },
+  {
+   "hash": -1856720921,
+   "name": "StructurePipeLiquidCorner",
+   "display": "Liquid Pipe (Corner)"
+  },
+  {
+   "hash": 1848735691,
+   "name": "StructurePipeLiquidCrossJunction",
+   "display": "Liquid Pipe (Cross Junction)"
+  },
+  {
+   "hash": 1628087508,
+   "name": "StructurePipeLiquidCrossJunction3",
+   "display": "Liquid Pipe (3-Way Junction)"
+  },
+  {
+   "hash": -9555593,
+   "name": "StructurePipeLiquidCrossJunction4",
+   "display": "Liquid Pipe (4-Way Junction)"
+  },
+  {
+   "hash": -2006384159,
+   "name": "StructurePipeLiquidCrossJunction5",
+   "display": "Liquid Pipe (5-Way Junction)"
+  },
+  {
+   "hash": 291524699,
+   "name": "StructurePipeLiquidCrossJunction6",
+   "display": "Liquid Pipe (6-Way Junction)"
+  },
+  {
+   "hash": 667597982,
+   "name": "StructurePipeLiquidStraight",
+   "display": "Liquid Pipe (Straight)"
+  },
+  {
+   "hash": 262616717,
+   "name": "StructurePipeLiquidTJunction",
+   "display": "Liquid Pipe (T Junction)"
+  },
+  {
+   "hash": -1798362329,
+   "name": "StructurePipeMeter",
+   "display": "Pipe Meter"
+  },
+  {
+   "hash": 1305252611,
+   "name": "StructurePipeOrgan",
+   "display": "Pipe Organ"
+  },
+  {
+   "hash": 1696603168,
+   "name": "StructurePipeRadiator",
+   "display": "Pipe Convection Radiator"
+  },
+  {
+   "hash": -399883995,
+   "name": "StructurePipeRadiatorFlat",
+   "display": "Pipe Radiator"
+  },
+  {
+   "hash": 2024754523,
+   "name": "StructurePipeRadiatorFlatLiquid",
+   "display": "Pipe Radiator Liquid"
+  },
+  {
+   "hash": 73728932,
+   "name": "StructurePipeStraight",
+   "display": "Pipe (Straight)"
+  },
+  {
+   "hash": -913817472,
+   "name": "StructurePipeTJunction",
+   "display": "Pipe (T Junction)"
+  },
+  {
+   "hash": -1125641329,
+   "name": "StructurePlanter",
+   "display": "Planter"
+  },
+  {
+   "hash": 1559586682,
+   "name": "StructurePlatformLadderOpen",
+   "display": "Ladder Platform"
+  },
+  {
+   "hash": 989835703,
+   "name": "StructurePlinth",
+   "display": "Plinth"
+  },
+  {
+   "hash": -782951720,
+   "name": "StructurePowerConnector",
+   "display": "Power Connector"
+  },
+  {
+   "hash": 938836756,
+   "name": "StructurePoweredVent",
+   "display": "Powered Vent"
+  },
+  {
+   "hash": -785498334,
+   "name": "StructurePoweredVentLarge",
+   "display": "Powered Vent Large"
+  },
+  {
+   "hash": -65087121,
+   "name": "StructurePowerTransmitter",
+   "display": "Microwave Power Transmitter"
+  },
+  {
+   "hash": -327468845,
+   "name": "StructurePowerTransmitterOmni",
+   "display": "Structure Power Transmitter Omni"
+  },
+  {
+   "hash": 1195820278,
+   "name": "StructurePowerTransmitterReceiver",
+   "display": "Microwave Power Receiver"
+  },
+  {
+   "hash": 23052817,
+   "name": "StructurePressurantValve",
+   "display": "Pressurant Valve"
+  },
+  {
+   "hash": -2008706143,
+   "name": "StructurePressurePlateLarge",
+   "display": "Trigger Plate (Large)"
+  },
+  {
+   "hash": 1269458680,
+   "name": "StructurePressurePlateMedium",
+   "display": "Trigger Plate (Medium)"
+  },
+  {
+   "hash": -1536471028,
+   "name": "StructurePressurePlateSmall",
+   "display": "Trigger Plate (Small)"
+  },
+  {
+   "hash": 209854039,
+   "name": "StructurePressureRegulator",
+   "display": "Pressure Regulator"
+  },
+  {
+   "hash": 568800213,
+   "name": "StructureProximitySensor",
+   "display": "Proximity Sensor"
+  },
+  {
+   "hash": -737232128,
+   "name": "StructurePurgeValve",
+   "display": "Purge Valve"
+  },
+  {
+   "hash": -1756913871,
+   "name": "StructureRailing",
+   "display": "Railing Industrial (Type 1)"
+  },
+  {
+   "hash": -1633947337,
+   "name": "StructureRecycler",
+   "display": "Recycler"
+  },
+  {
+   "hash": -1577831321,
+   "name": "StructureRefrigeratedVendingMachine",
+   "display": "Refrigerated Vending Machine"
+  },
+  {
+   "hash": 2027713511,
+   "name": "StructureReinforcedCompositeWindow",
+   "display": "Reinforced Window (Composite)"
+  },
+  {
+   "hash": -816454272,
+   "name": "StructureReinforcedCompositeWindowSteel",
+   "display": "Reinforced Window (Composite Steel)"
+  },
+  {
+   "hash": 1939061729,
+   "name": "StructureReinforcedWallPaddedWindow",
+   "display": "Reinforced Window (Padded)"
+  },
+  {
+   "hash": 158502707,
+   "name": "StructureReinforcedWallPaddedWindowThin",
+   "display": "Reinforced Window (Thin)"
+  },
+  {
+   "hash": -796627526,
+   "name": "StructureResearchMachine",
+   "display": "Research Machine"
+  },
+  {
+   "hash": 1977688565,
+   "name": "StructureRocketChuteStorage",
+   "display": "<N:EN:StructureRocketChuteStorage>"
+  },
+  {
+   "hash": 178472613,
+   "name": "StructureRocketEngineTiny",
+   "display": "Rocket Engine (Tiny)"
+  },
+  {
+   "hash": 407081452,
+   "name": "StructureRocketPlaceHolderMiner",
+   "display": "<N:EN:StructureRocketPlaceHolderMiner>"
+  },
+  {
+   "hash": 806513938,
+   "name": "StructureRover",
+   "display": "Rover Frame"
+  },
+  {
+   "hash": 439026183,
+   "name": "StructureSatelliteDish",
+   "display": "Medium Satellite Dish"
+  },
+  {
+   "hash": -1875856925,
+   "name": "StructureSDBHopper",
+   "display": "SDB Hopper"
+  },
+  {
+   "hash": 467225612,
+   "name": "StructureSDBHopperAdvanced",
+   "display": "SDB Hopper Advanced"
+  },
+  {
+   "hash": 1155865682,
+   "name": "StructureSDBSilo",
+   "display": "SDB Silo"
+  },
+  {
+   "hash": -641491515,
+   "name": "StructureSecurityPrinter",
+   "display": "Security Printer"
+  },
+  {
+   "hash": 1172114950,
+   "name": "StructureShelf",
+   "display": "Shelf"
+  },
+  {
+   "hash": 182006674,
+   "name": "StructureShelfMedium",
+   "display": "Shelf Medium"
+  },
+  {
+   "hash": 1330754486,
+   "name": "StructureShortCornerLocker",
+   "display": "Short Corner Locker"
+  },
+  {
+   "hash": -554553467,
+   "name": "StructureShortLocker",
+   "display": "Short Locker"
+  },
+  {
+   "hash": 879058460,
+   "name": "StructureSign1x1",
+   "display": "Sign 1x1"
+  },
+  {
+   "hash": 908320837,
+   "name": "StructureSign2x1",
+   "display": "Sign 2x1"
+  },
+  {
+   "hash": -492611,
+   "name": "StructureSingleBed",
+   "display": "Single Bed"
+  },
+  {
+   "hash": -1467449329,
+   "name": "StructureSleeper",
+   "display": "Sleeper"
+  },
+  {
+   "hash": 1213495833,
+   "name": "StructureSleeperLeft",
+   "display": "Sleeper Left"
+  },
+  {
+   "hash": -1812330717,
+   "name": "StructureSleeperRight",
+   "display": "Sleeper Right"
+  },
+  {
+   "hash": -1300059018,
+   "name": "StructureSleeperVertical",
+   "display": "Sleeper Vertical"
+  },
+  {
+   "hash": 1382098999,
+   "name": "StructureSleeperVerticalDroid",
+   "display": "Droid Sleeper Vertical"
+  },
+  {
+   "hash": 1310303582,
+   "name": "StructureSmallDirectHeatExchangeGastoGas",
+   "display": "Small Direct Heat Exchanger - Gas + Gas"
+  },
+  {
+   "hash": 1825212016,
+   "name": "StructureSmallDirectHeatExchangeLiquidtoGas",
+   "display": "Small Direct Heat Exchanger - Liquid + Gas"
+  },
+  {
+   "hash": -507770416,
+   "name": "StructureSmallDirectHeatExchangeLiquidtoLiquid",
+   "display": "Small Direct Heat Exchanger - Liquid + Liquid"
+  },
+  {
+   "hash": -2138748650,
+   "name": "StructureSmallSatelliteDish",
+   "display": "Small Satellite Dish"
+  },
+  {
+   "hash": -1633000411,
+   "name": "StructureSmallTableBacklessDouble",
+   "display": "Small (Table Backless Double)"
+  },
+  {
+   "hash": -1897221677,
+   "name": "StructureSmallTableBacklessSingle",
+   "display": "Small (Table Backless Single)"
+  },
+  {
+   "hash": 1260651529,
+   "name": "StructureSmallTableDinnerSingle",
+   "display": "Small (Table Dinner Single)"
+  },
+  {
+   "hash": -660451023,
+   "name": "StructureSmallTableRectangleDouble",
+   "display": "Small (Table Rectangle Double)"
+  },
+  {
+   "hash": -924678969,
+   "name": "StructureSmallTableRectangleSingle",
+   "display": "Small (Table Rectangle Single)"
+  },
+  {
+   "hash": -19246131,
+   "name": "StructureSmallTableThickDouble",
+   "display": "Small (Table Thick Double)"
+  },
+  {
+   "hash": -291862981,
+   "name": "StructureSmallTableThickSingle",
+   "display": "Small Table (Thick Single)"
+  },
+  {
+   "hash": -2045627372,
+   "name": "StructureSolarPanel",
+   "display": "Solar Panel"
+  },
+  {
+   "hash": -1554349863,
+   "name": "StructureSolarPanel45",
+   "display": "Solar Panel (Angled)"
+  },
+  {
+   "hash": 930865127,
+   "name": "StructureSolarPanel45Reinforced",
+   "display": "Solar Panel (Heavy Angled)"
+  },
+  {
+   "hash": -539224550,
+   "name": "StructureSolarPanelDual",
+   "display": "Solar Panel (Dual)"
+  },
+  {
+   "hash": -1545574413,
+   "name": "StructureSolarPanelDualReinforced",
+   "display": "Solar Panel (Heavy Dual)"
+  },
+  {
+   "hash": 1968102968,
+   "name": "StructureSolarPanelFlat",
+   "display": "Solar Panel (Flat)"
+  },
+  {
+   "hash": 1697196770,
+   "name": "StructureSolarPanelFlatReinforced",
+   "display": "Solar Panel (Heavy Flat)"
+  },
+  {
+   "hash": -934345724,
+   "name": "StructureSolarPanelReinforced",
+   "display": "Solar Panel (Heavy)"
+  },
+  {
+   "hash": 813146305,
+   "name": "StructureSolidFuelGenerator",
+   "display": "Generator (Solid Fuel)"
+  },
+  {
+   "hash": -1009150565,
+   "name": "StructureSorter",
+   "display": "Sorter"
+  },
+  {
+   "hash": -2020231820,
+   "name": "StructureStacker",
+   "display": "Stacker"
+  },
+  {
+   "hash": 1585641623,
+   "name": "StructureStackerReverse",
+   "display": "Stacker"
+  },
+  {
+   "hash": 1405018945,
+   "name": "StructureStairs4x2",
+   "display": "Stairs"
+  },
+  {
+   "hash": 155214029,
+   "name": "StructureStairs4x2RailL",
+   "display": "Stairs with Rail (Left)"
+  },
+  {
+   "hash": -212902482,
+   "name": "StructureStairs4x2RailR",
+   "display": "Stairs with Rail (Right)"
+  },
+  {
+   "hash": -1088008720,
+   "name": "StructureStairs4x2Rails",
+   "display": "Stairs with Rails"
+  },
+  {
+   "hash": 1359864416,
+   "name": "StructureStairwellBottom",
+   "display": "Stairwell Bottom"
+  },
+  {
+   "hash": 1188203019,
+   "name": "StructureStairwellMiddle",
+   "display": "Stairwell Middle"
+  },
+  {
+   "hash": -260316435,
+   "name": "StructureStirlingEngine",
+   "display": "Stirling Engine"
+  },
+  {
+   "hash": -793623899,
+   "name": "StructureStorageLocker",
+   "display": "Locker"
+  },
+  {
+   "hash": 255034731,
+   "name": "StructureSuitStorage",
+   "display": "Suit Storage"
+  },
+  {
+   "hash": -1606848156,
+   "name": "StructureTankBig",
+   "display": "Large Tank"
+  },
+  {
+   "hash": 1280378227,
+   "name": "StructureTankBigInsulated",
+   "display": "Tank Big (Insulated)"
+  },
+  {
+   "hash": -1276379454,
+   "name": "StructureTankConnector",
+   "display": "Tank Connector"
+  },
+  {
+   "hash": 1331802518,
+   "name": "StructureTankConnectorLiquid",
+   "display": "Liquid Tank Connector"
+  },
+  {
+   "hash": 1013514688,
+   "name": "StructureTankSmall",
+   "display": "Small Tank"
+  },
+  {
+   "hash": 955744474,
+   "name": "StructureTankSmallAir",
+   "display": "Small Tank (Air)"
+  },
+  {
+   "hash": 2102454415,
+   "name": "StructureTankSmallFuel",
+   "display": "Small Tank (Fuel)"
+  },
+  {
+   "hash": 272136332,
+   "name": "StructureTankSmallInsulated",
+   "display": "Structure Tank Small Insulated"
+  },
+  {
+   "hash": -465741100,
+   "name": "StructureToolManufactory",
+   "display": "Tool Manufactory"
+  },
+  {
+   "hash": 1473807953,
+   "name": "StructureTorpedoRack",
+   "display": "Torpedo Rack"
+  },
+  {
+   "hash": 1570931620,
+   "name": "StructureTraderWaypoint",
+   "display": "Structure Trader Waypoint"
+  },
+  {
+   "hash": -1423212473,
+   "name": "StructureTransformer",
+   "display": "Transformer (Large)"
+  },
+  {
+   "hash": -1065725831,
+   "name": "StructureTransformerMedium",
+   "display": "Transformer (Medium)"
+  },
+  {
+   "hash": 833912764,
+   "name": "StructureTransformerMediumReversed",
+   "display": "Transformer Reversed (Medium)"
+  },
+  {
+   "hash": -890946730,
+   "name": "StructureTransformerSmall",
+   "display": "Transformer (Small)"
+  },
+  {
+   "hash": 1054059374,
+   "name": "StructureTransformerSmallReversed",
+   "display": "Transformer Reversed (Small)"
+  },
+  {
+   "hash": 1282191063,
+   "name": "StructureTurbineGenerator",
+   "display": "Turbine Generator"
+  },
+  {
+   "hash": 1310794736,
+   "name": "StructureTurboVolumePump",
+   "display": "Turbo Volume Pump (Gas)"
+  },
+  {
+   "hash": 750118160,
+   "name": "StructureUnloader",
+   "display": "Unloader"
+  },
+  {
+   "hash": 1622183451,
+   "name": "StructureUprightWindTurbine",
+   "display": "Upright Wind Turbine"
+  },
+  {
+   "hash": -692036078,
+   "name": "StructureValve",
+   "display": "Valve"
+  },
+  {
+   "hash": -443130773,
+   "name": "StructureVendingMachine",
+   "display": "Vending Machine"
+  },
+  {
+   "hash": -321403609,
+   "name": "StructureVolumePump",
+   "display": "Volume Pump"
+  },
+  {
+   "hash": -858143148,
+   "name": "StructureWallArch",
+   "display": "Wall (Arch)"
+  },
+  {
+   "hash": 1649708822,
+   "name": "StructureWallArchArrow",
+   "display": "Wall (Arch Arrow)"
+  },
+  {
+   "hash": 1794588890,
+   "name": "StructureWallArchCornerRound",
+   "display": "Wall (Arch Corner Round)"
+  },
+  {
+   "hash": -1963016580,
+   "name": "StructureWallArchCornerSquare",
+   "display": "Wall (Arch Corner Square)"
+  },
+  {
+   "hash": 1281911841,
+   "name": "StructureWallArchCornerTriangle",
+   "display": "Wall (Arch Corner Triangle)"
+  },
+  {
+   "hash": 1182510648,
+   "name": "StructureWallArchPlating",
+   "display": "Wall (Arch Plating)"
+  },
+  {
+   "hash": 782529714,
+   "name": "StructureWallArchTwoTone",
+   "display": "Wall (Arch Two Tone)"
+  },
+  {
+   "hash": -739292323,
+   "name": "StructureWallCooler",
+   "display": "Wall Cooler"
+  },
+  {
+   "hash": 1635864154,
+   "name": "StructureWallFlat",
+   "display": "Wall (Flat)"
+  },
+  {
+   "hash": 898708250,
+   "name": "StructureWallFlatCornerRound",
+   "display": "Wall (Flat Corner Round)"
+  },
+  {
+   "hash": 298130111,
+   "name": "StructureWallFlatCornerSquare",
+   "display": "Wall (Flat Corner Square)"
+  },
+  {
+   "hash": 2097419366,
+   "name": "StructureWallFlatCornerTriangle",
+   "display": "Wall (Flat Corner Triangle)"
+  },
+  {
+   "hash": -1161662836,
+   "name": "StructureWallFlatCornerTriangleFlat",
+   "display": "Wall (Flat Corner Triangle Flat)"
+  },
+  {
+   "hash": 1979212240,
+   "name": "StructureWallGeometryCorner",
+   "display": "Wall (Geometry Corner)"
+  },
+  {
+   "hash": 1049735537,
+   "name": "StructureWallGeometryStreight",
+   "display": "Wall (Geometry Straight)"
+  },
+  {
+   "hash": 1602758612,
+   "name": "StructureWallGeometryT",
+   "display": "Wall (Geometry T)"
+  },
+  {
+   "hash": -1427845483,
+   "name": "StructureWallGeometryTMirrored",
+   "display": "Wall (Geometry T Mirrored)"
+  },
+  {
+   "hash": 24258244,
+   "name": "StructureWallHeater",
+   "display": "Wall Heater"
+  },
+  {
+   "hash": 1287324802,
+   "name": "StructureWallIron",
+   "display": "Iron Wall (Type 1)"
+  },
+  {
+   "hash": 1485834215,
+   "name": "StructureWallIron02",
+   "display": "Iron Wall (Type 2)"
+  },
+  {
+   "hash": 798439281,
+   "name": "StructureWallIron03",
+   "display": "Iron Wall (Type 3)"
+  },
+  {
+   "hash": -1309433134,
+   "name": "StructureWallIron04",
+   "display": "Iron Wall (Type 4)"
+  },
+  {
+   "hash": 1492930217,
+   "name": "StructureWallLargePanel",
+   "display": "Wall (Large Panel)"
+  },
+  {
+   "hash": -776581573,
+   "name": "StructureWallLargePanelArrow",
+   "display": "Wall (Large Panel Arrow)"
+  },
+  {
+   "hash": -1860064656,
+   "name": "StructureWallLight",
+   "display": "Wall Light"
+  },
+  {
+   "hash": -1306415132,
+   "name": "StructureWallLightBattery",
+   "display": "Wall Light (Battery)"
+  },
+  {
+   "hash": 1590330637,
+   "name": "StructureWallPaddedArch",
+   "display": "Wall (Padded Arch)"
+  },
+  {
+   "hash": -1126688298,
+   "name": "StructureWallPaddedArchCorner",
+   "display": "Wall (Padded Arch Corner)"
+  },
+  {
+   "hash": 1171987947,
+   "name": "StructureWallPaddedArchLightFittingTop",
+   "display": "Wall (Padded Arch Light Fitting Top)"
+  },
+  {
+   "hash": -1546743960,
+   "name": "StructureWallPaddedArchLightsFittings",
+   "display": "Wall (Padded Arch Lights Fittings)"
+  },
+  {
+   "hash": -155945899,
+   "name": "StructureWallPaddedCorner",
+   "display": "Wall (Padded Corner)"
+  },
+  {
+   "hash": 1183203913,
+   "name": "StructureWallPaddedCornerThin",
+   "display": "Wall (Padded Corner Thin)"
+  },
+  {
+   "hash": 8846501,
+   "name": "StructureWallPaddedNoBorder",
+   "display": "Wall (Padded No Border)"
+  },
+  {
+   "hash": 179694804,
+   "name": "StructureWallPaddedNoBorderCorner",
+   "display": "Wall (Padded No Border Corner)"
+  },
+  {
+   "hash": -1611559100,
+   "name": "StructureWallPaddedThinNoBorder",
+   "display": "Wall (Padded Thin No Border)"
+  },
+  {
+   "hash": 1769527556,
+   "name": "StructureWallPaddedThinNoBorderCorner",
+   "display": "Wall (Padded Thin No Border Corner)"
+  },
+  {
+   "hash": 2087628940,
+   "name": "StructureWallPaddedWindow",
+   "display": "Wall (Padded Window)"
+  },
+  {
+   "hash": -37302931,
+   "name": "StructureWallPaddedWindowThin",
+   "display": "Wall (Padded Window Thin)"
+  },
+  {
+   "hash": 635995024,
+   "name": "StructureWallPadding",
+   "display": "Wall (Padding)"
+  },
+  {
+   "hash": -1243329828,
+   "name": "StructureWallPaddingArchVent",
+   "display": "Wall (Padding Arch Vent)"
+  },
+  {
+   "hash": 2024882687,
+   "name": "StructureWallPaddingLightFitting",
+   "display": "Wall (Padding Light Fitting)"
+  },
+  {
+   "hash": -1102403554,
+   "name": "StructureWallPaddingThin",
+   "display": "Wall (Padding Thin)"
+  },
+  {
+   "hash": 26167457,
+   "name": "StructureWallPlating",
+   "display": "Wall (Plating)"
+  },
+  {
+   "hash": 619828719,
+   "name": "StructureWallSmallPanelsAndHatch",
+   "display": "Wall (Small Panels And Hatch)"
+  },
+  {
+   "hash": -639306697,
+   "name": "StructureWallSmallPanelsArrow",
+   "display": "Wall (Small Panels Arrow)"
+  },
+  {
+   "hash": 386820253,
+   "name": "StructureWallSmallPanelsMonoChrome",
+   "display": "Wall (Small Panels Mono Chrome)"
+  },
+  {
+   "hash": -1407480603,
+   "name": "StructureWallSmallPanelsOpen",
+   "display": "Wall (Small Panels Open)"
+  },
+  {
+   "hash": 1709994581,
+   "name": "StructureWallSmallPanelsTwoTone",
+   "display": "Wall (Small Panels Two Tone)"
+  },
+  {
+   "hash": -1177469307,
+   "name": "StructureWallVent",
+   "display": "Wall Vent"
+  },
+  {
+   "hash": -1178961954,
+   "name": "StructureWaterBottleFiller",
+   "display": "Water Bottle Filler"
+  },
+  {
+   "hash": 1433754995,
+   "name": "StructureWaterBottleFillerBottom",
+   "display": "Water Bottle Filler Bottom"
+  },
+  {
+   "hash": -756587791,
+   "name": "StructureWaterBottleFillerPowered",
+   "display": "Waterbottle Filler"
+  },
+  {
+   "hash": 1986658780,
+   "name": "StructureWaterBottleFillerPoweredBottom",
+   "display": "Waterbottle Filler"
+  },
+  {
+   "hash": -517628750,
+   "name": "StructureWaterDigitalValve",
+   "display": "Liquid Digital Valve"
+  },
+  {
+   "hash": 433184168,
+   "name": "StructureWaterPipeMeter",
+   "display": "Liquid Pipe Meter"
+  },
+  {
+   "hash": -1369060582,
+   "name": "StructureWaterWallCooler",
+   "display": "Liquid Wall Cooler"
+  },
+  {
+   "hash": 1997212478,
+   "name": "StructureWeatherStation",
+   "display": "Weather Station"
+  },
+  {
+   "hash": 2056377335,
+   "name": "StructureWindowShutter",
+   "display": "Window Shutter"
+  },
+  {
+   "hash": -2082355173,
+   "name": "StructureWindTurbine",
+   "display": "Wind Turbine"
+  },
+  {
+   "hash": 1700018136,
+   "name": "ToolPrinterMod",
+   "display": "Tool Printer Mod"
+  },
+  {
+   "hash": 94730034,
+   "name": "ToyLuna",
+   "display": "Toy Luna"
+  },
+  {
+   "hash": -2083426457,
+   "name": "UniformCommander",
+   "display": "Uniform Commander"
+  },
+  {
+   "hash": -48342840,
+   "name": "UniformMarine",
+   "display": "Marine Uniform"
+  },
+  {
+   "hash": 810053150,
+   "name": "UniformOrangeJumpSuit",
+   "display": "Jump Suit (Orange)"
+  },
+  {
+   "hash": 789494694,
+   "name": "WeaponEnergy",
+   "display": "Weapon Energy"
+  },
+  {
+   "hash": -385323479,
+   "name": "WeaponPistolEnergy",
+   "display": "Energy Pistol"
+  },
+  {
+   "hash": 1154745374,
+   "name": "WeaponRifleEnergy",
+   "display": "Energy Rifle"
+  },
+  {
+   "hash": -1102977898,
+   "name": "WeaponTorpedo",
+   "display": "Torpedo"
+  }
+ ]
+}

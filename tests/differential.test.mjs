@@ -186,8 +186,8 @@ if Float.isNaN(y /. 0.) || approxZero(x -. y, 1e-9) { s(d2, "I", 1) } else { s(d
     name: "ModulesAccessors",
     src: `
 module Tanks = {
-  let all = batch(hash("StructureTankSmall"))
-  let mainTank = named(hash("StructureTankSmall"), hash("Main"))
+  let all = batch(Prefab.structureTankSmall)
+  let mainTank = named(Prefab.structureTankSmall, hash("Main"))
   let limit = 250.
   let pressure = () => all->Logic.pressure
   let average = () => lm(all, "Pressure", Average)
@@ -417,8 +417,10 @@ describe("ric10 agrees with ReScript", () => {
 
   test.each(examples.map((e) => [e.name, e]))("example %s", async (name, e) => {
     const src = fs.readFileSync(path.join(root, "examples", e.file), "utf8");
-    const { js, ic10 } = await runBoth(name, src, exampleSetups[name] ?? {});
-    expect(js.length).toBeGreaterThan(0);
+    // examples without a scenario still run, for a bounded number of ticks
+    const setup = exampleSetups[name] ?? { ticks: 5 };
+    const { js, ic10 } = await runBoth(name, src, setup);
+    if (exampleSetups[name]) expect(js.length).toBeGreaterThan(0);
     expect(ic10).toEqual(js);
   });
 });

@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 import { run, asm, compileError, writesTo } from "./support/harness.mjs";
 import { hash } from "./support/ic10.mjs";
-import { generate, splice, accessorName, logicTypeOf } from "../scripts/gen-bindings.mjs";
+import { generate, splice, accessorName, logicTypeOf, generatePrefabTable, prefabAccessor } from "../scripts/gen-bindings.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 
@@ -91,6 +91,45 @@ Slot.setLock(sensor, 1, true)`;
     expect(accessorName("Open")).toBe("open_");
     expect(logicTypeOf("open_")).toBe("Open");
     expect(logicTypeOf("settingInput")).toBe("SettingInput");
+  });
+});
+
+describe("Prefab hashes", () => {
+  const prefabs = JSON.parse(fs.readFileSync(path.join(root, "tests/fixtures/prefabs.json"), "utf8")).prefabs;
+
+  test("known prefab names compile to HASH(\"...\"), unknown ones to the number", () => {
+    const unnamed = prefabs.find((p) => !p.name);
+    const p = `
+let tanks = batch(Prefab.structureTankSmall)
+sb(Prefab.structureAdvancedFurnace, "On", 1)
+s(db, "Setting", Prefab.${prefabAccessor(unnamed)})`;
+    const code = asm(p + `\ns(tanks, "Lock", 1)`);
+    expect(code).toMatch(/^sb HASH\("StructureTankSmall"\) Lock 1$/m);
+    expect(code).toMatch(/^sb HASH\("StructureAdvancedFurnace"\) On 1$/m);
+    expect(code).toMatch(new RegExp(`^s db Setting ${unnamed.hash}$`, "m"));
+  });
+
+  test("works with the emulator's network", () => {
+    const net = [{ prefabHash: hash("StructureTankSmall"), nameHash: 0, values: { Pressure: 42 } }];
+    const { devices } = run(`s(db, "Setting", batch(Prefab.structureTankSmall)->Logic.pressure)`, { network: net });
+    expect(devices.db.Setting).toBe(42);
+  });
+
+  test("unknown prefab", () => {
+    expect(compileError(`let x = Prefab.structureTankSmal`)).toMatch(/unknown prefab 'structureTankSmal'/);
+  });
+
+  test("every named prefab hashes to its game hash; accessors are unique", () => {
+    const named = prefabs.filter((p) => p.name);
+    expect(named.length).toBeGreaterThan(1100);
+    for (const p of named) expect([p.name, hash(p.name)]).toEqual([p.name, p.hash]);
+    const accessors = prefabs.map(prefabAccessor);
+    expect(new Set(accessors).size).toBe(accessors.length);
+    for (const a of accessors) expect(a).toMatch(/^[a-z][A-Za-z0-9_]*$/);
+  });
+
+  test("the compiler's prefab table is generated from the fixture", () => {
+    expect(fs.readFileSync(path.join(root, "src/compiler/PrefabTable.res"), "utf8")).toBe(generatePrefabTable());
   });
 });
 
