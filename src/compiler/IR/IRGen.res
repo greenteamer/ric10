@@ -1248,9 +1248,79 @@ and genPatternTest = (ctx, v: value, p: pattern, failL: string, ~skipTag: bool):
   }
 }
 
+// A switch that only maps constructors to number literals, where the numbers are a
+// linear function of the tag (`| Idle => 0 | Loading => 1 | ...`), is tag * a + b.
+and linearSwitch = (ctx, t: variantType, tag: IR.operand, cases: array<matchCase>): option<value> => {
+  let n = Array.length(t.ctors)
+  let values: array<option<float>> = Array.make(~length=n, None)
+  let kind = ref(KInt)
+  let ok = cases->Array.every(c => {
+    let num = switch c.body.desc {
+    | Number(x, isFloat) => Some((x, isFloat))
+    | Unary(Neg, {desc: Number(x, isFloat)}) => Some((-.x, isFloat))
+    | _ => None
+    }
+    let tags = if c.guard != None || hasBindings(c.pattern) || !payloadIrrefutable(c.pattern) {
+      None
+    } else {
+      switch c.pattern.pdesc {
+      | PWild => Some(Array.fromInitializer(~length=n, i => i))
+      | _ => patternTags(ctx, t, c.pattern)
+      }
+    }
+    switch (num, tags) {
+    | (Some((x, isFloat)), Some(tags)) =>
+      if isFloat {
+        kind := KFloat
+      }
+      tags->Array.forEach(k =>
+        if values->Array.getUnsafe(k) == None {
+          values->Array.setUnsafe(k, Some(x))
+        }
+      )
+      true
+    | _ => false
+    }
+  })
+  switch values->Array.map(v => v->Option.getOr(nan)) {
+  | vs if ok && n > 0 && vs->Array.every(v => !Float.isNaN(v)) =>
+    let b = vs->Array.getUnsafe(0)
+    let a = n > 1 ? vs->Array.getUnsafe(1) -. b : 0.
+    if vs->Array.everyWithIndex((v, i) => v == a *. Int.toFloat(i) +. b) {
+      let dst = newVReg(ctx)
+      if a == 0. {
+        emit(ctx, Move(dst, Num(b)))
+      } else if a == 1. {
+        emit(ctx, Move(dst, tag))
+      } else {
+        emit(ctx, Binary(dst, Mul, tag, Num(a)))
+      }
+      if b != 0. && a != 0. {
+        emit(ctx, Binary(dst, Add, VReg(dst), Num(b)))
+      }
+      Some(VScalar(VReg(dst), kind.contents))
+    } else {
+      None
+    }
+  | _ => None
+  }
+}
+
 and genSwitch = (ctx, env, scrutinee: expr, cases: array<matchCase>, ~want, ~loc): value => {
   let fn = "genSwitch"
   let sv = gen(ctx, env, scrutinee, ~want=true)
+  switch sv {
+  | VVariant(t, tag, _) if want =>
+    switch linearSwitch(ctx, t, tag, cases) {
+    | Some(v) => v
+    | None => genSwitchCases(ctx, env, sv, cases, ~want, ~loc)
+    }
+  | _ => genSwitchCases(ctx, env, sv, cases, ~want, ~loc)
+  }
+}
+
+and genSwitchCases = (ctx, env, sv: value, cases: array<matchCase>, ~want, ~loc): value => {
+  let fn = "genSwitch"
   let endL = newLabel(ctx, "endswitch")
   let result = ref(None)
   let unitResult = ref(false)

@@ -32,6 +32,31 @@ s(db, "Mode", r.contents)`;
 describe("variants and switch", () => {
   const prelude = `type shape = Circle(float) | Rect(float, float) | Empty`;
 
+  describe("constructor -> number tables linear in the tag become arithmetic", () => {
+    const pre = `type st = A | B(float) | C | D\nlet v = switch l(d0, "Setting") { | 0. => A | 1. => B(5.) | 2. => C | _ => D }`;
+    const cases = [
+      ["identity", `| A => 0 | B(_) => 1 | C => 2 | D => 3`, (i) => i, /^s db Setting r\d+$/m],
+      ["affine", `| A => 10 | B(_) => 7 | C => 4 | D => 1`, (i) => 10 - 3 * i, /mul/],
+      ["wildcard", `| D => 6 | A => 0 | B(_) => 2 | _ => 4`, (i) => 2 * i, /mul/],
+      ["or-pattern, constant", `| A | B(_) => 5 | _ => 5`, () => 5, /^s db Setting 5$/m],
+      ["non-literal body", `| B(_) => 6 | A => 3 | _ => 9 + 3`, (i) => [3, 6, 12, 12][i], null],
+      ["not linear", `| A => 0 | B(_) => 1 | C => 5 | D => 3`, (i) => [0, 1, 5, 3][i], /beq|bne/],
+      ["guard", `| A => 0 | B(x) if x > 1. => 1 | _ => 2`, (i) => [0, 1, 2, 2][i], /beq|bne|ble|bgt/],
+    ];
+    test.each(cases)("%s", (_, arms, expected, pattern) => {
+      const p = `${pre}\ns(db, "Setting", switch v { ${arms} })`;
+      for (let i = 0; i < 4; i++) {
+        const { devices, code } = run(p, { devices: { d0: { Setting: i } } });
+        expect(devices.db.Setting).toBe(expected(i));
+        if (pattern) expect(code).toMatch(pattern);
+      }
+    });
+    test("identity costs no branches", () => {
+      const code = asm(`${pre}\ns(db, "Setting", switch v { | A => 0 | B(_) => 1 | C => 2 | D => 3 })`);
+      expect(code.split("\n").filter((l) => /^b|^j /.test(l)).length).toBeLessThanOrEqual(4);
+    });
+  });
+
   test.each([
     ["Circle(2.)", 12],
     ["Rect(3., 4.)", 12],
