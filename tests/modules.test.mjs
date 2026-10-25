@@ -83,6 +83,35 @@ Slot.setLock(sensor, 1, true)`;
     expect(devices.d1.SettingOutput).toBe(3);
   });
 
+  test("slot reads and writes on batch and named devices", () => {
+    const tray = hash("StructureHydroponicsTray");
+    const net = [
+      { prefabHash: tray, nameHash: hash("T1"), values: {}, slots: [{ Seeding: 1, Health: 0.5 }] },
+      { prefabHash: tray, nameHash: hash("T2"), values: {}, slots: [{ Seeding: -1, Health: 1 }] },
+    ];
+    const p = `
+let seeds = (name: string) => named(hash("StructureHydroponicsTray"), hash(name))->Slot.seeding(0) > 0. ? 1 : 0
+let trays = batch(hash("StructureHydroponicsTray"))
+s(db, "Setting", seeds("T1") + seeds("T2"))
+s(db, "Mode", ls(trays, 0, "Health"))
+trays->Slot.setLock(0, true)`;
+    const { devices, code } = run(p, { network: net });
+    expect(devices.db).toEqual({ Setting: 1, Mode: 1 });
+    expect(net.map((d) => d.slots[0].Lock)).toEqual([1, 1]);
+    expect(code).toMatch(/^lbns r\d+ HASH\("StructureHydroponicsTray"\) HASH\("T1"\) 0 Seeding Maximum$/m);
+    expect(code).toMatch(/^lbs r\d+ HASH\("StructureHydroponicsTray"\) 0 Health Maximum$/m);
+    expect(code).toMatch(/^sbs HASH\("StructureHydroponicsTray"\) 0 Lock r\d+$/m);
+    expect(compileError(`let t = named(hash("A"), hash("B"))\nss(t, 0, "Lock", 1)`)).toMatch(/no instruction to write a slot of a named device/);
+  });
+
+  test("hash() of a compile-time string", () => {
+    const p = `let name = "Main"\nlet h = (n: string) => hash(n)\ns(db, "Setting", h("Tank") + hash(name))`;
+    expect(asm(p)).toMatch(/HASH\("Tank"\)/);
+    expect(asm(p)).toMatch(/HASH\("Main"\)/);
+    expect(run(p).devices.db.Setting).toBe(hash("Tank") + hash("Main"));
+    expect(compileError(`let x = hash(l(d0, "Setting"))`)).toMatch(/string known at compile time/);
+  });
+
   test("arity errors", () => {
     expect(compileError(`let x = Logic.temperature(d0, 1)`)).toMatch(/got 2 argument/);
   });

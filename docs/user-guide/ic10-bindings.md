@@ -30,8 +30,8 @@ screw. Each alias costs one line, which is why it is opt-in.
 | `lm(batchDev, "Pressure", Average)` | `lb`/`lbn` with an explicit batch mode |
 | `dev->Logic.temperature`, `dev->Logic.setOn(v)` | the same as `l`/`s` with a checked logic type |
 | `Slot.occupied(dev, slot)`, `Slot.setLock(dev, slot, v)` | the same as `ls`/`ss` |
-| `ls(dev, slot, "Occupied")` | `ls r? d? slot Occupied` |
-| `ss(dev, slot, "Lock", v)` | `ss d? slot Lock v` |
+| `ls(dev, slot, "Occupied")` | `ls r? d? slot Occupied`; on a batch device `lbs`/`lbns ... Maximum` |
+| `ss(dev, slot, "Lock", v)` | `ss d? slot Lock v`; on `batch(...)` `sbs` (the game has no slot write for named devices) |
 | `lr(dev, Contents, reagentHash)` | `lr r? d? Contents hash` |
 
 `ss`/`sbs` take their value from a register in the game; the compiler inserts a `move` when
@@ -59,7 +59,9 @@ sb(Prefab.structureAdvancedFurnace, "On", 1)
 
 For 44 newer prefabs the prefab name is not known (only the hash and the display name are
 published); their accessor is derived from the display name and compiles to the number.
-`hash("...")` still works for anything, including device names you set in game.
+`hash("...")` still works for anything, including device names you set in game. Its argument
+can be any string known at compile time, e.g. a parameter of a helper:
+`let tray = (name: string) => named(Prefab.structureHydroponicsTray, hash(name))`.
 
 ## Batch operations
 

@@ -1765,7 +1765,13 @@ and genBuiltin = (ctx, env, name: string, allArgs: array<expr>, loc): option<val
     expectArgs(1)
     switch arg(0).desc {
     | String(s) => Some(VScalar(Hash(s), KInt))
-    | _ => fail(~fn, ~loc, "hash() expects a string literal")
+    | _ =>
+      // a parameter of an inlined function or a let-bound string is known here
+      switch gen(ctx, env, arg(0), ~want=true) {
+      | VString(s) => Some(VScalar(Hash(s), KInt))
+      | other =>
+        fail(~fn, ~loc, `hash() expects a string known at compile time, got ${describeValue(other)}`)
+      }
     }
   | "l" =>
     expectArgs(2)
@@ -1819,19 +1825,38 @@ and genBuiltin = (ctx, env, name: string, allArgs: array<expr>, loc): option<val
     emit(ctx, DeviceStore(BatchNamed(h, n), prop, v))
     Some(VUnit)
   | "ls" =>
+    // batch and named devices read like l(): the Maximum over matching devices
     expectArgs(3)
-    let p = argPin(0)
+    let d = argDevice(0)
     let slot = argScalar(1)
     let prop = argToken(2)
-    Some(native("ls", ~out=true, ~effects=false, [ADev(p), AOp(slot), ATok(prop)]))
+    switch d {
+    | Pin(p) => Some(native("ls", ~out=true, ~effects=false, [ADev(p), AOp(slot), ATok(prop)]))
+    | Batch(h) =>
+      Some(native("lbs", ~out=true, ~effects=false, [AOp(h), AOp(slot), ATok(prop), ATok("Maximum")]))
+    | BatchNamed(h, n) =>
+      Some(
+        native(
+          "lbns",
+          ~out=true,
+          ~effects=false,
+          [AOp(h), AOp(n), AOp(slot), ATok(prop), ATok("Maximum")],
+        ),
+      )
+    }
   | "ss" =>
-    // the game only accepts a register as the value of ss
+    // the game only accepts a register as the value of ss/sbs
     expectArgs(4)
-    let p = argPin(0)
+    let d = argDevice(0)
     let slot = argScalar(1)
     let prop = argToken(2)
     let v = inRegister(argScalar(3))
-    Some(native("ss", ~out=false, ~effects=true, [ADev(p), AOp(slot), ATok(prop), AOp(v)]))
+    switch d {
+    | Pin(p) => Some(native("ss", ~out=false, ~effects=true, [ADev(p), AOp(slot), ATok(prop), AOp(v)]))
+    | Batch(h) => Some(native("sbs", ~out=false, ~effects=true, [AOp(h), AOp(slot), ATok(prop), AOp(v)]))
+    | BatchNamed(_) =>
+      fail(~fn, ~loc, "the game has no instruction to write a slot of a named device", ~hint="use batch(prefab) or a pin")
+    }
   | "lbs" =>
     expectArgs(4)
     let h = argScalar(0)

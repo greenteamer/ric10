@@ -7,6 +7,8 @@
 - `ric10 watch [dir]`: recompiles `.res` files on save and runs the project's
   `rescript watch` alongside; `npm run watch` in projects from `ric10 init`.
 
+- `ls`/`ss` and `Slot.*` work on batch and named devices (`lbs`/`lbns`/`sbs`).
+- `hash()` accepts any compile-time string, e.g. a parameter of an inlined helper.
 - A `switch` that maps constructors to numbers linear in the tag (`| Idle => 0 | Busy => 1`)
   compiles to arithmetic on the tag instead of a chain of branches.
 
